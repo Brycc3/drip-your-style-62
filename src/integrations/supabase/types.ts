@@ -30,6 +30,7 @@ export type Database = {
           material: string | null
           name: string
           notes: string | null
+          pinned: boolean
           price: number | null
           season: Database["public"]["Enums"]["season"]
           secondary_colors: string[]
@@ -55,6 +56,7 @@ export type Database = {
           material?: string | null
           name: string
           notes?: string | null
+          pinned?: boolean
           price?: number | null
           season?: Database["public"]["Enums"]["season"]
           secondary_colors?: string[]
@@ -80,6 +82,7 @@ export type Database = {
           material?: string | null
           name?: string
           notes?: string | null
+          pinned?: boolean
           price?: number | null
           season?: Database["public"]["Enums"]["season"]
           secondary_colors?: string[]
@@ -163,6 +166,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      item_wears: {
+        Row: {
+          closet_item_id: string
+          created_at: string
+          id: string
+          user_id: string
+          worn_on: string
+        }
+        Insert: {
+          closet_item_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+          worn_on?: string
+        }
+        Update: {
+          closet_item_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          worn_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_wears_closet_item_id_fkey"
+            columns: ["closet_item_id"]
+            isOneToOne: false
+            referencedRelation: "closet_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       outfit_comments: {
         Row: {
@@ -405,10 +440,14 @@ export type Database = {
           explanation: string | null
           fragrance_id: string | null
           id: string
+          is_shopping_idea: boolean
           name: string | null
           occasion: string | null
+          pinned: boolean
+          planned_for: string | null
           score: number | null
           share_slug: string | null
+          shop_catalog_id: string | null
           temperature_f: number | null
           user_id: string
           vibe: string | null
@@ -423,10 +462,14 @@ export type Database = {
           explanation?: string | null
           fragrance_id?: string | null
           id?: string
+          is_shopping_idea?: boolean
           name?: string | null
           occasion?: string | null
+          pinned?: boolean
+          planned_for?: string | null
           score?: number | null
           share_slug?: string | null
+          shop_catalog_id?: string | null
           temperature_f?: number | null
           user_id: string
           vibe?: string | null
@@ -441,10 +484,14 @@ export type Database = {
           explanation?: string | null
           fragrance_id?: string | null
           id?: string
+          is_shopping_idea?: boolean
           name?: string | null
           occasion?: string | null
+          pinned?: boolean
+          planned_for?: string | null
           score?: number | null
           share_slug?: string | null
+          shop_catalog_id?: string | null
           temperature_f?: number | null
           user_id?: string
           vibe?: string | null
@@ -452,7 +499,15 @@ export type Database = {
           weather?: string | null
           worn_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_outfits_shop_catalog_id_fkey"
+            columns: ["shop_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shop_catalog: {
         Row: {
@@ -702,7 +757,13 @@ export type Database = {
         Returns: boolean
       }
       outfit_signature: { Args: { _outfit_id: string }; Returns: string }
+      record_item_wear: {
+        Args: { _item_id: string; _worn_on?: string }
+        Returns: string
+      }
       record_outfit_wear: { Args: { _outfit_id: string }; Returns: undefined }
+      remove_item_wear: { Args: { _wear_id: string }; Returns: undefined }
+      remove_outfit_wear: { Args: { _wear_id: string }; Returns: undefined }
     }
     Enums: {
       formality:
