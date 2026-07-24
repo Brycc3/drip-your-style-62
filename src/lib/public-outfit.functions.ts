@@ -6,6 +6,16 @@ import { z } from "zod";
  * then signs closet image paths so visitors get short-lived URLs without
  * being able to browse the private bucket.
  */
+export type PublicPiece = {
+  id: string;
+  name: string;
+  category: string;
+  brand: string | null;
+  color: string | null;
+  role: string | null;
+  url: string | null;
+};
+
 export const getPublicOutfitAssets = createServerFn({ method: "GET" })
   .inputValidator((input: { slug: string }) => z.object({ slug: z.string().min(1).max(80) }).parse(input))
   .handler(async ({ data }) => {
@@ -18,34 +28,40 @@ export const getPublicOutfitAssets = createServerFn({ method: "GET" })
       .maybeSingle();
 
     if (!outfit || outfit.visibility !== "public") {
-      return { cover: null as string | null, pieces: {} as Record<string, string> };
+      return { cover: null as string | null, pieces: [] as PublicPiece[] };
     }
 
     const { data: items } = await supabaseAdmin
       .from("outfit_items")
-      .select("closet_item_id, closet_items!inner(id, image_url)")
+      .select("role, closet_item_id, closet_items!inner(id, name, category, brand, color, image_url)")
       .eq("outfit_id", outfit.id);
 
-    const paths: string[] = [];
-    const idByPath: Record<string, string> = {};
-    for (const row of (items ?? []) as Array<{ closet_items: { id: string; image_url: string | null } }>) {
-      const ci = row.closet_items;
-      if (ci?.image_url) { paths.push(ci.image_url); idByPath[ci.image_url] = ci.id; }
-    }
-    if (outfit.cover_image_url && !idByPath[outfit.cover_image_url]) paths.push(outfit.cover_image_url);
+    type Row = { role: string | null; closet_items: { id: string; name: string; category: string; brand: string | null; color: string | null; image_url: string | null } };
+    const rows = (items ?? []) as unknown as Row[];
 
-    const pieces: Record<string, string> = {};
-    let cover: string | null = null;
+    const paths = rows.map((r) => r.closet_items.image_url).filter(Boolean) as string[];
+    if (outfit.cover_image_url && !paths.includes(outfit.cover_image_url)) paths.push(outfit.cover_image_url);
+
+    const urlByPath: Record<string, string> = {};
     if (paths.length) {
       const { data: signed } = await supabaseAdmin.storage.from("closet").createSignedUrls(paths, 60 * 60);
-      for (const s of signed ?? []) {
-        if (!s.signedUrl || !s.path) continue;
-        const id = idByPath[s.path];
-        if (id) pieces[id] = s.signedUrl;
-        if (s.path === outfit.cover_image_url) cover = s.signedUrl;
-      }
+      for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
     }
-    return { cover, pieces };
+
+    const pieces: PublicPiece[] = rows.map((r) => ({
+      id: r.closet_items.id,
+      name: r.closet_items.name,
+      category: r.closet_items.category,
+      brand: r.closet_items.brand,
+      color: r.closet_items.color,
+      role: r.role,
+      url: r.closet_items.image_url ? (urlByPath[r.closet_items.image_url] ?? null) : null,
+    }));
+
+    return {
+      cover: outfit.cover_image_url ? (urlByPath[outfit.cover_image_url] ?? null) : null,
+      pieces,
+    };
   });
 
 /**
