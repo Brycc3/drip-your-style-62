@@ -22,7 +22,7 @@ import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedGenerateRouteImport } from './routes/_authenticated/generate'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
-import { Route as AuthenticatedClosetRouteImport } from './routes/_authenticated/closet'
+import { Route as AuthenticatedClosetIndexRouteImport } from './routes/_authenticated/closet.index'
 import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
 import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
 
@@ -90,27 +90,27 @@ const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
   path: '/feed',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedClosetRoute = AuthenticatedClosetRouteImport.update({
-  id: '/closet',
-  path: '/closet',
+const AuthenticatedClosetIndexRoute =
+  AuthenticatedClosetIndexRouteImport.update({
+    id: '/closet/',
+    path: '/closet/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedClosetNewRoute = AuthenticatedClosetNewRouteImport.update({
+  id: '/closet/new',
+  path: '/closet/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedClosetNewRoute = AuthenticatedClosetNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AuthenticatedClosetRoute,
-} as any)
 const AuthenticatedClosetIdRoute = AuthenticatedClosetIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedClosetRoute,
+  id: '/closet/$id',
+  path: '/closet/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
-  '/closet': typeof AuthenticatedClosetRouteWithChildren
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -122,12 +122,12 @@ export interface FileRoutesByFullPath {
   '/u/$handle': typeof UHandleRoute
   '/closet/$id': typeof AuthenticatedClosetIdRoute
   '/closet/new': typeof AuthenticatedClosetNewRoute
+  '/closet/': typeof AuthenticatedClosetIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
-  '/closet': typeof AuthenticatedClosetRouteWithChildren
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -139,6 +139,7 @@ export interface FileRoutesByTo {
   '/u/$handle': typeof UHandleRoute
   '/closet/$id': typeof AuthenticatedClosetIdRoute
   '/closet/new': typeof AuthenticatedClosetNewRoute
+  '/closet': typeof AuthenticatedClosetIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -146,7 +147,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
-  '/_authenticated/closet': typeof AuthenticatedClosetRouteWithChildren
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/generate': typeof AuthenticatedGenerateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -158,6 +158,7 @@ export interface FileRoutesById {
   '/u/$handle': typeof UHandleRoute
   '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRoute
   '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
+  '/_authenticated/closet/': typeof AuthenticatedClosetIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -165,7 +166,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/onboarding'
-    | '/closet'
     | '/feed'
     | '/generate'
     | '/home'
@@ -177,12 +177,12 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/closet/$id'
     | '/closet/new'
+    | '/closet/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/onboarding'
-    | '/closet'
     | '/feed'
     | '/generate'
     | '/home'
@@ -194,13 +194,13 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/closet/$id'
     | '/closet/new'
+    | '/closet'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/onboarding'
-    | '/_authenticated/closet'
     | '/_authenticated/feed'
     | '/_authenticated/generate'
     | '/_authenticated/home'
@@ -212,6 +212,7 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/_authenticated/closet/$id'
     | '/_authenticated/closet/new'
+    | '/_authenticated/closet/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -316,45 +317,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFeedRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/closet': {
-      id: '/_authenticated/closet'
+    '/_authenticated/closet/': {
+      id: '/_authenticated/closet/'
       path: '/closet'
-      fullPath: '/closet'
-      preLoaderRoute: typeof AuthenticatedClosetRouteImport
+      fullPath: '/closet/'
+      preLoaderRoute: typeof AuthenticatedClosetIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/closet/new': {
       id: '/_authenticated/closet/new'
-      path: '/new'
+      path: '/closet/new'
       fullPath: '/closet/new'
       preLoaderRoute: typeof AuthenticatedClosetNewRouteImport
-      parentRoute: typeof AuthenticatedClosetRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/closet/$id': {
       id: '/_authenticated/closet/$id'
-      path: '/$id'
+      path: '/closet/$id'
       fullPath: '/closet/$id'
       preLoaderRoute: typeof AuthenticatedClosetIdRouteImport
-      parentRoute: typeof AuthenticatedClosetRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
-interface AuthenticatedClosetRouteChildren {
-  AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRoute
-  AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
-}
-
-const AuthenticatedClosetRouteChildren: AuthenticatedClosetRouteChildren = {
-  AuthenticatedClosetIdRoute: AuthenticatedClosetIdRoute,
-  AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
-}
-
-const AuthenticatedClosetRouteWithChildren =
-  AuthenticatedClosetRoute._addFileChildren(AuthenticatedClosetRouteChildren)
-
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedClosetRoute: typeof AuthenticatedClosetRouteWithChildren
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedGenerateRoute: typeof AuthenticatedGenerateRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
@@ -362,10 +349,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedScentsRoute: typeof AuthenticatedScentsRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
+  AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRoute
+  AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
+  AuthenticatedClosetIndexRoute: typeof AuthenticatedClosetIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedClosetRoute: AuthenticatedClosetRouteWithChildren,
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedGenerateRoute: AuthenticatedGenerateRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
@@ -373,6 +362,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedScentsRoute: AuthenticatedScentsRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
+  AuthenticatedClosetIdRoute: AuthenticatedClosetIdRoute,
+  AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
+  AuthenticatedClosetIndexRoute: AuthenticatedClosetIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
