@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrl } from "@/lib/closet-storage";
+import { getPublicOutfitCovers } from "@/lib/public-outfit.functions";
 import { Flame, Clock, Trophy, MessageCircle, Heart } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/feed")({
