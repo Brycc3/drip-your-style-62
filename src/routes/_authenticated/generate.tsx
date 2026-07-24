@@ -90,7 +90,8 @@ function GeneratePage() {
         supabase
           .from("closet_items")
           .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
-          .eq("user_id", uid),
+          .eq("user_id", uid)
+          .eq("archived", false),
         supabase
           .from("wear_history")
           .select("outfit_id")
@@ -342,7 +343,43 @@ function GeneratePage() {
       return;
     }
     setWornIds((s) => new Set(s).add(idx));
-    toast.success("Marked as worn");
+    // Fetch the wear row we just created so Undo can target it.
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    let wearId: string | null = null;
+    if (uid) {
+      const { data: wh } = await supabase
+        .from("wear_history")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("outfit_id", outfitId)
+        .eq("worn_on", today)
+        .maybeSingle();
+      wearId = wh?.id ?? null;
+    }
+    toast.success("Marked as worn", {
+      action: wearId
+        ? {
+            label: "Undo",
+            onClick: async () => {
+              const { error: rerr } = await supabase.rpc("remove_outfit_wear", {
+                _wear_id: wearId,
+              });
+              if (rerr) {
+                toast.error(rerr.message);
+                return;
+              }
+              setWornIds((s) => {
+                const next = new Set(s);
+                next.delete(idx);
+                return next;
+              });
+              toast.success("Wear undone");
+            },
+          }
+        : undefined,
+    });
   }
 
   if (loading) return <p className="text-sm text-muted-foreground">Reading your closet…</p>;

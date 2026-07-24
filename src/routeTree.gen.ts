@@ -25,6 +25,7 @@ import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/f
 import { Route as AuthenticatedClosetIndexRouteImport } from './routes/_authenticated/closet.index'
 import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
 import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
+import { Route as AuthenticatedClosetIdEditRouteImport } from './routes/_authenticated/closet.$id.edit'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
@@ -106,6 +107,12 @@ const AuthenticatedClosetIdRoute = AuthenticatedClosetIdRouteImport.update({
   path: '/closet/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedClosetIdEditRoute =
+  AuthenticatedClosetIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => AuthenticatedClosetIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -120,9 +127,10 @@ export interface FileRoutesByFullPath {
   '/swipe': typeof AuthenticatedSwipeRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
-  '/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
   '/closet/': typeof AuthenticatedClosetIndexRoute
+  '/closet/$id/edit': typeof AuthenticatedClosetIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -137,9 +145,10 @@ export interface FileRoutesByTo {
   '/swipe': typeof AuthenticatedSwipeRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
-  '/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
   '/closet': typeof AuthenticatedClosetIndexRoute
+  '/closet/$id/edit': typeof AuthenticatedClosetIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -156,9 +165,10 @@ export interface FileRoutesById {
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
-  '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
   '/_authenticated/closet/': typeof AuthenticatedClosetIndexRoute
+  '/_authenticated/closet/$id/edit': typeof AuthenticatedClosetIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/closet/$id'
     | '/closet/new'
     | '/closet/'
+    | '/closet/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/closet/$id'
     | '/closet/new'
     | '/closet'
+    | '/closet/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/closet/$id'
     | '/_authenticated/closet/new'
     | '/_authenticated/closet/'
+    | '/_authenticated/closet/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -338,8 +351,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClosetIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/closet/$id/edit': {
+      id: '/_authenticated/closet/$id/edit'
+      path: '/edit'
+      fullPath: '/closet/$id/edit'
+      preLoaderRoute: typeof AuthenticatedClosetIdEditRouteImport
+      parentRoute: typeof AuthenticatedClosetIdRoute
+    }
   }
 }
+
+interface AuthenticatedClosetIdRouteChildren {
+  AuthenticatedClosetIdEditRoute: typeof AuthenticatedClosetIdEditRoute
+}
+
+const AuthenticatedClosetIdRouteChildren: AuthenticatedClosetIdRouteChildren = {
+  AuthenticatedClosetIdEditRoute: AuthenticatedClosetIdEditRoute,
+}
+
+const AuthenticatedClosetIdRouteWithChildren =
+  AuthenticatedClosetIdRoute._addFileChildren(
+    AuthenticatedClosetIdRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
@@ -349,7 +382,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedScentsRoute: typeof AuthenticatedScentsRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
-  AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRoute
+  AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRouteWithChildren
   AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
   AuthenticatedClosetIndexRoute: typeof AuthenticatedClosetIndexRoute
 }
@@ -362,7 +395,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedScentsRoute: AuthenticatedScentsRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
-  AuthenticatedClosetIdRoute: AuthenticatedClosetIdRoute,
+  AuthenticatedClosetIdRoute: AuthenticatedClosetIdRouteWithChildren,
   AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
   AuthenticatedClosetIndexRoute: AuthenticatedClosetIndexRoute,
 }
