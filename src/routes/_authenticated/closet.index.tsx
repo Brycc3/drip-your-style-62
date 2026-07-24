@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrl } from "@/lib/closet-storage";
 import { Plus } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/closet")({
+export const Route = createFileRoute("/_authenticated/closet/")({
   head: () => ({
     meta: [
       { title: "Closet — DRIP" },
