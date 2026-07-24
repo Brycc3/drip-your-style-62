@@ -92,6 +92,24 @@ export type Database = {
         }
         Relationships: []
       }
+      follows: {
+        Row: {
+          created_at: string
+          followee_id: string
+          follower_id: string
+        }
+        Insert: {
+          created_at?: string
+          followee_id: string
+          follower_id: string
+        }
+        Update: {
+          created_at?: string
+          followee_id?: string
+          follower_id?: string
+        }
+        Relationships: []
+      }
       fragrances: {
         Row: {
           base_notes: string[]
@@ -146,6 +164,55 @@ export type Database = {
         }
         Relationships: []
       }
+      outfit_comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          outfit_id: string
+          parent_id: string | null
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          outfit_id: string
+          parent_id?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          outfit_id?: string
+          parent_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_comments_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_comments_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "outfit_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outfit_feedback: {
         Row: {
           created_at: string
@@ -172,6 +239,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "outfit_feedback_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "outfit_feedback_outfit_id_fkey"
             columns: ["outfit_id"]
@@ -209,6 +283,79 @@ export type Database = {
             foreignKeyName: "outfit_items_outfit_id_fkey"
             columns: ["outfit_id"]
             isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_items_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outfit_likes: {
+        Row: {
+          created_at: string
+          outfit_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          outfit_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          outfit_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_likes_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_likes_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outfit_saves: {
+        Row: {
+          created_at: string
+          outfit_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          outfit_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          outfit_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_saves_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_saves_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
             referencedRelation: "saved_outfits"
             referencedColumns: ["id"]
           },
@@ -217,25 +364,34 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
           display_name: string | null
+          handle: string | null
           id: string
+          is_public: boolean
           onboarded: boolean
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
+          handle?: string | null
           id: string
+          is_public?: boolean
           onboarded?: boolean
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
+          handle?: string | null
           id?: string
+          is_public?: boolean
           onboarded?: boolean
           updated_at?: string
         }
@@ -243,6 +399,7 @@ export type Database = {
       }
       saved_outfits: {
         Row: {
+          cover_image_url: string | null
           created_at: string
           dress_code: Database["public"]["Enums"]["formality"] | null
           explanation: string | null
@@ -251,12 +408,16 @@ export type Database = {
           name: string | null
           occasion: string | null
           score: number | null
+          share_slug: string | null
           temperature_f: number | null
           user_id: string
           vibe: string | null
+          visibility: Database["public"]["Enums"]["outfit_visibility"]
           weather: string | null
+          worn_at: string | null
         }
         Insert: {
+          cover_image_url?: string | null
           created_at?: string
           dress_code?: Database["public"]["Enums"]["formality"] | null
           explanation?: string | null
@@ -265,12 +426,16 @@ export type Database = {
           name?: string | null
           occasion?: string | null
           score?: number | null
+          share_slug?: string | null
           temperature_f?: number | null
           user_id: string
           vibe?: string | null
+          visibility?: Database["public"]["Enums"]["outfit_visibility"]
           weather?: string | null
+          worn_at?: string | null
         }
         Update: {
+          cover_image_url?: string | null
           created_at?: string
           dress_code?: Database["public"]["Enums"]["formality"] | null
           explanation?: string | null
@@ -279,10 +444,13 @@ export type Database = {
           name?: string | null
           occasion?: string | null
           score?: number | null
+          share_slug?: string | null
           temperature_f?: number | null
           user_id?: string
           vibe?: string | null
+          visibility?: Database["public"]["Enums"]["outfit_visibility"]
           weather?: string | null
+          worn_at?: string | null
         }
         Relationships: []
       }
@@ -444,6 +612,13 @@ export type Database = {
             foreignKeyName: "wear_history_outfit_id_fkey"
             columns: ["outfit_id"]
             isOneToOne: false
+            referencedRelation: "outfit_leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wear_history_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
             referencedRelation: "saved_outfits"
             referencedColumns: ["id"]
           },
@@ -451,10 +626,54 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      outfit_leaderboard: {
+        Row: {
+          comment_count: number | null
+          cover_image_url: string | null
+          created_at: string | null
+          id: string | null
+          like_count: number | null
+          name: string | null
+          occasion: string | null
+          share_slug: string | null
+          trending_score: number | null
+          user_id: string | null
+          vibe: string | null
+        }
+        Insert: {
+          comment_count?: never
+          cover_image_url?: string | null
+          created_at?: string | null
+          id?: string | null
+          like_count?: never
+          name?: string | null
+          occasion?: string | null
+          share_slug?: string | null
+          trending_score?: never
+          user_id?: string | null
+          vibe?: string | null
+        }
+        Update: {
+          comment_count?: never
+          cover_image_url?: string | null
+          created_at?: string | null
+          id?: string | null
+          like_count?: never
+          name?: string | null
+          occasion?: string | null
+          share_slug?: string | null
+          trending_score?: never
+          user_id?: string | null
+          vibe?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      is_following: {
+        Args: { _followee: string; _follower: string }
+        Returns: boolean
+      }
     }
     Enums: {
       formality:
@@ -465,6 +684,7 @@ export type Database = {
         | "formal"
       item_condition: "new" | "vintage" | "thrift" | "resale"
       item_kind: "clothing" | "shoes" | "accessory" | "fragrance"
+      outfit_visibility: "private" | "friends" | "public"
       season: "spring" | "summer" | "fall" | "winter" | "all"
     }
     CompositeTypes: {
@@ -596,6 +816,7 @@ export const Constants = {
       formality: ["loungewear", "casual", "smart_casual", "business", "formal"],
       item_condition: ["new", "vintage", "thrift", "resale"],
       item_kind: ["clothing", "shoes", "accessory", "fragrance"],
+      outfit_visibility: ["private", "friends", "public"],
       season: ["spring", "summer", "fall", "winter", "all"],
     },
   },

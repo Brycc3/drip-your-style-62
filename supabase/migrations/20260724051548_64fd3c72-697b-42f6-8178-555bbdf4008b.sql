@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.is_following(uuid, uuid) FROM PUBLIC, anon, authenticated;

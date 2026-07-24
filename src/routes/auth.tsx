@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { checkEmailProviders } from "@/lib/auth-check.functions";
 import { toast } from "sonner";
 
 const searchSchema = z.object({ mode: z.enum(["signin", "signup"]).optional() });
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Sign in — DRIP" },
@@ -59,7 +61,22 @@ function AuthPage() {
           email: emailR.data,
           password: passR.data,
         });
-        if (error) throw error;
+        if (error) {
+          // Diagnose: does this email exist via Google only?
+          try {
+            const info = await checkEmailProviders({ data: { email: emailR.data } });
+            if (info.exists && info.providers.includes("google") && !info.providers.includes("email")) {
+              toast.error("This email uses Google sign-in — tap Continue with Google above.");
+            } else if (info.exists && !info.confirmed) {
+              toast.error("Please confirm your email first — check your inbox.");
+            } else {
+              toast.error("Wrong email or password.");
+            }
+          } catch {
+            toast.error(error.message);
+          }
+          return;
+        }
         navigate({ to: "/home", replace: true });
       }
     } catch (err) {
@@ -94,9 +111,7 @@ function AuthPage() {
           {mode === "signup" ? "Start your closet" : "Welcome back"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {mode === "signup"
-            ? "Every piece is private to you."
-            : "Sign in to your wardrobe."}
+          {mode === "signup" ? "Every piece is private to you." : "Sign in to your wardrobe."}
         </p>
 
         <button
