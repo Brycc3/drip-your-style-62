@@ -77,9 +77,7 @@ function AuthPage() {
           password: passR.data,
         });
         if (signInErr) {
-          setFormError(
-            "Account created. Check your email to confirm, then sign in.",
-          );
+          setFormError("Account created. Check your email to confirm, then sign in.");
           setMode("signin");
           return;
         }
@@ -97,9 +95,7 @@ function AuthPage() {
               info.providers.includes("google") &&
               !info.providers.includes("email")
             ) {
-              setFormError(
-                "This email uses Google sign-in. Tap Continue with Google below.",
-              );
+              setFormError("This email uses Google sign-in. Tap Continue with Google below.");
             } else if (info.exists && !info.confirmed) {
               setFormError("Please confirm your email first — check your inbox.");
             } else {
