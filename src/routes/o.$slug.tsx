@@ -52,10 +52,9 @@ function OutfitPage() {
       if (!o) { setLoading(false); return; }
       setOutfit(o as Outfit);
 
-      const [{ data: prof }, { data: userData }, { data: oi }, { count: lc }, { data: cs }] = await Promise.all([
+      const [{ data: prof }, { data: userData }, { count: lc }, { data: cs }] = await Promise.all([
         supabase.from("profiles").select("handle, display_name").eq("id", o.user_id).maybeSingle(),
         supabase.auth.getUser(),
-        supabase.from("outfit_items").select("closet_item_id, role").eq("outfit_id", o.id),
         supabase.from("outfit_likes").select("*", { count: "exact", head: true }).eq("outfit_id", o.id),
         supabase.from("outfit_comments").select("*").eq("outfit_id", o.id).order("created_at", { ascending: true }),
       ]);
@@ -73,13 +72,18 @@ function OutfitPage() {
         setLiked(Boolean(lk)); setSaved(Boolean(sv));
       }
 
-      const itemIds = (oi ?? []).map((r) => r.closet_item_id);
-      const assets = await getPublicOutfitAssets({ data: { slug } }).catch(() => ({ cover: null, pieces: {} as Record<string, string> }));
-      if (itemIds.length) {
-        const { data: items } = await supabase.from("closet_items").select("id, name, category, brand, color, image_url").in("id", itemIds);
-        setPieces((items ?? []) as Piece[]);
-        setUrls(assets.pieces);
-      }
+      const assets = await getPublicOutfitAssets({ data: { slug } }).catch(() => ({ cover: null, pieces: [] as Array<{ id: string; name: string; category: string; brand: string | null; color: string | null; role: string | null; url: string | null }> }));
+      setPieces(
+        assets.pieces.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          brand: p.brand,
+          color: p.color,
+          image_url: null,
+        })),
+      );
+      setUrls(Object.fromEntries(assets.pieces.filter((p) => p.url).map((p) => [p.id, p.url!])));
       setCoverUrl(assets.cover);
 
       const authorIds = Array.from(new Set((cs ?? []).map((c) => c.user_id)));
