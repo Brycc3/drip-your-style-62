@@ -138,6 +138,11 @@ function ShopPage() {
                   <ul className="mt-1 space-y-0.5">
                     {g.reasons.map((r, i) => <li key={i} className="text-xs text-muted-foreground">· {r}</li>)}
                   </ul>
+                  {g.matches.length > 0 && (
+                    <p className="mt-1 text-[11px] text-foreground/70">
+                      Pairs with: <span className="text-foreground/90">{g.matches.slice(0, 3).map((m) => m.name).join(", ")}</span>
+                    </p>
+                  )}
                   <div className="mt-2 flex gap-2">
                     <button onClick={() => feedback(g.item.id, "save")} disabled={saved.has(g.item.id)}
                       className="flex-1 rounded-full border border-border py-1.5 text-[10px] uppercase tracking-widest hover:bg-surface-2 disabled:opacity-60 flex items-center justify-center gap-1">
