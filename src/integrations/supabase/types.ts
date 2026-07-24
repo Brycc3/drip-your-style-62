@@ -674,6 +674,8 @@ export type Database = {
         Args: { _followee: string; _follower: string }
         Returns: boolean
       }
+      outfit_signature: { Args: { _outfit_id: string }; Returns: string }
+      record_outfit_wear: { Args: { _outfit_id: string }; Returns: undefined }
     }
     Enums: {
       formality:
