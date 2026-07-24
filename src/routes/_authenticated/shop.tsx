@@ -36,14 +36,14 @@ function ShopPage() {
       const [{ data: cat }, ci, fb] = await Promise.all([
         supabase.from("shop_catalog").select("id,name,brand,category,color,price,condition,image_url,formality,season").order("created_at", { ascending: false }),
         u ? supabase.from("closet_items").select("id,name,category,kind,color,material,fit,season,formality,brand,image_url").eq("user_id", u) : Promise.resolve({ data: [] }),
-        u ? supabase.from("shop_feedback").select("catalog_id, action").eq("user_id", u) : Promise.resolve({ data: [] }),
+        u ? supabase.from("shop_feedback").select("catalog_id, saved, dismissed").eq("user_id", u) : Promise.resolve({ data: [] }),
       ]);
       setCatalog((cat ?? []) as CatalogItem[]);
       setCloset(((ci.data ?? []) as unknown[]).filter((i) => (i as ClosetItem).kind !== "fragrance") as ClosetItem[]);
       const dSet = new Set<string>(), sSet = new Set<string>();
-      for (const r of (fb.data ?? []) as Array<{ catalog_id: string; action: string }>) {
-        if (r.action === "dismiss") dSet.add(r.catalog_id);
-        if (r.action === "save") sSet.add(r.catalog_id);
+      for (const r of (fb.data ?? []) as Array<{ catalog_id: string; saved: boolean; dismissed: boolean }>) {
+        if (r.dismissed) dSet.add(r.catalog_id);
+        if (r.saved) sSet.add(r.catalog_id);
       }
       setDismissed(dSet); setSaved(sSet);
       setLoading(false);
