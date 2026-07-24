@@ -17,7 +17,8 @@ const PRIMARY_PATHS = new Set(tabs.map((t) => t.to as string));
 // Contextual fallback when browser history has no in-app entry.
 function fallbackFor(pathname: string): string {
   if (pathname.startsWith("/closet/")) return "/closet";
-  if (pathname.startsWith("/saved/") || pathname === "/saved") return "/generate";
+  if (pathname === "/saved" || pathname.startsWith("/saved/")) return "/generate";
+  if (pathname === "/taste" || pathname === "/inspo" || pathname === "/swipe") return "/generate";
   if (pathname.startsWith("/o/")) return "/feed";
   if (pathname.startsWith("/u/")) return "/feed";
   if (pathname.startsWith("/shop/")) return "/shop";

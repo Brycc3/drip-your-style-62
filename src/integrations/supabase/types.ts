@@ -255,6 +255,7 @@ export type Database = {
           liked: boolean
           outfit_id: string | null
           signature: string
+          snapshot: Json | null
           user_id: string
         }
         Insert: {
@@ -263,6 +264,7 @@ export type Database = {
           liked: boolean
           outfit_id?: string | null
           signature: string
+          snapshot?: Json | null
           user_id: string
         }
         Update: {
@@ -271,6 +273,7 @@ export type Database = {
           liked?: boolean
           outfit_id?: string | null
           signature?: string
+          snapshot?: Json | null
           user_id?: string
         }
         Relationships: [

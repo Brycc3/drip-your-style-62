@@ -14,6 +14,7 @@ import {
 import { detectWeather, readCachedWeather, type Weather } from "@/lib/weather";
 import { toast } from "sonner";
 import { Sparkles, RefreshCw, Save, Share2, Check, MapPin, Copy, ExternalLink } from "lucide-react";
+import { StyleTabs } from "@/components/StyleTabs";
 
 export const Route = createFileRoute("/_authenticated/generate")({
   head: () => ({
@@ -399,10 +400,12 @@ function GeneratePage() {
 
   return (
     <div className="space-y-6">
+      <StyleTabs />
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-primary">Outfit generator</p>
         <h1 className="mt-1 font-display text-4xl">Get dressed</h1>
       </div>
+
 
       {!hasEnough ? (
         <div className="card-surface p-6">
