@@ -144,12 +144,7 @@ function GeneratePage() {
     if (!outfitId) return;
     const pieces = [pick.top, pick.bottom, pick.outerwear, pick.shoes, pick.accessory].filter(Boolean) as ClosetItem[];
     const now = new Date().toISOString();
-    await Promise.all([
-      supabase.from("wear_history").insert({ user_id: uid, outfit_id: outfitId, worn_on: now }),
-      ...pieces.map((p) =>
-        supabase.rpc("noop"), // placeholder if rpc missing
-      ),
-    ]).catch(() => null);
+    await supabase.from("wear_history").insert({ user_id: uid, outfit_id: outfitId, worn_on: now });
     // Increment via read-modify-write (small MVP; single request per piece)
     await Promise.all(pieces.map(async (p) => {
       const { data: cur } = await supabase.from("closet_items").select("times_worn").eq("id", p.id).maybeSingle();
