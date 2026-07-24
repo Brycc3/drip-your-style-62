@@ -257,7 +257,9 @@ function InspoPage() {
   function toggleLock(slot: SlotKey) {
     setLocked((l) => {
       const n = new Set(l);
-      n.has(slot) ? n.delete(slot) : n.add(slot);
+      if (n.has(slot)) n.delete(slot);
+      else n.add(slot);
+
       return n;
     });
   }
