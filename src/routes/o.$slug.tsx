@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrl } from "@/lib/closet-storage";
+import { getPublicOutfitAssets } from "@/lib/public-outfit.functions";
 import { toast } from "sonner";
 import { Heart, Bookmark, Share2 } from "lucide-react";
 
