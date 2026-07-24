@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrls } from "@/lib/closet-storage";
+import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { Shirt, Sparkles, ShoppingBag, TrendingUp } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
