@@ -25,6 +25,7 @@ const VIBES = [
   "Grunge",
   "Sporty",
   "Vintage",
+  "Other",
 ] as const;
 const COLORS = ["Black", "Cream", "Olive", "Charcoal", "Brown", "Navy", "Sage", "Rust"] as const;
 
@@ -34,15 +35,20 @@ function Onboarding() {
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState("");
   const [vibes, setVibes] = useState<string[]>([]);
+  const [customVibe, setCustomVibe] = useState("");
+  const [customVibeError, setCustomVibeError] = useState<string | null>(null);
   const [favColors, setFavColors] = useState<string[]>([]);
   const [topSize, setTopSize] = useState("M");
   const [bottomSize, setBottomSize] = useState("32");
   const [shoeSize, setShoeSize] = useState("10");
   const [saving, setSaving] = useState(false);
 
+  const otherSelected = vibes.includes("Other");
+
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth", replace: true });
   }, [loading, user, navigate]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -61,10 +67,37 @@ function Onboarding() {
     setter(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   }
 
+  function validateCustomVibe(): string | null {
+    if (!otherSelected) return null;
+    const t = customVibe.trim();
+    if (t.length < 2) return "Describe your vibe (2–60 characters)";
+    if (t.length > 60) return "Keep it under 60 characters";
+    return null;
+  }
+
+  function handleContinue() {
+    if (step === 2) {
+      const err = validateCustomVibe();
+      setCustomVibeError(err);
+      if (err) return;
+    }
+    setStep(step + 1);
+  }
+
   async function finish() {
     if (!user) return;
+    const err = validateCustomVibe();
+    if (err) {
+      setCustomVibeError(err);
+      setStep(2);
+      return;
+    }
     setSaving(true);
     try {
+      // Never persist the literal "Other" — replace it with the custom text.
+      const finalVibes = vibes
+        .filter((v) => v !== "Other")
+        .concat(otherSelected ? [customVibe.trim()] : []);
       const { error: pErr } = await supabase.from("profiles").upsert({
         id: user.id,
         display_name: displayName || null,
@@ -73,9 +106,10 @@ function Onboarding() {
       if (pErr) throw pErr;
       const { error: prefErr } = await supabase.from("user_preferences").upsert({
         user_id: user.id,
-        style_vibes: vibes,
+        style_vibes: finalVibes,
         favorite_colors: favColors,
         sizes: { top: topSize, bottom: bottomSize, shoe: shoeSize },
+        custom_vibes: otherSelected ? [customVibe.trim()] : [],
       });
       if (prefErr) throw prefErr;
       navigate({ to: "/home", replace: true });
@@ -85,6 +119,7 @@ function Onboarding() {
       setSaving(false);
     }
   }
+
 
   return (
     <div className="min-h-dvh bg-background">
@@ -128,6 +163,28 @@ function Onboarding() {
                   </Chip>
                 ))}
               </div>
+              {otherSelected && (
+                <label className="mt-4 block">
+                  <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                    Describe your vibe
+                  </span>
+                  <input
+                    value={customVibe}
+                    onChange={(e) => {
+                      setCustomVibe(e.target.value);
+                      if (customVibeError) setCustomVibeError(null);
+                    }}
+                    placeholder="e.g. clean Houston streetwear, vintage athlete"
+                    maxLength={60}
+                    className="mt-1 w-full rounded-lg border border-border bg-input px-4 py-3 outline-none focus:border-primary"
+                  />
+                  {customVibeError && (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      {customVibeError}
+                    </p>
+                  )}
+                </label>
+              )}
               <p className="mt-8 text-xs uppercase tracking-widest text-muted-foreground">
                 Favorite colors
               </p>
@@ -168,9 +225,10 @@ function Onboarding() {
             </button>
           )}
           {step < 3 ? (
-            <button onClick={() => setStep(step + 1)} className="btn-lime flex-1">
+            <button onClick={handleContinue} className="btn-lime flex-1">
               Continue
             </button>
+
           ) : (
             <button
               onClick={finish}
