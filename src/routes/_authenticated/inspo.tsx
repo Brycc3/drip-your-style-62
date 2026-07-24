@@ -616,7 +616,7 @@ function SuggestionTray({
         <CatalogGrid items={shopItems} onPick={onPickCatalog} />
       )}
 
-      {showCloset && !isFragrance && closetItems.length === 0 && source !== "shop" && (
+      {showCloset && !isFragrance && closetItems.length === 0 && (
         <p className="text-xs text-muted-foreground">
           No {SLOT_LABEL[slot].toLowerCase()}s in your closet.{" "}
           <Link to="/closet/new" className="text-primary underline">Add one</Link>
