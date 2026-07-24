@@ -196,7 +196,9 @@ function OutfitPage() {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied");
       }
-    } catch {}
+    } catch {
+      /* clipboard/share dismissed */
+    }
   }
   async function postComment() {
     if (!meId || !outfit) return toast.error("Sign in to comment");
