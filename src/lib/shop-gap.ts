@@ -179,6 +179,43 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
+// Accessory subcategory taxonomy — used by the Shop Accessories tab.
+export type AccessorySub =
+  | "hat" | "cap" | "beanie" | "belt" | "bag" | "watch"
+  | "jewelry" | "sunglasses" | "socks" | "scarf" | "wallet" | "other";
+
+export function accessorySubcategory(item: CatalogItem): AccessorySub {
+  const blob = `${item.category} ${item.name} ${item.brand ?? ""}`.toLowerCase();
+  if (/(beanie|toque)/.test(blob)) return "beanie";
+  if (/\bcap\b/.test(blob)) return "cap";
+  if (/(hat|bucket|fedora)/.test(blob)) return "hat";
+  if (/belt/.test(blob)) return "belt";
+  if (/(bag|tote|crossbody|backpack|sling|duffle|clutch)/.test(blob)) return "bag";
+  if (/watch/.test(blob)) return "watch";
+  if (/(chain|necklace|bracelet|ring|earring|jewel|pendant|grill)/.test(blob)) return "jewelry";
+  if (/(sunglass|shades|eyewear)/.test(blob)) return "sunglasses";
+  if (/sock/.test(blob)) return "socks";
+  if (/scarf/.test(blob)) return "scarf";
+  if (/wallet|cardholder/.test(blob)) return "wallet";
+  return "other";
+}
+
+// Fragrance family classifier (fresh/woody/warm/sweet/aquatic/floral).
+export type FragranceFamily =
+  | "fresh" | "woody" | "warm" | "sweet" | "aquatic" | "floral" | "leather" | "other";
+
+export function fragranceFamily(item: CatalogItem): FragranceFamily {
+  const blob = `${item.name} ${item.brand ?? ""} ${item.color ?? ""}`.toLowerCase();
+  if (/(aqua|marine|salt|ocean|sea)/.test(blob)) return "aquatic";
+  if (/(citrus|bergamot|lemon|mint|green|fresh|cologne)/.test(blob)) return "fresh";
+  if (/(oud|sandal|cedar|vetiver|wood)/.test(blob)) return "woody";
+  if (/(amber|spice|tobacco|warm|cinnamon|clove)/.test(blob)) return "warm";
+  if (/(vanilla|caramel|sweet|gourmand|choco|honey)/.test(blob)) return "sweet";
+  if (/(rose|jasmine|floral|iris|violet|lily)/.test(blob)) return "floral";
+  if (/leather|suede/.test(blob)) return "leather";
+  return "other";
+}
+
 export function hasValidBuyUrl(item: CatalogItem): boolean {
   if (!item.buy_url) return false;
   try {
