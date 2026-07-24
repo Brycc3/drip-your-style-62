@@ -66,7 +66,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex-1 pb-28">
-        <div className="container-app py-5">{children}</div>
+        <div className={`${wideRoutes.has(pathname) || pathname.startsWith("/shop") ? "container-wide" : "container-app"} py-5`}>
+          {children}
+        </div>
       </main>
 
       <nav className="safe-b fixed bottom-0 inset-x-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur">
