@@ -456,58 +456,82 @@ export type Database = {
       }
       shop_catalog: {
         Row: {
+          availability: string
           brand: string | null
+          buy_url: string | null
           category: string
           color: string | null
           condition: Database["public"]["Enums"]["item_condition"]
           created_at: string
+          current_price: number | null
           description: string | null
+          external_id: string | null
           fit: string | null
           formality: Database["public"]["Enums"]["formality"]
           id: string
           image_url: string | null
+          is_demo: boolean
           kind: Database["public"]["Enums"]["item_kind"]
+          last_checked_at: string | null
           material: string | null
           name: string
+          original_price: number | null
           price: number | null
+          retailer: string | null
           season: Database["public"]["Enums"]["season"]
           source: string | null
           tags: string[]
         }
         Insert: {
+          availability?: string
           brand?: string | null
+          buy_url?: string | null
           category: string
           color?: string | null
           condition?: Database["public"]["Enums"]["item_condition"]
           created_at?: string
+          current_price?: number | null
           description?: string | null
+          external_id?: string | null
           fit?: string | null
           formality?: Database["public"]["Enums"]["formality"]
           id?: string
           image_url?: string | null
+          is_demo?: boolean
           kind: Database["public"]["Enums"]["item_kind"]
+          last_checked_at?: string | null
           material?: string | null
           name: string
+          original_price?: number | null
           price?: number | null
+          retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
           tags?: string[]
         }
         Update: {
+          availability?: string
           brand?: string | null
+          buy_url?: string | null
           category?: string
           color?: string | null
           condition?: Database["public"]["Enums"]["item_condition"]
           created_at?: string
+          current_price?: number | null
           description?: string | null
+          external_id?: string | null
           fit?: string | null
           formality?: Database["public"]["Enums"]["formality"]
           id?: string
           image_url?: string | null
+          is_demo?: boolean
           kind?: Database["public"]["Enums"]["item_kind"]
+          last_checked_at?: string | null
           material?: string | null
           name?: string
+          original_price?: number | null
           price?: number | null
+          retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
           tags?: string[]
@@ -556,6 +580,7 @@ export type Database = {
         Row: {
           budget_range: string | null
           created_at: string
+          custom_vibes: string[]
           disliked_colors: string[]
           favorite_colors: string[]
           sizes: Json
@@ -566,6 +591,7 @@ export type Database = {
         Insert: {
           budget_range?: string | null
           created_at?: string
+          custom_vibes?: string[]
           disliked_colors?: string[]
           favorite_colors?: string[]
           sizes?: Json
@@ -576,6 +602,7 @@ export type Database = {
         Update: {
           budget_range?: string | null
           created_at?: string
+          custom_vibes?: string[]
           disliked_colors?: string[]
           favorite_colors?: string[]
           sizes?: Json
