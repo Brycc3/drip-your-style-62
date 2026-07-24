@@ -576,25 +576,22 @@ function ItemCard({
   const validBuy = hasValidBuyUrl(g.item);
   return (
     <li className="card-surface overflow-hidden flex flex-col">
-      <div className="aspect-square bg-surface-2 relative">
-        {g.item.image_url ? (
-          <img
-            src={g.item.image_url}
-            alt={g.item.name}
-            loading="lazy"
-            width={480}
-            height={480}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
-        <span className="absolute top-2 right-2 rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-          Fit {(g.score * 100).toFixed(0)}
-        </span>
-        {g.item.is_demo && (
-          <span className="absolute top-2 left-2 rounded-full bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+      <CatalogImage
+        src={g.item.image_url}
+        alt={g.item.name}
+        category={g.item.category}
+        className="aspect-square"
+        eager={eager}
+      />
+      <div className="relative -mt-8 flex justify-between px-2 pointer-events-none">
+        {g.item.is_demo ? (
+          <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
             Demo
           </span>
-        )}
+        ) : <span />}
+        <span className="rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
+          Fit {(g.score * 100).toFixed(0)}
+        </span>
       </div>
       <div className="p-3 flex-1 flex flex-col gap-2">
         <div>
