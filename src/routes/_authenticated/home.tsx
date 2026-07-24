@@ -99,13 +99,15 @@ function HomePage() {
               </div>
               <ul className="mt-3 grid grid-cols-3 gap-3">
                 {recent.map((r) => (
-                  <li key={r.id} className="card-surface aspect-square overflow-hidden p-2 text-xs">
-                    <div className="flex h-full flex-col items-center justify-center">
-                      <span className="line-clamp-2 text-center text-foreground/80">{r.name}</span>
-                      <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {r.color || ""}
-                      </span>
-                    </div>
+                  <li key={r.id} className="card-surface aspect-square overflow-hidden text-xs">
+                    {urls[r.id] ? (
+                      <img src={urls[r.id]} alt={r.name} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center p-2">
+                        <span className="line-clamp-2 text-center text-foreground/80">{r.name}</span>
+                        <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">{r.color || ""}</span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
