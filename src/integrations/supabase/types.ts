@@ -14,7 +14,441 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      closet_items: {
+        Row: {
+          archived: boolean
+          brand: string | null
+          category: string
+          color: string | null
+          created_at: string
+          fit: string | null
+          formality: Database["public"]["Enums"]["formality"]
+          id: string
+          image_url: string | null
+          kind: Database["public"]["Enums"]["item_kind"]
+          last_worn_at: string | null
+          material: string | null
+          name: string
+          notes: string | null
+          price: number | null
+          season: Database["public"]["Enums"]["season"]
+          secondary_colors: string[]
+          size: string | null
+          subcategory: string | null
+          tags: string[]
+          times_worn: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          brand?: string | null
+          category: string
+          color?: string | null
+          created_at?: string
+          fit?: string | null
+          formality?: Database["public"]["Enums"]["formality"]
+          id?: string
+          image_url?: string | null
+          kind: Database["public"]["Enums"]["item_kind"]
+          last_worn_at?: string | null
+          material?: string | null
+          name: string
+          notes?: string | null
+          price?: number | null
+          season?: Database["public"]["Enums"]["season"]
+          secondary_colors?: string[]
+          size?: string | null
+          subcategory?: string | null
+          tags?: string[]
+          times_worn?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          brand?: string | null
+          category?: string
+          color?: string | null
+          created_at?: string
+          fit?: string | null
+          formality?: Database["public"]["Enums"]["formality"]
+          id?: string
+          image_url?: string | null
+          kind?: Database["public"]["Enums"]["item_kind"]
+          last_worn_at?: string | null
+          material?: string | null
+          name?: string
+          notes?: string | null
+          price?: number | null
+          season?: Database["public"]["Enums"]["season"]
+          secondary_colors?: string[]
+          size?: string | null
+          subcategory?: string | null
+          tags?: string[]
+          times_worn?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fragrances: {
+        Row: {
+          base_notes: string[]
+          brand: string | null
+          created_at: string
+          family: string | null
+          heart_notes: string[]
+          id: string
+          image_url: string | null
+          longevity: string | null
+          name: string
+          notes: string | null
+          occasions: string[]
+          projection: string | null
+          season: Database["public"]["Enums"]["season"]
+          top_notes: string[]
+          user_id: string
+        }
+        Insert: {
+          base_notes?: string[]
+          brand?: string | null
+          created_at?: string
+          family?: string | null
+          heart_notes?: string[]
+          id?: string
+          image_url?: string | null
+          longevity?: string | null
+          name: string
+          notes?: string | null
+          occasions?: string[]
+          projection?: string | null
+          season?: Database["public"]["Enums"]["season"]
+          top_notes?: string[]
+          user_id: string
+        }
+        Update: {
+          base_notes?: string[]
+          brand?: string | null
+          created_at?: string
+          family?: string | null
+          heart_notes?: string[]
+          id?: string
+          image_url?: string | null
+          longevity?: string | null
+          name?: string
+          notes?: string | null
+          occasions?: string[]
+          projection?: string | null
+          season?: Database["public"]["Enums"]["season"]
+          top_notes?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      outfit_feedback: {
+        Row: {
+          created_at: string
+          id: string
+          liked: boolean
+          outfit_id: string | null
+          signature: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          liked: boolean
+          outfit_id?: string | null
+          signature: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          liked?: boolean
+          outfit_id?: string | null
+          signature?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_feedback_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outfit_items: {
+        Row: {
+          closet_item_id: string
+          outfit_id: string
+          role: string | null
+        }
+        Insert: {
+          closet_item_id: string
+          outfit_id: string
+          role?: string | null
+        }
+        Update: {
+          closet_item_id?: string
+          outfit_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_items_closet_item_id_fkey"
+            columns: ["closet_item_id"]
+            isOneToOne: false
+            referencedRelation: "closet_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_items_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          onboarded: boolean
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          onboarded?: boolean
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          onboarded?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saved_outfits: {
+        Row: {
+          created_at: string
+          dress_code: Database["public"]["Enums"]["formality"] | null
+          explanation: string | null
+          fragrance_id: string | null
+          id: string
+          name: string | null
+          occasion: string | null
+          score: number | null
+          temperature_f: number | null
+          user_id: string
+          vibe: string | null
+          weather: string | null
+        }
+        Insert: {
+          created_at?: string
+          dress_code?: Database["public"]["Enums"]["formality"] | null
+          explanation?: string | null
+          fragrance_id?: string | null
+          id?: string
+          name?: string | null
+          occasion?: string | null
+          score?: number | null
+          temperature_f?: number | null
+          user_id: string
+          vibe?: string | null
+          weather?: string | null
+        }
+        Update: {
+          created_at?: string
+          dress_code?: Database["public"]["Enums"]["formality"] | null
+          explanation?: string | null
+          fragrance_id?: string | null
+          id?: string
+          name?: string | null
+          occasion?: string | null
+          score?: number | null
+          temperature_f?: number | null
+          user_id?: string
+          vibe?: string | null
+          weather?: string | null
+        }
+        Relationships: []
+      }
+      shop_catalog: {
+        Row: {
+          brand: string | null
+          category: string
+          color: string | null
+          condition: Database["public"]["Enums"]["item_condition"]
+          created_at: string
+          description: string | null
+          fit: string | null
+          formality: Database["public"]["Enums"]["formality"]
+          id: string
+          image_url: string | null
+          kind: Database["public"]["Enums"]["item_kind"]
+          material: string | null
+          name: string
+          price: number | null
+          season: Database["public"]["Enums"]["season"]
+          source: string | null
+          tags: string[]
+        }
+        Insert: {
+          brand?: string | null
+          category: string
+          color?: string | null
+          condition?: Database["public"]["Enums"]["item_condition"]
+          created_at?: string
+          description?: string | null
+          fit?: string | null
+          formality?: Database["public"]["Enums"]["formality"]
+          id?: string
+          image_url?: string | null
+          kind: Database["public"]["Enums"]["item_kind"]
+          material?: string | null
+          name: string
+          price?: number | null
+          season?: Database["public"]["Enums"]["season"]
+          source?: string | null
+          tags?: string[]
+        }
+        Update: {
+          brand?: string | null
+          category?: string
+          color?: string | null
+          condition?: Database["public"]["Enums"]["item_condition"]
+          created_at?: string
+          description?: string | null
+          fit?: string | null
+          formality?: Database["public"]["Enums"]["formality"]
+          id?: string
+          image_url?: string | null
+          kind?: Database["public"]["Enums"]["item_kind"]
+          material?: string | null
+          name?: string
+          price?: number | null
+          season?: Database["public"]["Enums"]["season"]
+          source?: string | null
+          tags?: string[]
+        }
+        Relationships: []
+      }
+      shop_feedback: {
+        Row: {
+          catalog_id: string
+          created_at: string
+          dismissed: boolean
+          id: string
+          liked: boolean
+          saved: boolean
+          user_id: string
+        }
+        Insert: {
+          catalog_id: string
+          created_at?: string
+          dismissed?: boolean
+          id?: string
+          liked: boolean
+          saved?: boolean
+          user_id: string
+        }
+        Update: {
+          catalog_id?: string
+          created_at?: string
+          dismissed?: boolean
+          id?: string
+          liked?: boolean
+          saved?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_feedback_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_preferences: {
+        Row: {
+          budget_range: string | null
+          created_at: string
+          disliked_colors: string[]
+          favorite_colors: string[]
+          sizes: Json
+          style_vibes: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget_range?: string | null
+          created_at?: string
+          disliked_colors?: string[]
+          favorite_colors?: string[]
+          sizes?: Json
+          style_vibes?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget_range?: string | null
+          created_at?: string
+          disliked_colors?: string[]
+          favorite_colors?: string[]
+          sizes?: Json
+          style_vibes?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wear_history: {
+        Row: {
+          created_at: string
+          id: string
+          outfit_id: string | null
+          user_id: string
+          worn_on: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          outfit_id?: string | null
+          user_id: string
+          worn_on?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          outfit_id?: string | null
+          user_id?: string
+          worn_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wear_history_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "saved_outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +457,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      formality:
+        | "loungewear"
+        | "casual"
+        | "smart_casual"
+        | "business"
+        | "formal"
+      item_condition: "new" | "vintage" | "thrift" | "resale"
+      item_kind: "clothing" | "shoes" | "accessory" | "fragrance"
+      season: "spring" | "summer" | "fall" | "winter" | "all"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +592,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      formality: ["loungewear", "casual", "smart_casual", "business", "formal"],
+      item_condition: ["new", "vintage", "thrift", "resale"],
+      item_kind: ["clothing", "shoes", "accessory", "fragrance"],
+      season: ["spring", "summer", "fall", "winter", "all"],
+    },
   },
 } as const
