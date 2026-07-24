@@ -16,19 +16,18 @@ export const Route = createFileRoute("/_authenticated/closet/new")({
   component: NewItem,
 });
 
-const CATEGORIES = ["top", "bottom", "outerwear", "shoes", "accessory", "fragrance"] as const;
+const CATEGORIES = ["top", "bottom", "outerwear", "shoes", "accessory"] as const;
 const MATERIALS = ["Cotton", "Wool", "Denim", "Leather", "Nylon", "Fleece", "Linen", "Synthetic", "Suede", "Other"] as const;
 const FITS = ["Slim", "Regular", "Relaxed", "Oversized", "Boxy", "Cropped"] as const;
 const SEASONS = ["spring", "summer", "fall", "winter", "all"] as const;
 const FORMALITY = ["loungewear", "casual", "smart_casual", "business", "formal"] as const;
 
-const KIND_FOR: Record<(typeof CATEGORIES)[number], "clothing" | "shoes" | "accessory" | "fragrance"> = {
+const KIND_FOR: Record<(typeof CATEGORIES)[number], "clothing" | "shoes" | "accessory"> = {
   top: "clothing",
   bottom: "clothing",
   outerwear: "clothing",
   shoes: "shoes",
   accessory: "accessory",
-  fragrance: "fragrance",
 };
 
 const schema = z.object({
