@@ -8,10 +8,7 @@ import { Heart, X, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/swipe")({
   head: () => ({
-    meta: [
-      { title: "Swipe — DRIP" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Swipe — DRIP" }, { name: "robots", content: "noindex" }],
   }),
   component: SwipePage,
 });
@@ -70,7 +67,9 @@ function SwipePage() {
     const pick = outfits[index];
     if (!pick || !uid) return;
     const sig = signature(pick);
-    const { error } = await supabase.from("outfit_feedback").insert({ user_id: uid, liked, signature: sig });
+    const { error } = await supabase
+      .from("outfit_feedback")
+      .insert({ user_id: uid, liked, signature: sig });
     if (error) toast.error(error.message);
     setDrag({ x: 0, active: false });
     if (index + 1 >= outfits.length) {
@@ -108,7 +107,10 @@ function SwipePage() {
     return (
       <div className="card-surface p-6 text-center">
         <p className="text-sm text-muted-foreground">Add pieces to your closet first.</p>
-        <button onClick={() => navigate({ to: "/closet/new" })} className="btn-lime mt-4 inline-flex">
+        <button
+          onClick={() => navigate({ to: "/closet/new" })}
+          className="btn-lime mt-4 inline-flex"
+        >
           Add a piece
         </button>
       </div>
@@ -160,13 +162,20 @@ function SwipePage() {
             {[pick.top, pick.bottom, pick.outerwear, pick.shoes].filter(Boolean).map((p) => (
               <div key={p!.id} className="aspect-square bg-surface">
                 {urls[p!.id] ? (
-                  <img src={urls[p!.id]} alt={p!.name} className="h-full w-full object-cover" draggable={false} />
+                  <img
+                    src={urls[p!.id]}
+                    alt={p!.name}
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                  />
                 ) : null}
               </div>
             ))}
           </div>
           <div className="p-4 space-y-3">
-            <p className="text-xs uppercase tracking-widest text-primary">Score {(pick.score * 100).toFixed(0)}</p>
+            <p className="text-xs uppercase tracking-widest text-primary">
+              Score {(pick.score * 100).toFixed(0)}
+            </p>
             <ul className="space-y-1">
               {pick.rationale.slice(0, 3).map((r, i) => (
                 <li key={i} className="text-xs text-muted-foreground">

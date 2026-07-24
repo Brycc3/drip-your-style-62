@@ -16,7 +16,16 @@ export const Route = createFileRoute("/onboarding")({
   component: Onboarding,
 });
 
-const VIBES = ["Streetwear", "Minimal", "Techwear", "Preppy", "Old-money", "Grunge", "Sporty", "Vintage"] as const;
+const VIBES = [
+  "Streetwear",
+  "Minimal",
+  "Techwear",
+  "Preppy",
+  "Old-money",
+  "Grunge",
+  "Sporty",
+  "Vintage",
+] as const;
 const COLORS = ["Black", "Cream", "Olive", "Charcoal", "Brown", "Navy", "Sage", "Rust"] as const;
 
 function Onboarding() {
@@ -37,10 +46,15 @@ function Onboarding() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("display_name,onboarded").eq("id", user.id).maybeSingle().then(({ data }) => {
-      if (data?.onboarded) navigate({ to: "/home", replace: true });
-      if (data?.display_name) setDisplayName(data.display_name);
-    });
+    supabase
+      .from("profiles")
+      .select("display_name,onboarded")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.onboarded) navigate({ to: "/home", replace: true });
+        if (data?.display_name) setDisplayName(data.display_name);
+      });
   }, [user, navigate]);
 
   function toggle<T extends string>(arr: T[], v: T, setter: (n: T[]) => void) {
@@ -85,7 +99,9 @@ function Onboarding() {
         <div className="mt-8">
           {step === 1 && (
             <label className="block">
-              <span className="text-xs uppercase tracking-widest text-muted-foreground">Display name</span>
+              <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                Display name
+              </span>
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
@@ -98,18 +114,30 @@ function Onboarding() {
 
           {step === 2 && (
             <>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Pick your vibes</p>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                Pick your vibes
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {VIBES.map((v) => (
-                  <Chip key={v} active={vibes.includes(v)} onClick={() => toggle(vibes, v, setVibes)}>
+                  <Chip
+                    key={v}
+                    active={vibes.includes(v)}
+                    onClick={() => toggle(vibes, v, setVibes)}
+                  >
                     {v}
                   </Chip>
                 ))}
               </div>
-              <p className="mt-8 text-xs uppercase tracking-widest text-muted-foreground">Favorite colors</p>
+              <p className="mt-8 text-xs uppercase tracking-widest text-muted-foreground">
+                Favorite colors
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {COLORS.map((c) => (
-                  <Chip key={c} active={favColors.includes(c)} onClick={() => toggle(favColors, c, setFavColors)}>
+                  <Chip
+                    key={c}
+                    active={favColors.includes(c)}
+                    onClick={() => toggle(favColors, c, setFavColors)}
+                  >
                     {c}
                   </Chip>
                 ))}
@@ -120,7 +148,11 @@ function Onboarding() {
           {step === 3 && (
             <div className="space-y-4">
               <SizeInput label="Top size (S / M / L / XL)" value={topSize} onChange={setTopSize} />
-              <SizeInput label="Bottom size (waist or number)" value={bottomSize} onChange={setBottomSize} />
+              <SizeInput
+                label="Bottom size (waist or number)"
+                value={bottomSize}
+                onChange={setBottomSize}
+              />
               <SizeInput label="Shoe size (US)" value={shoeSize} onChange={setShoeSize} />
             </div>
           )}
@@ -140,7 +172,11 @@ function Onboarding() {
               Continue
             </button>
           ) : (
-            <button onClick={finish} disabled={saving} className="btn-lime flex-1 disabled:opacity-50">
+            <button
+              onClick={finish}
+              disabled={saving}
+              className="btn-lime flex-1 disabled:opacity-50"
+            >
               {saving ? "…" : "Enter DRIP"}
             </button>
           )}
@@ -150,7 +186,15 @@ function Onboarding() {
   );
 }
 
-function Chip({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
+function Chip({
+  children,
+  active,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -166,7 +210,15 @@ function Chip({ children, active, onClick }: { children: React.ReactNode; active
   );
 }
 
-function SizeInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function SizeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <label className="block">
       <span className="text-xs uppercase tracking-widest text-muted-foreground">{label}</span>

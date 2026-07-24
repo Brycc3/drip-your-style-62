@@ -23,7 +23,10 @@ export async function getSignedUrl(path: string, expiresIn = 60 * 60): Promise<s
 }
 
 /** Path-keyed map. Prefer `getSignedUrlsByItem` when callers already have items with ids. */
-export async function getSignedUrls(paths: string[], expiresIn = 60 * 60): Promise<Record<string, string>> {
+export async function getSignedUrls(
+  paths: string[],
+  expiresIn = 60 * 60,
+): Promise<Record<string, string>> {
   const uniq = Array.from(new Set(paths.filter(Boolean)));
   const entries = await Promise.all(
     uniq.map(async (p) => [p, (await getSignedUrl(p, expiresIn)) ?? ""] as const),

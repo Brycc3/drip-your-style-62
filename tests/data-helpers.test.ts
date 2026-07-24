@@ -1,5 +1,10 @@
 import { describe, it, expect } from "bun:test";
-import { pairScent, type Fragrance, type ClosetItem, type OutfitPick } from "../src/lib/outfit-generator";
+import {
+  pairScent,
+  type Fragrance,
+  type ClosetItem,
+  type OutfitPick,
+} from "../src/lib/outfit-generator";
 
 const T = (over: Partial<ClosetItem> = {}): ClosetItem => ({
   id: over.id ?? crypto.randomUUID(),
@@ -23,12 +28,23 @@ const pick = (top: ClosetItem): OutfitPick => ({
   shoes: null,
   accessory: null,
   score: 1,
-  breakdown: { color: 1, silhouette: 1, weather: 1, formality: 1, occasion: 1, preference: 1, diversity: 1 },
+  breakdown: {
+    color: 1,
+    silhouette: 1,
+    weather: 1,
+    formality: 1,
+    occasion: 1,
+    preference: 1,
+    diversity: 1,
+  },
   rationale: [],
 });
 
 // --- URL map keying (mirrors getSignedUrlsByItem) --------------------------
-function urlsByItem(items: { id: string; image_url: string | null }[], byPath: Record<string, string>) {
+function urlsByItem(
+  items: { id: string; image_url: string | null }[],
+  byPath: Record<string, string>,
+) {
   const out: Record<string, string> = {};
   for (const i of items) if (i.image_url && byPath[i.image_url]) out[i.id] = byPath[i.image_url];
   return out;
@@ -57,10 +73,22 @@ function feedbackRow(uid: string, catalogId: string, action: "save" | "dismiss")
 
 describe("shop feedback payload", () => {
   it("save flips saved+liked true and dismissed false", () => {
-    expect(feedbackRow("u", "c", "save")).toEqual({ user_id: "u", catalog_id: "c", liked: true, saved: true, dismissed: false });
+    expect(feedbackRow("u", "c", "save")).toEqual({
+      user_id: "u",
+      catalog_id: "c",
+      liked: true,
+      saved: true,
+      dismissed: false,
+    });
   });
   it("dismiss inverts flags", () => {
-    expect(feedbackRow("u", "c", "dismiss")).toEqual({ user_id: "u", catalog_id: "c", liked: false, saved: false, dismissed: true });
+    expect(feedbackRow("u", "c", "dismiss")).toEqual({
+      user_id: "u",
+      catalog_id: "c",
+      liked: false,
+      saved: false,
+      dismissed: true,
+    });
   });
 });
 
@@ -83,8 +111,26 @@ describe("wear date formatter", () => {
 describe("scent tie-breaker", () => {
   it("prefers leather family when top material is leather", () => {
     const scents: Fragrance[] = [
-      { id: "wood", name: "Woody", brand: null, family: "woody", season: "all", projection: null, longevity: null, occasions: [] },
-      { id: "leather", name: "Leathery", brand: null, family: "leather", season: "all", projection: null, longevity: null, occasions: [] },
+      {
+        id: "wood",
+        name: "Woody",
+        brand: null,
+        family: "woody",
+        season: "all",
+        projection: null,
+        longevity: null,
+        occasions: [],
+      },
+      {
+        id: "leather",
+        name: "Leathery",
+        brand: null,
+        family: "leather",
+        season: "all",
+        projection: null,
+        longevity: null,
+        occasions: [],
+      },
     ];
     const p = pairScent(
       pick(T({ material: "leather" })),

@@ -8,16 +8,24 @@ import { Camera } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/closet/new")({
   head: () => ({
-    meta: [
-      { title: "Add a piece — DRIP" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Add a piece — DRIP" }, { name: "robots", content: "noindex" }],
   }),
   component: NewItem,
 });
 
 const CATEGORIES = ["top", "bottom", "outerwear", "shoes", "accessory"] as const;
-const MATERIALS = ["Cotton", "Wool", "Denim", "Leather", "Nylon", "Fleece", "Linen", "Synthetic", "Suede", "Other"] as const;
+const MATERIALS = [
+  "Cotton",
+  "Wool",
+  "Denim",
+  "Leather",
+  "Nylon",
+  "Fleece",
+  "Linen",
+  "Synthetic",
+  "Suede",
+  "Other",
+] as const;
 const FITS = ["Slim", "Regular", "Relaxed", "Oversized", "Boxy", "Cropped"] as const;
 const SEASONS = ["spring", "summer", "fall", "winter", "all"] as const;
 const FORMALITY = ["loungewear", "casual", "smart_casual", "business", "formal"] as const;
@@ -131,44 +139,97 @@ function NewItem() {
       </label>
 
       <Field label="Name*">
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Black heavyweight tee" maxLength={80} />
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className={inputCls}
+          placeholder="Black heavyweight tee"
+          maxLength={80}
+        />
       </Field>
 
       <Field label="Category*">
-        <Select value={form.category} onChange={(v) => setForm({ ...form, category: v as (typeof CATEGORIES)[number] })} options={[...CATEGORIES]} />
+        <Select
+          value={form.category}
+          onChange={(v) => setForm({ ...form, category: v as (typeof CATEGORIES)[number] })}
+          options={[...CATEGORIES]}
+        />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Brand">
-          <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputCls} maxLength={60} />
+          <input
+            value={form.brand}
+            onChange={(e) => setForm({ ...form, brand: e.target.value })}
+            className={inputCls}
+            maxLength={60}
+          />
         </Field>
         <Field label="Color">
-          <input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className={inputCls} maxLength={30} placeholder="Black" />
+          <input
+            value={form.color}
+            onChange={(e) => setForm({ ...form, color: e.target.value })}
+            className={inputCls}
+            maxLength={30}
+            placeholder="Black"
+          />
         </Field>
         <Field label="Material">
-          <Select value={form.material} onChange={(v) => setForm({ ...form, material: v })} options={["", ...MATERIALS]} />
+          <Select
+            value={form.material}
+            onChange={(v) => setForm({ ...form, material: v })}
+            options={["", ...MATERIALS]}
+          />
         </Field>
         <Field label="Fit">
-          <Select value={form.fit} onChange={(v) => setForm({ ...form, fit: v })} options={["", ...FITS]} />
+          <Select
+            value={form.fit}
+            onChange={(v) => setForm({ ...form, fit: v })}
+            options={["", ...FITS]}
+          />
         </Field>
         <Field label="Size">
-          <input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className={inputCls} maxLength={20} />
+          <input
+            value={form.size}
+            onChange={(e) => setForm({ ...form, size: e.target.value })}
+            className={inputCls}
+            maxLength={20}
+          />
         </Field>
         <Field label="Price ($)">
-          <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, "") })} inputMode="decimal" className={inputCls} />
+          <input
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, "") })}
+            inputMode="decimal"
+            className={inputCls}
+          />
         </Field>
       </div>
 
       <Field label="Season">
-        <Select value={season} onChange={(v) => setSeason(v as (typeof SEASONS)[number])} options={[...SEASONS]} />
+        <Select
+          value={season}
+          onChange={(v) => setSeason(v as (typeof SEASONS)[number])}
+          options={[...SEASONS]}
+        />
       </Field>
 
       <Field label="Formality">
-        <Select value={formality} onChange={(v) => setFormality(v as (typeof FORMALITY)[number])} options={[...FORMALITY]} />
+        <Select
+          value={formality}
+          onChange={(v) => setFormality(v as (typeof FORMALITY)[number])}
+          options={[...FORMALITY]}
+        />
       </Field>
 
       <Field label="Notes">
-        <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputCls} maxLength={500} />
+        <textarea
+          rows={3}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          className={inputCls}
+          maxLength={500}
+        />
       </Field>
 
       <button onClick={save} disabled={saving} className="btn-lime w-full disabled:opacity-50">
@@ -190,7 +251,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+function Select({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
       {options.map((o) => (

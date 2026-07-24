@@ -65,7 +65,11 @@ function AuthPage() {
           // Diagnose: does this email exist via Google only?
           try {
             const info = await checkEmailProviders({ data: { email: emailR.data } });
-            if (info.exists && info.providers.includes("google") && !info.providers.includes("email")) {
+            if (
+              info.exists &&
+              info.providers.includes("google") &&
+              !info.providers.includes("email")
+            ) {
               toast.error("This email uses Google sign-in — tap Continue with Google above.");
             } else if (info.exists && !info.confirmed) {
               toast.error("Please confirm your email first — check your inbox.");
@@ -142,7 +146,9 @@ function AuthPage() {
             />
           </label>
           <label className="block">
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">Password</span>
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">
+              Password
+            </span>
             <input
               type="password"
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
@@ -172,7 +178,10 @@ function AuthPage() {
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
-      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.5-1.7 4.4-5.5 4.4-3.3 0-6-2.75-6-6.15S8.7 6.2 12 6.2c1.9 0 3.15.8 3.87 1.5l2.65-2.55C16.85 3.55 14.65 2.5 12 2.5 6.75 2.5 2.5 6.75 2.5 12S6.75 21.5 12 21.5c6.9 0 9.5-4.85 9.5-7.35 0-.5-.05-.9-.15-1.3H12z"/>
+      <path
+        fill="#EA4335"
+        d="M12 10.2v3.9h5.5c-.24 1.5-1.7 4.4-5.5 4.4-3.3 0-6-2.75-6-6.15S8.7 6.2 12 6.2c1.9 0 3.15.8 3.87 1.5l2.65-2.55C16.85 3.55 14.65 2.5 12 2.5 6.75 2.5 2.5 6.75 2.5 12S6.75 21.5 12 21.5c6.9 0 9.5-4.85 9.5-7.35 0-.5-.05-.9-.15-1.3H12z"
+      />
     </svg>
   );
 }

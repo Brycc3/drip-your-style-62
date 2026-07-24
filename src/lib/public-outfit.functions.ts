@@ -17,7 +17,9 @@ export type PublicPiece = {
 };
 
 export const getPublicOutfitAssets = createServerFn({ method: "GET" })
-  .inputValidator((input: { slug: string }) => z.object({ slug: z.string().min(1).max(80) }).parse(input))
+  .inputValidator((input: { slug: string }) =>
+    z.object({ slug: z.string().min(1).max(80) }).parse(input),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -33,18 +35,33 @@ export const getPublicOutfitAssets = createServerFn({ method: "GET" })
 
     const { data: items } = await supabaseAdmin
       .from("outfit_items")
-      .select("role, closet_item_id, closet_items!inner(id, name, category, brand, color, image_url)")
+      .select(
+        "role, closet_item_id, closet_items!inner(id, name, category, brand, color, image_url)",
+      )
       .eq("outfit_id", outfit.id);
 
-    type Row = { role: string | null; closet_items: { id: string; name: string; category: string; brand: string | null; color: string | null; image_url: string | null } };
+    type Row = {
+      role: string | null;
+      closet_items: {
+        id: string;
+        name: string;
+        category: string;
+        brand: string | null;
+        color: string | null;
+        image_url: string | null;
+      };
+    };
     const rows = (items ?? []) as unknown as Row[];
 
     const paths = rows.map((r) => r.closet_items.image_url).filter(Boolean) as string[];
-    if (outfit.cover_image_url && !paths.includes(outfit.cover_image_url)) paths.push(outfit.cover_image_url);
+    if (outfit.cover_image_url && !paths.includes(outfit.cover_image_url))
+      paths.push(outfit.cover_image_url);
 
     const urlByPath: Record<string, string> = {};
     if (paths.length) {
-      const { data: signed } = await supabaseAdmin.storage.from("closet").createSignedUrls(paths, 60 * 60);
+      const { data: signed } = await supabaseAdmin.storage
+        .from("closet")
+        .createSignedUrls(paths, 60 * 60);
       for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
     }
 
@@ -81,9 +98,10 @@ export const getPublicOutfitCovers = createServerFn({ method: "POST" })
       .in("share_slug", data.slugs);
     const wanted = (rows ?? []).filter((r) => r.visibility === "public" && r.cover_image_url);
     if (!wanted.length) return {};
-    const { data: signed } = await supabaseAdmin.storage
-      .from("closet")
-      .createSignedUrls(wanted.map((w) => w.cover_image_url!), 60 * 60);
+    const { data: signed } = await supabaseAdmin.storage.from("closet").createSignedUrls(
+      wanted.map((w) => w.cover_image_url!),
+      60 * 60,
+    );
     const bySlug: Record<string, string> = {};
     const pathToSlug = Object.fromEntries(wanted.map((w) => [w.cover_image_url!, w.share_slug!]));
     for (const s of signed ?? []) {

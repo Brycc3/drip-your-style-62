@@ -66,7 +66,10 @@ function ClosetPage() {
           <p className="text-xs uppercase tracking-[0.3em] text-primary">Wardrobe</p>
           <h1 className="mt-1 font-display text-4xl">Closet</h1>
         </div>
-        <Link to="/closet/new" className="btn-lime inline-flex items-center gap-1 !px-4 !py-2 text-xs">
+        <Link
+          to="/closet/new"
+          className="btn-lime inline-flex items-center gap-1 !px-4 !py-2 text-xs"
+        >
           <Plus className="h-4 w-4" /> Add
         </Link>
       </div>
@@ -77,7 +80,9 @@ function ClosetPage() {
             key={c}
             onClick={() => setFilter(c)}
             className={`shrink-0 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${
-              filter === c ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80"
+              filter === c
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-foreground/80"
             }`}
           >
             {c}
@@ -111,7 +116,12 @@ function ClosetPage() {
               >
                 <div className="aspect-[3/4] bg-surface-2">
                   {urls[i.id] ? (
-                    <img src={urls[i.id]} alt={i.name} loading="lazy" className="h-full w-full object-cover" />
+                    <img
+                      src={urls[i.id]}
+                      alt={i.name}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-widest text-muted-foreground">
                       No photo
