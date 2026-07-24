@@ -1,12 +1,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Home, Shirt, Sparkles, Heart, ShoppingBag, FlaskConical, User } from "lucide-react";
+import { Home, Shirt, Sparkles, Flame, ShoppingBag, FlaskConical, User } from "lucide-react";
 
 const tabs = [
   { to: "/home", label: "Home", icon: Home },
   { to: "/closet", label: "Closet", icon: Shirt },
   { to: "/generate", label: "Generate", icon: Sparkles },
-  { to: "/swipe", label: "Swipe", icon: Heart },
+  { to: "/feed", label: "Feed", icon: Flame },
   { to: "/shop", label: "Shop", icon: ShoppingBag },
   { to: "/scents", label: "Scents", icon: FlaskConical },
   { to: "/profile", label: "Profile", icon: User },
