@@ -59,7 +59,8 @@ function ScentsPage() {
       user_id: uid,
       name, brand: editing.brand || null, family: editing.family || null,
       top_notes: editing.top_notes, heart_notes: editing.heart_notes, base_notes: editing.base_notes,
-      season: editing.season as Fragrance["season"], projection: editing.projection || null,
+      season: editing.season as "all" | "fall" | "spring" | "summer" | "winter",
+      projection: editing.projection || null,
       longevity: editing.longevity || null, occasions: editing.occasions, notes: editing.notes || null,
     };
     const q = "id" in editing && editing.id
