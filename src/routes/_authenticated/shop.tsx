@@ -57,10 +57,35 @@ function ShopPage() {
 
   async function feedback(id: string, action: "save" | "dismiss") {
     if (!uid) return toast.error("Sign in to save");
-    const patch = action === "save" ? { saved: true } : { dismissed: true };
-    await supabase.from("shop_feedback").insert({ user_id: uid, catalog_id: id, liked: action === "save", ...patch });
-    if (action === "dismiss") setDismissed((s) => new Set(s).add(id));
-    else { setSaved((s) => new Set(s).add(id)); toast.success("Saved to wishlist"); }
+    const saveFlag = action === "save";
+    const dismissFlag = action === "dismiss";
+    const { error } = await supabase
+      .from("shop_feedback")
+      .upsert(
+        {
+          user_id: uid,
+          catalog_id: id,
+          liked: saveFlag,
+          saved: saveFlag,
+          dismissed: dismissFlag,
+        },
+        { onConflict: "user_id,catalog_id" },
+      );
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (dismissFlag) {
+      setDismissed((s) => new Set(s).add(id));
+      setSaved((s) => {
+        const next = new Set(s);
+        next.delete(id);
+        return next;
+      });
+    } else {
+      setSaved((s) => new Set(s).add(id));
+      toast.success("Saved to wishlist");
+    }
   }
 
   return (
