@@ -51,11 +51,13 @@ function FeedPage() {
       setRows(list);
       setLoading(false);
 
-      const [urlPairs, profs] = await Promise.all([
-        Promise.all(list.filter((r) => r.cover_image_url).map(async (r) => [r.id, (await getSignedUrl(r.cover_image_url!)) ?? ""] as const)),
+      const [coversBySlug, profs] = await Promise.all([
+        getPublicOutfitCovers({ data: { slugs: list.map((r) => r.share_slug ?? "").filter(Boolean) } }).catch(() => ({} as Record<string, string>)),
         supabase.from("profiles").select("id, handle").in("id", list.map((r) => r.user_id)),
       ]);
-      setUrls(Object.fromEntries(urlPairs));
+      const byId: Record<string, string> = {};
+      for (const r of list) if (r.share_slug && coversBySlug[r.share_slug]) byId[r.id] = coversBySlug[r.share_slug];
+      setUrls(byId);
       setHandles(Object.fromEntries((profs.data ?? []).map((p) => [p.id, p.handle])));
     })();
   }, [tab]);
