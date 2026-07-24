@@ -14,6 +14,7 @@ import {
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
+import { CatalogImage } from "@/components/CatalogImage";
 import { toast } from "sonner";
 import {
   Bookmark,
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   Sparkles,
   Layers,
+  Eye,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/shop")({
