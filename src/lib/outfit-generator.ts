@@ -308,11 +308,13 @@ export function pairScent(
       if (formal >= 3 && strong) { s += 0.1; reasons.push("projection suits formal"); }
       if (formal <= 1 && soft) { s += 0.1; reasons.push("soft projection for casual"); }
     }
-    if (!best || s > best.s) best = { scent: f, s, reasons };
-    // outfit context tie-breaker: leather items → leather/woody
+    // Tie-breaker: leather top pairs with leather/woody scents. Applied
+    // BEFORE picking best so it actually influences the choice.
     if (outfit.top.material?.toLowerCase().includes("leather") && f.family?.toLowerCase().includes("leather")) {
       s += 0.05;
+      reasons.push("leather echoes the leather top");
     }
+    if (!best || s > best.s) best = { scent: f, s, reasons };
   }
   if (!best) return null;
   return { scent: best.scent, reason: best.reasons.join(" · ") || "closest match on shelf" };
