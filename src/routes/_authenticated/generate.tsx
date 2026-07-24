@@ -104,23 +104,46 @@ function GeneratePage() {
     );
   }, [closet, occasion, vibe, tempF, dress, worn, userVibes, liked, disliked, rotation]);
 
-  async function saveOutfit(pick: OutfitPick, idx: number, visibility: "private" | "public"): Promise<string | null> {
+  async function saveOutfit(
+    pick: OutfitPick,
+    idx: number,
+    visibility: "private" | "public",
+  ): Promise<string | null> {
+    const sig = pickSignature(pick);
+    if (visibility === "private" && savedBySig[sig]) {
+      setSavedIds((s) => new Set(s).add(idx));
+      return savedBySig[sig];
+    }
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
-    if (!uid) { toast.error("Not signed in"); return null; }
+    if (!uid) {
+      toast.error("Not signed in");
+      return null;
+    }
     const cover = pick.top.image_url ?? pick.bottom.image_url ?? pick.outerwear?.image_url ?? null;
     const scent = pairScent(pick, scents, { occasion, vibe, temperatureF: tempF, dressCode: dress }, vibe);
-    const { data: out, error } = await supabase.from("saved_outfits").insert({
-      user_id: uid,
-      name: `${vibe} · ${occasion}`,
-      occasion, vibe, temperature_f: tempF, dress_code: dress,
-      explanation: pick.rationale.join(" · "),
-      score: pick.score, visibility, cover_image_url: cover,
-      fragrance_id: scent?.scent.id ?? null,
-    }).select("id, share_slug").single();
-    if (error) { toast.error(error.message); return null; }
+    const { data: out, error } = await supabase
+      .from("saved_outfits")
+      .insert({
+        user_id: uid,
+        name: `${vibe} · ${occasion}`,
+        occasion,
+        vibe,
+        temperature_f: tempF,
+        dress_code: dress,
+        explanation: pick.rationale.join(" · "),
+        score: pick.score,
+        visibility,
+        cover_image_url: cover,
+        fragrance_id: scent?.scent.id ?? null,
+      })
+      .select("id, share_slug")
+      .single();
+    if (error || !out) {
+      toast.error(error?.message ?? "Save failed");
+      return null;
+    }
 
-    // Build explicit role/item pairs — no zipping over a filtered array.
     const roleRows: { role: string; item: ClosetItem }[] = [
       { role: "top", item: pick.top },
       { role: "bottom", item: pick.bottom },
@@ -128,10 +151,17 @@ function GeneratePage() {
     if (pick.outerwear) roleRows.push({ role: "outerwear", item: pick.outerwear });
     if (pick.shoes) roleRows.push({ role: "shoes", item: pick.shoes });
     if (pick.accessory) roleRows.push({ role: "accessory", item: pick.accessory });
-    await supabase.from("outfit_items").insert(
-      roleRows.map((r) => ({ outfit_id: out.id, closet_item_id: r.item.id, role: r.role })),
-    );
+    const { error: itemsErr } = await supabase
+      .from("outfit_items")
+      .insert(roleRows.map((r) => ({ outfit_id: out.id, closet_item_id: r.item.id, role: r.role })));
+    if (itemsErr) {
+      // Rollback parent so we never leave a headless outfit around.
+      await supabase.from("saved_outfits").delete().eq("id", out.id);
+      toast.error(`Couldn't save outfit pieces: ${itemsErr.message}`);
+      return null;
+    }
     setSavedIds((s) => new Set(s).add(idx));
+    setSavedBySig((m) => ({ ...m, [sig]: out.id }));
     return out.id;
   }
 
@@ -147,21 +177,15 @@ function GeneratePage() {
 
   async function markWorn(pick: OutfitPick, idx: number) {
     const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    if (!uid) return toast.error("Not signed in");
-    // Save privately first if not already saved
+    if (!userData.user?.id) return toast.error("Not signed in");
+    // Reuse an existing saved outfit for this signature; otherwise save privately.
     const outfitId = await saveOutfit(pick, idx, "private");
     if (!outfitId) return;
-    const pieces = [pick.top, pick.bottom, pick.outerwear, pick.shoes, pick.accessory].filter(Boolean) as ClosetItem[];
-    const now = new Date().toISOString();
-    await supabase.from("wear_history").insert({ user_id: uid, outfit_id: outfitId, worn_on: now });
-    // Increment via read-modify-write (small MVP; single request per piece)
-    await Promise.all(pieces.map(async (p) => {
-      const { data: cur } = await supabase.from("closet_items").select("times_worn").eq("id", p.id).maybeSingle();
-      await supabase.from("closet_items").update({
-        times_worn: (cur?.times_worn ?? 0) + 1, last_worn_at: now,
-      }).eq("id", p.id);
-    }));
+    const { error } = await supabase.rpc("record_outfit_wear", { _outfit_id: outfitId });
+    if (error) {
+      toast.error(`Couldn't mark worn: ${error.message}`);
+      return;
+    }
     toast.success("Marked as worn");
   }
 
