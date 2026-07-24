@@ -74,14 +74,13 @@ function OutfitPage() {
       }
 
       const itemIds = (oi ?? []).map((r) => r.closet_item_id);
+      const assets = await getPublicOutfitAssets({ data: { slug } }).catch(() => ({ cover: null, pieces: {} as Record<string, string> }));
       if (itemIds.length) {
         const { data: items } = await supabase.from("closet_items").select("id, name, category, brand, color, image_url").in("id", itemIds);
-        const list = (items ?? []) as Piece[];
-        setPieces(list);
-        const pairs = await Promise.all(list.filter((p) => p.image_url).map(async (p) => [p.id, (await getSignedUrl(p.image_url!)) ?? ""] as const));
-        setUrls(Object.fromEntries(pairs));
+        setPieces((items ?? []) as Piece[]);
+        setUrls(assets.pieces);
       }
-      if (o.cover_image_url) setCoverUrl(await getSignedUrl(o.cover_image_url));
+      setCoverUrl(assets.cover);
 
       const authorIds = Array.from(new Set((cs ?? []).map((c) => c.user_id)));
       if (authorIds.length) {
