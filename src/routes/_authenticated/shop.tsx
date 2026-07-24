@@ -754,7 +754,7 @@ function OutfitCard({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {validBuy && (
+          {validBuy ? (
             <a
               href={g.item.buy_url!}
               target="_blank"
@@ -763,6 +763,10 @@ function OutfitCard({
             >
               <ExternalLink className="h-3 w-3" /> Shop the new piece
             </a>
+          ) : (
+            <span className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+              <Eye className="h-3 w-3" /> View sample
+            </span>
           )}
           <Link
             to="/inspo"
