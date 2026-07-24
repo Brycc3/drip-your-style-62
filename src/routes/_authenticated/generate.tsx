@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
@@ -11,8 +11,22 @@ import {
   type Occasion,
   type Fragrance,
 } from "@/lib/outfit-generator";
+import {
+  detectWeather,
+  readCachedWeather,
+  type Weather,
+} from "@/lib/weather";
 import { toast } from "sonner";
-import { Sparkles, RefreshCw, Save, Share2, Check } from "lucide-react";
+import {
+  Sparkles,
+  RefreshCw,
+  Save,
+  Share2,
+  Check,
+  MapPin,
+  Copy,
+  ExternalLink,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/generate")({
   head: () => ({
@@ -21,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/generate")({
   component: GeneratePage,
 });
 
-const VIBES = ["Streetwear", "Minimal", "Techwear", "Sporty", "Old-money", "Grunge"];
+const VIBES = ["Streetwear", "Minimal", "Techwear", "Sporty", "Old-money", "Grunge", "Other"];
 const DRESS = [
   { v: "loungewear", l: "Loungewear" },
   { v: "casual", l: "Casual" },
@@ -30,8 +44,9 @@ const DRESS = [
   { v: "formal", l: "Formal" },
 ] as const;
 
+type ShareState = { url: string; slug: string } | null;
+
 function GeneratePage() {
-  const navigate = useNavigate();
   const [closet, setCloset] = useState<ClosetItem[]>([]);
   const [scents, setScents] = useState<Fragrance[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -39,16 +54,26 @@ function GeneratePage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [disliked, setDisliked] = useState<Set<string>>(new Set());
   const [userVibes, setUserVibes] = useState<string[]>([]);
+  const [savedCustomVibes, setSavedCustomVibes] = useState<string[]>([]);
 
   const [occasion, setOccasion] = useState<Occasion>("errands");
   const [vibe, setVibe] = useState("Streetwear");
+  const [customVibe, setCustomVibe] = useState("");
+  const [customVibeErr, setCustomVibeErr] = useState<string | null>(null);
   const [tempF, setTempF] = useState(60);
   const [dress, setDress] = useState<(typeof DRESS)[number]["v"]>("casual");
   const [rotation, setRotation] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [weather, setWeather] = useState<Weather | null>(null);
+  const [weatherErr, setWeatherErr] = useState<string | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
-  // outfit signature -> saved_outfits.id so Mark Worn doesn't create duplicates
+  const [wornIds, setWornIds] = useState<Set<number>>(new Set());
+  const [sharedByIdx, setSharedByIdx] = useState<Record<number, ShareState>>({});
+  const [busyIdx, setBusyIdx] = useState<number | null>(null);
+  const [errByIdx, setErrByIdx] = useState<Record<number, string>>({});
   const [savedBySig, setSavedBySig] = useState<Record<string, string>>({});
 
   function pickSignature(pick: OutfitPick): string {
@@ -58,6 +83,8 @@ function GeneratePage() {
       .sort()
       .join("|");
   }
+
+  const effectiveVibe = vibe === "Other" ? customVibe.trim() : vibe;
 
   async function load() {
     setLoading(true);
@@ -83,7 +110,11 @@ function GeneratePage() {
           .eq("user_id", uid)
           .order("worn_on", { ascending: false })
           .limit(10),
-        supabase.from("user_preferences").select("style_vibes").eq("user_id", uid).maybeSingle(),
+        supabase
+          .from("user_preferences")
+          .select("style_vibes, custom_vibes")
+          .eq("user_id", uid)
+          .maybeSingle(),
         supabase
           .from("fragrances")
           .select("id,name,brand,family,season,projection,longevity,occasions")
@@ -102,7 +133,11 @@ function GeneratePage() {
         setWorn(new Set((oi ?? []).map((r) => r.closet_item_id as string)));
       }
       setUserVibes(prefs?.style_vibes ?? []);
-      // signatures hold "|"-joined item ids
+      setSavedCustomVibes(
+        Array.isArray((prefs as { custom_vibes?: string[] } | null)?.custom_vibes)
+          ? ((prefs as { custom_vibes: string[] }).custom_vibes ?? [])
+          : [],
+      );
       const L = new Set<string>();
       const D = new Set<string>();
       for (const f of fb ?? []) {
@@ -114,6 +149,11 @@ function GeneratePage() {
       setLiked(L);
       setDisliked(D);
       setUrls(await getSignedUrlsByItem(list));
+      const cached = readCachedWeather();
+      if (cached) {
+        setWeather(cached);
+        setTempF(cached.temperatureF);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load closet");
     } finally {
@@ -125,50 +165,110 @@ function GeneratePage() {
     void load();
   }, []);
 
+  async function useMyWeather() {
+    setWeatherLoading(true);
+    setWeatherErr(null);
+    try {
+      const w = await detectWeather();
+      setWeather(w);
+      setTempF(w.temperatureF);
+    } catch (e) {
+      setWeatherErr(e instanceof Error ? e.message : "Couldn't get weather");
+    } finally {
+      setWeatherLoading(false);
+    }
+  }
+
   const outfits = useMemo(() => {
     if (!closet.length) return [];
+    if (vibe === "Other" && !customVibe.trim()) return [];
+    const activeVibe = effectiveVibe || "Casual";
     return generateOutfits(
       closet,
-      { occasion, vibe, temperatureF: tempF, dressCode: dress },
+      { occasion, vibe: activeVibe, temperatureF: tempF, dressCode: dress },
       worn,
-      [...userVibes, vibe],
+      [...userVibes, activeVibe],
       liked,
       disliked,
       5,
       rotation,
     );
-  }, [closet, occasion, vibe, tempF, dress, worn, userVibes, liked, disliked, rotation]);
+  }, [
+    closet,
+    occasion,
+    vibe,
+    customVibe,
+    effectiveVibe,
+    tempF,
+    dress,
+    worn,
+    userVibes,
+    liked,
+    disliked,
+    rotation,
+  ]);
 
-  async function saveOutfit(
+  async function persistCustomVibe(text: string) {
+    if (!text) return;
+    if (savedCustomVibes.includes(text)) return;
+    const next = [text, ...savedCustomVibes].slice(0, 5);
+    setSavedCustomVibes(next);
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    await supabase
+      .from("user_preferences")
+      .upsert({ user_id: uid, custom_vibes: next }, { onConflict: "user_id" });
+  }
+
+  async function ensureSaved(
     pick: OutfitPick,
     idx: number,
     visibility: "private" | "public",
   ): Promise<string | null> {
     const sig = pickSignature(pick);
-    if (visibility === "private" && savedBySig[sig]) {
-      setSavedIds((s) => new Set(s).add(idx));
-      return savedBySig[sig];
-    }
+    const existing = savedBySig[sig];
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
     if (!uid) {
-      toast.error("Not signed in");
+      setErrByIdx((m) => ({ ...m, [idx]: "Not signed in" }));
       return null;
     }
-    const cover = pick.top.image_url ?? pick.bottom.image_url ?? pick.outerwear?.image_url ?? null;
+
+    if (existing) {
+      if (visibility === "public") {
+        const { data: promoted, error } = await supabase
+          .from("saved_outfits")
+          .update({ visibility: "public" })
+          .eq("id", existing)
+          .eq("user_id", uid)
+          .select("id, share_slug")
+          .maybeSingle();
+        if (error || !promoted) {
+          setErrByIdx((m) => ({ ...m, [idx]: error?.message ?? "Couldn't share outfit" }));
+          return null;
+        }
+      }
+      setSavedIds((s) => new Set(s).add(idx));
+      return existing;
+    }
+
+    const cover =
+      pick.top.image_url ?? pick.bottom.image_url ?? pick.outerwear?.image_url ?? null;
     const scent = pairScent(
       pick,
       scents,
-      { occasion, vibe, temperatureF: tempF, dressCode: dress },
-      vibe,
+      { occasion, vibe: effectiveVibe || "Casual", temperatureF: tempF, dressCode: dress },
+      effectiveVibe || vibe,
     );
+    const name = `${effectiveVibe || "Fit"} · ${occasion}`;
     const { data: out, error } = await supabase
       .from("saved_outfits")
       .insert({
         user_id: uid,
-        name: `${vibe} · ${occasion}`,
+        name,
         occasion,
-        vibe,
+        vibe: effectiveVibe || vibe,
         temperature_f: tempF,
         dress_code: dress,
         explanation: pick.rationale.join(" · "),
@@ -180,7 +280,7 @@ function GeneratePage() {
       .select("id, share_slug")
       .single();
     if (error || !out) {
-      toast.error(error?.message ?? "Save failed");
+      setErrByIdx((m) => ({ ...m, [idx]: error?.message ?? "Save failed" }));
       return null;
     }
 
@@ -197,9 +297,8 @@ function GeneratePage() {
         roleRows.map((r) => ({ outfit_id: out.id, closet_item_id: r.item.id, role: r.role })),
       );
     if (itemsErr) {
-      // Rollback parent so we never leave a headless outfit around.
       await supabase.from("saved_outfits").delete().eq("id", out.id);
-      toast.error(`Couldn't save outfit pieces: ${itemsErr.message}`);
+      setErrByIdx((m) => ({ ...m, [idx]: `Couldn't save pieces: ${itemsErr.message}` }));
       return null;
     }
     setSavedIds((s) => new Set(s).add(idx));
@@ -207,31 +306,56 @@ function GeneratePage() {
     return out.id;
   }
 
-  async function onSave(pick: OutfitPick, idx: number, visibility: "private" | "public") {
-    const id = await saveOutfit(pick, idx, visibility);
-    if (!id) return;
-    toast.success(visibility === "public" ? "Saved & shared" : "Saved to your outfits");
-    if (visibility === "public") {
-      const { data: o } = await supabase
-        .from("saved_outfits")
-        .select("share_slug")
-        .eq("id", id)
-        .maybeSingle();
-      if (o?.share_slug) navigate({ to: "/o/$slug", params: { slug: o.share_slug } });
+  async function onSavePrivate(pick: OutfitPick, idx: number) {
+    setBusyIdx(idx);
+    setErrByIdx((m) => ({ ...m, [idx]: "" }));
+    const id = await ensureSaved(pick, idx, "private");
+    setBusyIdx(null);
+    if (id) toast.success("Saved to your outfits");
+  }
+
+  async function onShare(pick: OutfitPick, idx: number) {
+    setBusyIdx(idx);
+    setErrByIdx((m) => ({ ...m, [idx]: "" }));
+    if (vibe === "Other" && !customVibe.trim()) {
+      setCustomVibeErr("Describe your vibe first");
+      setBusyIdx(null);
+      return;
     }
+    const id = await ensureSaved(pick, idx, "public");
+    if (!id) {
+      setBusyIdx(null);
+      return;
+    }
+    const { data: o } = await supabase
+      .from("saved_outfits")
+      .select("share_slug")
+      .eq("id", id)
+      .maybeSingle();
+    if (o?.share_slug) {
+      const url = `${window.location.origin}/o/${o.share_slug}`;
+      setSharedByIdx((m) => ({ ...m, [idx]: { url, slug: o.share_slug! } }));
+      toast.success("Shared to feed");
+      if (effectiveVibe && vibe === "Other") await persistCustomVibe(effectiveVibe);
+    }
+    setBusyIdx(null);
   }
 
   async function markWorn(pick: OutfitPick, idx: number) {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user?.id) return toast.error("Not signed in");
-    // Reuse an existing saved outfit for this signature; otherwise save privately.
-    const outfitId = await saveOutfit(pick, idx, "private");
-    if (!outfitId) return;
-    const { error } = await supabase.rpc("record_outfit_wear", { _outfit_id: outfitId });
-    if (error) {
-      toast.error(`Couldn't mark worn: ${error.message}`);
+    setBusyIdx(idx);
+    setErrByIdx((m) => ({ ...m, [idx]: "" }));
+    const outfitId = await ensureSaved(pick, idx, "private");
+    if (!outfitId) {
+      setBusyIdx(null);
       return;
     }
+    const { error } = await supabase.rpc("record_outfit_wear", { _outfit_id: outfitId });
+    setBusyIdx(null);
+    if (error) {
+      setErrByIdx((m) => ({ ...m, [idx]: `Couldn't mark worn: ${error.message}` }));
+      return;
+    }
+    setWornIds((s) => new Set(s).add(idx));
     toast.success("Marked as worn");
   }
 
@@ -288,27 +412,93 @@ function GeneratePage() {
                 {VIBES.map((v) => (
                   <button
                     key={v}
-                    onClick={() => setVibe(v)}
+                    onClick={() => {
+                      setVibe(v);
+                      if (v !== "Other") setCustomVibeErr(null);
+                    }}
                     className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${vibe === v ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80"}`}
                   >
                     {v}
                   </button>
                 ))}
               </div>
+              {vibe === "Other" && (
+                <div className="mt-3 space-y-2">
+                  <input
+                    value={customVibe}
+                    onChange={(e) => {
+                      setCustomVibe(e.target.value);
+                      if (e.target.value.trim()) setCustomVibeErr(null);
+                    }}
+                    placeholder="Describe your vibe — e.g. 'blokecore, muted olive'"
+                    maxLength={60}
+                    className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                  {customVibeErr && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {customVibeErr}
+                    </p>
+                  )}
+                  {savedCustomVibes.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {savedCustomVibes.map((cv) => (
+                        <button
+                          key={cv}
+                          onClick={() => setCustomVibe(cv)}
+                          className="rounded-full border border-border/70 px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                        >
+                          {cv}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <label className="block">
-              <span className="text-xs uppercase tracking-widest text-muted-foreground">
-                Temperature ({tempF}°F)
-              </span>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                value={tempF}
-                onChange={(e) => setTempF(Number(e.target.value))}
-                className="mt-2 w-full accent-primary"
-              />
-            </label>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Weather
+                </span>
+                <button
+                  onClick={() => void useMyWeather()}
+                  disabled={weatherLoading}
+                  className="text-[10px] uppercase tracking-widest text-primary flex items-center gap-1 disabled:opacity-50"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {weatherLoading ? "Locating…" : "Use my weather"}
+                </button>
+              </div>
+              {weather && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {weather.label} · {weather.temperatureF}°F · {weather.condition} · updated{" "}
+                  {new Date(weather.updatedAt).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              {weatherErr && (
+                <p className="mt-1 text-xs text-destructive" role="alert">
+                  {weatherErr} — using manual temperature.
+                </p>
+              )}
+              <label className="block mt-2">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Manual temperature ({tempF}°F)
+                </span>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={tempF}
+                  onChange={(e) => setTempF(Number(e.target.value))}
+                  className="mt-2 w-full accent-primary"
+                />
+              </label>
+            </div>
+
             <div>
               <span className="text-xs uppercase tracking-widest text-muted-foreground">
                 Dress code
@@ -327,8 +517,15 @@ function GeneratePage() {
             </div>
             <button
               onClick={() => {
+                if (vibe === "Other" && !customVibe.trim()) {
+                  setCustomVibeErr("Describe your vibe first");
+                  return;
+                }
                 setRotation((r) => r + 1);
                 setSavedIds(new Set());
+                setWornIds(new Set());
+                setSharedByIdx({});
+                setErrByIdx({});
               }}
               className="btn-lime w-full flex items-center justify-center gap-2"
             >
@@ -341,8 +538,13 @@ function GeneratePage() {
               const scent = pairScent(
                 o,
                 scents,
-                { occasion, vibe, temperatureF: tempF, dressCode: dress },
-                vibe,
+                {
+                  occasion,
+                  vibe: effectiveVibe || "Casual",
+                  temperatureF: tempF,
+                  dressCode: dress,
+                },
+                effectiveVibe || vibe,
               );
               return (
                 <OutfitCard
@@ -350,9 +552,14 @@ function GeneratePage() {
                   pick={o}
                   urls={urls}
                   scent={scent}
+                  hasFragrances={scents.length > 0}
                   saved={savedIds.has(idx)}
-                  onSavePrivate={() => onSave(o, idx, "private")}
-                  onSharePublic={() => onSave(o, idx, "public")}
+                  worn={wornIds.has(idx)}
+                  share={sharedByIdx[idx] ?? null}
+                  busy={busyIdx === idx}
+                  err={errByIdx[idx] || null}
+                  onSavePrivate={() => onSavePrivate(o, idx)}
+                  onSharePublic={() => onShare(o, idx)}
                   onWorn={() => markWorn(o, idx)}
                   onRegen={() => setRotation((r) => r + 1)}
                 />
@@ -360,7 +567,9 @@ function GeneratePage() {
             })}
             {outfits.length === 0 && (
               <div className="card-surface p-6 text-center text-sm text-muted-foreground">
-                No combos matched. Try a different vibe or dress code.
+                {vibe === "Other" && !customVibe.trim()
+                  ? "Describe your vibe to generate outfits."
+                  : "No combos matched. Try a different vibe or dress code."}
               </div>
             )}
           </div>
@@ -374,7 +583,12 @@ function OutfitCard({
   pick,
   urls,
   scent,
+  hasFragrances,
   saved,
+  worn,
+  share,
+  busy,
+  err,
   onSavePrivate,
   onSharePublic,
   onWorn,
@@ -383,7 +597,12 @@ function OutfitCard({
   pick: OutfitPick;
   urls: Record<string, string>;
   scent: { scent: Fragrance; reason: string } | null;
+  hasFragrances: boolean;
   saved: boolean;
+  worn: boolean;
+  share: ShareState;
+  busy: boolean;
+  err: string | null;
   onSavePrivate: () => void;
   onSharePublic: () => void;
   onWorn: () => void;
@@ -435,18 +654,65 @@ function OutfitCard({
             </li>
           ))}
         </ul>
-        {scent && (
+        {scent ? (
           <div className="rounded-lg border border-border bg-surface-2 p-3">
-            <p className="text-[10px] uppercase tracking-widest text-primary">Scent pairing</p>
+            <p className="text-[10px] uppercase tracking-widest text-primary">
+              Scent pairing {hasFragrances ? "· from your shelf" : ""}
+            </p>
             <p className="mt-1 text-sm">
-              {scent.scent.name} <span className="text-muted-foreground">— {scent.reason}</span>
+              {scent.scent.name}{" "}
+              <span className="text-muted-foreground">— {scent.reason}</span>
             </p>
           </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border p-3">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              Suggested scent profile (you don't own one yet)
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A fresh woody or citrus fragrance would suit this. Add fragrances in Closet →
+              Fragrances.
+            </p>
+          </div>
+        )}
+        {worn && (
+          <div className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs text-primary">
+            ✓ Logged as worn today. Piece counters updated.
+          </div>
+        )}
+        {share && (
+          <div className="rounded-lg border border-primary/40 bg-primary/10 p-3 space-y-2">
+            <p className="text-xs text-primary">✓ Live on the feed.</p>
+            <div className="flex gap-2">
+              <a
+                href={`/o/${share.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 rounded-full border border-primary/60 px-3 py-1.5 text-[11px] uppercase tracking-widest text-center flex items-center justify-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" /> View
+              </a>
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(share.url);
+                  toast.success("Link copied");
+                }}
+                className="flex-1 rounded-full border border-primary/60 px-3 py-1.5 text-[11px] uppercase tracking-widest flex items-center justify-center gap-1"
+              >
+                <Copy className="h-3 w-3" /> Copy link
+              </button>
+            </div>
+          </div>
+        )}
+        {err && (
+          <p className="text-xs text-destructive" role="alert">
+            {err}
+          </p>
         )}
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={onSavePrivate}
-            disabled={saved}
+            disabled={saved || busy}
             className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2 flex items-center justify-center gap-1 disabled:opacity-60"
           >
             {saved ? (
@@ -461,19 +727,22 @@ function OutfitCard({
           </button>
           <button
             onClick={onSharePublic}
-            className="btn-lime !py-2 text-xs flex items-center justify-center gap-1"
+            disabled={busy || !!share}
+            className="btn-lime !py-2 text-xs flex items-center justify-center gap-1 disabled:opacity-60"
           >
-            <Share2 className="h-3 w-3" /> Share to feed
+            <Share2 className="h-3 w-3" /> {share ? "Shared" : "Share to feed"}
           </button>
           <button
             onClick={onWorn}
-            className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
+            disabled={busy || worn}
+            className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2 disabled:opacity-60"
           >
-            Mark worn
+            {worn ? "Worn ✓" : "Mark worn"}
           </button>
           <button
             onClick={onRegen}
-            className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2 flex items-center justify-center gap-1"
+            disabled={busy}
+            className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2 flex items-center justify-center gap-1 disabled:opacity-60"
           >
             <RefreshCw className="h-3 w-3" /> More
           </button>
