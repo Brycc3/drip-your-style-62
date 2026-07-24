@@ -120,6 +120,21 @@
   width: 100%;
 }
 
+@utility container-wide {
+  max-width: 72rem; /* desktop-friendly for grids like Shop */
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  width: 100%;
+}
+
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+@utility scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @utility card-surface {
   background-color: var(--surface);
   border: 1px solid var(--border);
