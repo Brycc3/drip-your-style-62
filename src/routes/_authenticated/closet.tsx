@@ -17,11 +17,11 @@ export const Route = createFileRoute("/_authenticated/closet")({
 
 type Item = {
   id: string;
-  name: string | null;
+  name: string;
   category: string;
-  primary_color: string | null;
+  color: string | null;
   brand: string | null;
-  image_path: string | null;
+  image_url: string | null;
 };
 
 const CATEGORIES = ["all", "top", "bottom", "outerwear", "shoes", "accessory", "fragrance"] as const;
@@ -39,17 +39,16 @@ function ClosetPage() {
       if (!uid) return;
       const { data } = await supabase
         .from("closet_items")
-        .select("id,name,category,primary_color,brand,image_path")
+        .select("id,name,category,color,brand,image_url")
         .eq("user_id", uid)
         .order("created_at", { ascending: false });
       const list = (data ?? []) as Item[];
       setItems(list);
       setLoading(false);
-      // sign urls
       const entries = await Promise.all(
         list
-          .filter((i) => i.image_path)
-          .map(async (i) => [i.id, (await getSignedUrl(i.image_path!)) ?? ""] as const),
+          .filter((i) => i.image_url)
+          .map(async (i) => [i.id, (await getSignedUrl(i.image_url!)) ?? ""] as const),
       );
       setUrls(Object.fromEntries(entries));
     })();
@@ -112,7 +111,7 @@ function ClosetPage() {
               >
                 <div className="aspect-[3/4] bg-surface-2">
                   {urls[i.id] ? (
-                    <img src={urls[i.id]} alt={i.name ?? "Item"} loading="lazy" className="h-full w-full object-cover" />
+                    <img src={urls[i.id]} alt={i.name} loading="lazy" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-widest text-muted-foreground">
                       No photo
@@ -120,9 +119,9 @@ function ClosetPage() {
                   )}
                 </div>
                 <div className="p-3">
-                  <p className="line-clamp-1 text-sm font-medium">{i.name || "Untitled"}</p>
+                  <p className="line-clamp-1 text-sm font-medium">{i.name}</p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {[i.brand, i.primary_color, i.category].filter(Boolean).join(" · ")}
+                    {[i.brand, i.color, i.category].filter(Boolean).join(" · ")}
                   </p>
                 </div>
               </Link>

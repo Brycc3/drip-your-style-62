@@ -19,14 +19,23 @@ export const Route = createFileRoute("/_authenticated/closet/new")({
 const CATEGORIES = ["top", "bottom", "outerwear", "shoes", "accessory", "fragrance"] as const;
 const MATERIALS = ["Cotton", "Wool", "Denim", "Leather", "Nylon", "Fleece", "Linen", "Synthetic", "Suede", "Other"] as const;
 const FITS = ["Slim", "Regular", "Relaxed", "Oversized", "Boxy", "Cropped"] as const;
-const SEASONS = ["Spring", "Summer", "Fall", "Winter"] as const;
-const FORMALITY = ["casual", "smart-casual", "business", "formal", "athletic"] as const;
+const SEASONS = ["spring", "summer", "fall", "winter", "all"] as const;
+const FORMALITY = ["loungewear", "casual", "smart_casual", "business", "formal"] as const;
+
+const KIND_FOR: Record<(typeof CATEGORIES)[number], "clothing" | "shoes" | "accessory" | "fragrance"> = {
+  top: "clothing",
+  bottom: "clothing",
+  outerwear: "clothing",
+  shoes: "shoes",
+  accessory: "accessory",
+  fragrance: "fragrance",
+};
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name it").max(80),
   category: z.enum(CATEGORIES),
   brand: z.string().trim().max(60).optional().or(z.literal("")),
-  primary_color: z.string().trim().max(30).optional().or(z.literal("")),
+  color: z.string().trim().max(30).optional().or(z.literal("")),
   material: z.string().trim().max(60).optional().or(z.literal("")),
   fit: z.string().trim().max(30).optional().or(z.literal("")),
   size: z.string().trim().max(20).optional().or(z.literal("")),
@@ -40,15 +49,15 @@ function NewItem() {
     name: "",
     category: "top" as (typeof CATEGORIES)[number],
     brand: "",
-    primary_color: "",
+    color: "",
     material: "",
     fit: "",
     size: "",
     price: "",
     notes: "",
   });
-  const [seasons, setSeasons] = useState<string[]>([]);
-  const [formality, setFormality] = useState<string>("casual");
+  const [season, setSeason] = useState<(typeof SEASONS)[number]>("all");
+  const [formality, setFormality] = useState<(typeof FORMALITY)[number]>("casual");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -74,23 +83,24 @@ function NewItem() {
       const uid = userData.user?.id;
       if (!uid) throw new Error("Not signed in");
 
-      let image_path: string | null = null;
-      if (file) image_path = await uploadClosetImage(uid, file);
+      let image_url: string | null = null;
+      if (file) image_url = await uploadClosetImage(uid, file);
 
       const { error } = await supabase.from("closet_items").insert({
         user_id: uid,
         name: parsed.data.name,
         category: parsed.data.category,
+        kind: KIND_FOR[parsed.data.category],
         brand: parsed.data.brand || null,
-        primary_color: parsed.data.primary_color || null,
+        color: parsed.data.color || null,
         material: parsed.data.material || null,
         fit: parsed.data.fit || null,
         size: parsed.data.size || null,
         price: parsed.data.price ?? null,
         notes: parsed.data.notes || null,
-        seasons,
+        season,
         formality,
-        image_path,
+        image_url,
       });
       if (error) throw error;
       toast.success("Added to your closet");
@@ -134,7 +144,7 @@ function NewItem() {
           <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputCls} maxLength={60} />
         </Field>
         <Field label="Color">
-          <input value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} className={inputCls} maxLength={30} placeholder="Black" />
+          <input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className={inputCls} maxLength={30} placeholder="Black" />
         </Field>
         <Field label="Material">
           <Select value={form.material} onChange={(v) => setForm({ ...form, material: v })} options={["", ...MATERIALS]} />
@@ -150,25 +160,12 @@ function NewItem() {
         </Field>
       </div>
 
-      <Field label="Seasons">
-        <div className="flex flex-wrap gap-2">
-          {SEASONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setSeasons((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))}
-              className={`rounded-full border px-3 py-1.5 text-xs ${
-                seasons.includes(s) ? "border-primary bg-primary text-primary-foreground" : "border-border"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+      <Field label="Season">
+        <Select value={season} onChange={(v) => setSeason(v as (typeof SEASONS)[number])} options={[...SEASONS]} />
       </Field>
 
       <Field label="Formality">
-        <Select value={formality} onChange={setFormality} options={[...FORMALITY]} />
+        <Select value={formality} onChange={(v) => setFormality(v as (typeof FORMALITY)[number])} options={[...FORMALITY]} />
       </Field>
 
       <Field label="Notes">

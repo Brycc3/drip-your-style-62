@@ -19,7 +19,7 @@ type Counts = { total: number; tops: number; bottoms: number; shoes: number; out
 function HomePage() {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
-  const [recent, setRecent] = useState<Array<{ id: string; name: string | null; image_path: string | null; primary_color: string | null }>>([]);
+  const [recent, setRecent] = useState<Array<{ id: string; name: string; image_url: string | null; color: string | null }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -30,23 +30,24 @@ function HomePage() {
       const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", uid).maybeSingle();
       setDisplayName(profile?.display_name ?? "");
 
-      const { data: items } = await supabase.from("closet_items").select("id,name,image_path,primary_color,category").eq("user_id", uid);
+      const { data: items } = await supabase.from("closet_items").select("id,name,image_url,color,category,kind").eq("user_id", uid);
       if (items) {
         const c: Counts = { total: items.length, tops: 0, bottoms: 0, shoes: 0, outer: 0, accessories: 0, fragrances: 0 };
         for (const i of items) {
-          const cat = String(i.category ?? "");
-          if (cat === "top") c.tops++;
+          const cat = i.category;
+          const kind = i.kind;
+          if (kind === "fragrance") c.fragrances++;
+          else if (kind === "shoes") c.shoes++;
+          else if (kind === "accessory") c.accessories++;
+          else if (cat === "top") c.tops++;
           else if (cat === "bottom") c.bottoms++;
-          else if (cat === "shoes") c.shoes++;
           else if (cat === "outerwear") c.outer++;
-          else if (cat === "accessory") c.accessories++;
-          else if (cat === "fragrance") c.fragrances++;
         }
         setCounts(c);
       }
       const { data: recentItems } = await supabase
         .from("closet_items")
-        .select("id,name,image_path,primary_color")
+        .select("id,name,image_url,color")
         .eq("user_id", uid)
         .order("created_at", { ascending: false })
         .limit(6);
@@ -102,9 +103,9 @@ function HomePage() {
                 {recent.map((r) => (
                   <li key={r.id} className="card-surface aspect-square overflow-hidden p-2 text-xs">
                     <div className="flex h-full flex-col items-center justify-center">
-                      <span className="line-clamp-2 text-center text-foreground/80">{r.name || "—"}</span>
+                      <span className="line-clamp-2 text-center text-foreground/80">{r.name}</span>
                       <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {r.primary_color || ""}
+                        {r.color || ""}
                       </span>
                     </div>
                   </li>

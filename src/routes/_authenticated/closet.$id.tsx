@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrl, deleteClosetImage } from "@/lib/closet-storage";
 import { toast } from "sonner";
 import { Trash2, ArrowLeft } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+
+type ClosetItem = Tables<"closet_items">;
 
 export const Route = createFileRoute("/_authenticated/closet/$id")({
   head: () => ({
@@ -18,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/closet/$id")({
 function ItemPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const [item, setItem] = useState<Record<string, unknown> | null>(null);
+  const [item, setItem] = useState<ClosetItem | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -32,7 +35,7 @@ function ItemPage() {
         return;
       }
       setItem(data);
-      if (data.image_path) setUrl(await getSignedUrl(data.image_path as string));
+      if (data.image_url) setUrl(await getSignedUrl(data.image_url));
       setLoading(false);
     })();
   }, [id, navigate]);
@@ -42,7 +45,7 @@ function ItemPage() {
     if (!confirm("Delete this piece?")) return;
     setDeleting(true);
     try {
-      if (item.image_path) await deleteClosetImage(item.image_path as string);
+      if (item.image_url) await deleteClosetImage(item.image_url);
       const { error } = await supabase.from("closet_items").delete().eq("id", id);
       if (error) throw error;
       toast.success("Deleted");
@@ -54,27 +57,36 @@ function ItemPage() {
   }
 
   async function markWorn() {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    if (!uid) return;
-    const { error } = await supabase.from("wear_history").insert({ user_id: uid, item_id: id });
+    if (!item) return;
+    const { error } = await supabase
+      .from("closet_items")
+      .update({
+        times_worn: (item.times_worn ?? 0) + 1,
+        last_worn_at: new Date().toISOString(),
+      })
+      .eq("id", id);
     if (error) toast.error(error.message);
-    else toast.success("Marked worn today");
+    else {
+      toast.success("Marked worn today");
+      setItem({ ...item, times_worn: (item.times_worn ?? 0) + 1, last_worn_at: new Date().toISOString() });
+    }
   }
 
   if (loading) return <div className="text-sm text-muted-foreground">Loading…</div>;
   if (!item) return null;
 
   const fields: Array<[string, string]> = [
-    ["Category", String(item.category ?? "")],
-    ["Brand", String(item.brand ?? "—")],
-    ["Color", String(item.primary_color ?? "—")],
-    ["Material", String(item.material ?? "—")],
-    ["Fit", String(item.fit ?? "—")],
-    ["Size", String(item.size ?? "—")],
+    ["Category", item.category],
+    ["Kind", item.kind],
+    ["Brand", item.brand ?? "—"],
+    ["Color", item.color ?? "—"],
+    ["Material", item.material ?? "—"],
+    ["Fit", item.fit ?? "—"],
+    ["Size", item.size ?? "—"],
     ["Price", item.price ? `$${item.price}` : "—"],
-    ["Formality", String(item.formality ?? "—")],
-    ["Seasons", Array.isArray(item.seasons) ? (item.seasons as string[]).join(", ") : "—"],
+    ["Formality", item.formality],
+    ["Season", item.season],
+    ["Times worn", String(item.times_worn ?? 0)],
   ];
 
   return (
@@ -85,7 +97,7 @@ function ItemPage() {
 
       <div className="card-surface aspect-square overflow-hidden">
         {url ? (
-          <img src={url} alt={String(item.name)} className="h-full w-full object-cover" />
+          <img src={url} alt={item.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-xs uppercase tracking-widest text-muted-foreground">
             No photo
@@ -94,7 +106,7 @@ function ItemPage() {
       </div>
 
       <div>
-        <h1 className="font-display text-3xl">{String(item.name ?? "Untitled")}</h1>
+        <h1 className="font-display text-3xl">{item.name}</h1>
       </div>
 
       <dl className="card-surface divide-y divide-border">
@@ -109,7 +121,7 @@ function ItemPage() {
       {item.notes && (
         <div className="card-surface p-4">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Notes</p>
-          <p className="mt-1 text-sm">{String(item.notes)}</p>
+          <p className="mt-1 text-sm">{item.notes}</p>
         </div>
       )}
 

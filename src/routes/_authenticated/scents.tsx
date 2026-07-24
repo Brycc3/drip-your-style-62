@@ -16,15 +16,15 @@ export const Route = createFileRoute("/_authenticated/scents")({
 type Fragrance = {
   id: string;
   name: string;
-  house: string | null;
+  brand: string | null;
   family: string | null;
-  top_notes: string[] | null;
-  heart_notes: string[] | null;
-  base_notes: string[] | null;
-  seasons: string[] | null;
+  top_notes: string[];
+  heart_notes: string[];
+  base_notes: string[];
+  season: string;
   projection: string | null;
   longevity: string | null;
-  occasions: string[] | null;
+  occasions: string[];
 };
 
 function ScentsPage() {
@@ -35,7 +35,7 @@ function ScentsPage() {
     (async () => {
       const { data } = await supabase
         .from("fragrances")
-        .select("id,name,house,family,top_notes,heart_notes,base_notes,seasons,projection,longevity,occasions")
+        .select("id,name,brand,family,top_notes,heart_notes,base_notes,season,projection,longevity,occasions")
         .order("name");
       setScents((data ?? []) as Fragrance[]);
       setLoading(false);
@@ -72,7 +72,7 @@ function ScentsPage() {
                   {s.family}
                 </span>
               </div>
-              {s.house && <p className="text-xs text-muted-foreground">{s.house}</p>}
+              {s.brand && <p className="text-xs text-muted-foreground">{s.brand}</p>}
               <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
                 <Stat label="Top" val={(s.top_notes ?? []).slice(0, 2).join(", ")} />
                 <Stat label="Heart" val={(s.heart_notes ?? []).slice(0, 2).join(", ")} />
@@ -81,9 +81,7 @@ function ScentsPage() {
               <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-widest">
                 {s.projection && <Tag>Proj: {s.projection}</Tag>}
                 {s.longevity && <Tag>Long: {s.longevity}</Tag>}
-                {(s.seasons ?? []).map((x) => (
-                  <Tag key={x}>{x}</Tag>
-                ))}
+                {s.season && <Tag>{s.season}</Tag>}
               </div>
             </li>
           ))}

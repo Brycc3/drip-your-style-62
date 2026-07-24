@@ -20,28 +20,29 @@ type Catalog = {
   category: string;
   color: string | null;
   price: number | null;
-  source_type: string | null;
+  condition: "new" | "vintage" | "thrift" | "resale";
   image_url: string | null;
 };
 
+const CONDITIONS = ["all", "new", "vintage", "thrift", "resale"] as const;
+
 function ShopPage() {
   const [items, setItems] = useState<Catalog[]>([]);
-  const [source, setSource] = useState<string>("all");
+  const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("shop_catalog")
-        .select("id,name,brand,category,color,price,source_type,image_url")
+        .select("id,name,brand,category,color,price,condition,image_url")
         .order("created_at", { ascending: false });
       setItems((data ?? []) as Catalog[]);
       setLoading(false);
     })();
   }, []);
 
-  const sources = ["all", "new", "vintage", "thrift", "resale"] as const;
-  const filtered = source === "all" ? items : items.filter((i) => i.source_type === source);
+  const filtered = source === "all" ? items : items.filter((i) => i.condition === source);
 
   return (
     <div className="space-y-5">
@@ -54,7 +55,7 @@ function ShopPage() {
       </div>
 
       <div className="-mx-5 flex gap-2 overflow-x-auto px-5">
-        {sources.map((s) => (
+        {CONDITIONS.map((s) => (
           <button
             key={s}
             onClick={() => setSource(s)}
@@ -85,7 +86,7 @@ function ShopPage() {
               <div className="p-3">
                 <p className="line-clamp-1 text-sm font-medium">{i.name}</p>
                 <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {[i.brand, i.source_type].filter(Boolean).join(" · ")}
+                  {[i.brand, i.condition].filter(Boolean).join(" · ")}
                 </p>
                 {i.price != null && (
                   <p className="mt-1 font-display text-lg text-primary">${i.price}</p>
