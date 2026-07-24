@@ -25,6 +25,7 @@ const VIBES = [
   "Grunge",
   "Sporty",
   "Vintage",
+  "Other",
 ] as const;
 const COLORS = ["Black", "Cream", "Olive", "Charcoal", "Brown", "Navy", "Sage", "Rust"] as const;
 
@@ -34,15 +35,20 @@ function Onboarding() {
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState("");
   const [vibes, setVibes] = useState<string[]>([]);
+  const [customVibe, setCustomVibe] = useState("");
+  const [customVibeError, setCustomVibeError] = useState<string | null>(null);
   const [favColors, setFavColors] = useState<string[]>([]);
   const [topSize, setTopSize] = useState("M");
   const [bottomSize, setBottomSize] = useState("32");
   const [shoeSize, setShoeSize] = useState("10");
   const [saving, setSaving] = useState(false);
 
+  const otherSelected = vibes.includes("Other");
+
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth", replace: true });
   }, [loading, user, navigate]);
+
 
   useEffect(() => {
     if (!user) return;
