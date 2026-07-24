@@ -77,7 +77,7 @@ function GeneratePage() {
         }
       }
       setLiked(L); setDisliked(D);
-      setUrls(await getSignedUrls(list.map((i) => i.image_url).filter(Boolean) as string[]));
+      setUrls(await getSignedUrlsByItem(list));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load closet");
     } finally { setLoading(false); }
