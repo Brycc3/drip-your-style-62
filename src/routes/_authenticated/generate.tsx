@@ -14,6 +14,7 @@ import {
 import { detectWeather, readCachedWeather, type Weather } from "@/lib/weather";
 import { toast } from "sonner";
 import { Sparkles, RefreshCw, Save, Share2, Check, MapPin, Copy, ExternalLink } from "lucide-react";
+import { StyleTabs } from "@/components/StyleTabs";
 
 export const Route = createFileRoute("/_authenticated/generate")({
   head: () => ({
