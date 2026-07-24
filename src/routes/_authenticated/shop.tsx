@@ -57,7 +57,8 @@ function ShopPage() {
 
   async function feedback(id: string, action: "save" | "dismiss") {
     if (!uid) return toast.error("Sign in to save");
-    await supabase.from("shop_feedback").insert({ user_id: uid, catalog_id: id, action });
+    const patch = action === "save" ? { saved: true } : { dismissed: true };
+    await supabase.from("shop_feedback").insert({ user_id: uid, catalog_id: id, liked: action === "save", ...patch });
     if (action === "dismiss") setDismissed((s) => new Set(s).add(id));
     else { setSaved((s) => new Set(s).add(id)); toast.success("Saved to wishlist"); }
   }
