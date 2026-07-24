@@ -1,9 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { scoreCatalog, hasValidBuyUrl, type CatalogItem, type GapScore } from "@/lib/shop-gap";
+import {
+  scoreCatalog,
+  hasValidBuyUrl,
+  accessorySubcategory,
+  fragranceFamily,
+  type CatalogItem,
+  type GapScore,
+  type AccessorySub,
+  type FragranceFamily,
+} from "@/lib/shop-gap";
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
+import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
 import { toast } from "sonner";
 import {
   Bookmark,
@@ -12,7 +22,7 @@ import {
   ExternalLink,
   RefreshCw,
   Sparkles,
-  ShoppingBag,
+  Layers,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/shop")({
@@ -29,20 +39,46 @@ export const Route = createFileRoute("/_authenticated/shop")({
   component: ShopPage,
 });
 
-const CONDITIONS = ["all", "new", "vintage", "thrift", "resale"] as const;
-const KINDS = [
-  { v: "all", l: "All" },
+type PrimaryTab = "clothing" | "shoes" | "accessories" | "fragrance" | "outfits";
+const PRIMARY_TABS: { v: PrimaryTab; l: string }[] = [
   { v: "clothing", l: "Clothing" },
   { v: "shoes", l: "Shoes" },
-  { v: "accessory", l: "Accessories" },
+  { v: "accessories", l: "Accessories" },
   { v: "fragrance", l: "Fragrance" },
-] as const;
+  { v: "outfits", l: "Outfit Ideas" },
+];
 
-const CACHE_KEY = "drip.shop.cache.v1";
+const CONDITIONS = ["all", "new", "vintage", "thrift", "resale"] as const;
+const ACC_SUBS: { v: AccessorySub | "all"; l: string }[] = [
+  { v: "all", l: "All" },
+  { v: "hat", l: "Hats" },
+  { v: "cap", l: "Caps" },
+  { v: "beanie", l: "Beanies" },
+  { v: "belt", l: "Belts" },
+  { v: "bag", l: "Bags" },
+  { v: "watch", l: "Watches" },
+  { v: "jewelry", l: "Jewelry" },
+  { v: "sunglasses", l: "Sunglasses" },
+  { v: "socks", l: "Socks" },
+  { v: "scarf", l: "Scarves" },
+  { v: "wallet", l: "Wallets" },
+];
+const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
+  { v: "all", l: "All" },
+  { v: "fresh", l: "Fresh" },
+  { v: "woody", l: "Woody" },
+  { v: "warm", l: "Warm/Spicy" },
+  { v: "sweet", l: "Sweet" },
+  { v: "aquatic", l: "Aquatic" },
+  { v: "floral", l: "Floral" },
+  { v: "leather", l: "Leather" },
+];
+
+const CACHE_KEY = "drip.shop.cache.v2";
 const PAGE_SIZE = 12;
 const INITIAL = 16;
 
-function classifyKind(cat: string): string {
+function primaryKind(cat: string): PrimaryTab | "other" {
   const c = cat.toLowerCase();
   if (
     ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
@@ -50,31 +86,92 @@ function classifyKind(cat: string): string {
     return "shoes";
   if (
     [
-      "accessory","hat","cap","beanie","belt","watch","chain","bracelet","ring","bag",
-      "sunglasses","tie","socks","grill",
+      "accessory",
+      "hat",
+      "cap",
+      "beanie",
+      "belt",
+      "watch",
+      "chain",
+      "bracelet",
+      "ring",
+      "bag",
+      "sunglasses",
+      "tie",
+      "socks",
+      "grill",
+      "scarf",
+      "wallet",
+      "jewelry",
     ].includes(c)
   )
-    return "accessory";
-  if (["fragrance", "scent", "perfume", "cologne"].includes(c)) return "fragrance";
-  return "clothing";
+    return "accessories";
+  if (
+    ["fragrance", "scent", "perfume", "cologne"].includes(c) ||
+    /fragrance|perfume|cologne|scent/.test(c)
+  )
+    return "fragrance";
+  if (
+    [
+      "top",
+      "tee",
+      "hoodie",
+      "shirt",
+      "polo",
+      "bottom",
+      "trousers",
+      "cargos",
+      "joggers",
+      "shorts",
+      "denim",
+      "pants",
+      "outerwear",
+      "bomber",
+      "chore",
+      "jacket",
+      "coat",
+    ].includes(c)
+  )
+    return "clothing";
+  return "other";
 }
 
-function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "other" {
+function primarySlot(
+  cat: string,
+): "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "other" {
   const c = cat.toLowerCase();
   if (["top", "tee", "hoodie", "shirt", "polo"].includes(c)) return "top";
   if (["bottom", "trousers", "cargos", "joggers", "shorts", "denim", "pants"].includes(c))
     return "bottom";
   if (["outerwear", "bomber", "chore", "jacket", "coat"].includes(c)) return "outerwear";
-  if (["shoes","sneaker","jordan","vomero","new_balance","loafer","boot","runner"].includes(c))
+  if (
+    ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
+  )
     return "shoes";
   if (
-    ["accessory","hat","cap","beanie","belt","watch","chain","bracelet","ring","bag","sunglasses","tie","socks","grill"].includes(c)
+    [
+      "accessory",
+      "hat",
+      "cap",
+      "beanie",
+      "belt",
+      "watch",
+      "chain",
+      "bracelet",
+      "ring",
+      "bag",
+      "sunglasses",
+      "tie",
+      "socks",
+      "grill",
+      "scarf",
+      "wallet",
+      "jewelry",
+    ].includes(c)
   )
     return "accessory";
   return "other";
 }
-
-type Tab = "items" | "outfits";
 
 function ShopPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -82,16 +179,19 @@ function ShopPage() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
-  const [kind, setKind] = useState<(typeof KINDS)[number]["v"]>("all");
-  const [tab, setTab] = useState<Tab>("items");
+  const [tab, setTab] = useState<PrimaryTab>("clothing");
+  const [accSub, setAccSub] = useState<AccessorySub | "all">("all");
+  const [fragFam, setFragFam] = useState<FragranceFamily | "all">("all");
+  const [sort, setSort] = useState<"gap" | "new">("gap");
   const [loading, setLoading] = useState(true);
   const [uid, setUid] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [recentlyShown, setRecentlyShown] = useState<Set<string>>(new Set());
   const [visible, setVisible] = useState(INITIAL);
   const [closetUrls, setClosetUrls] = useState<Record<string, string>>({});
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
 
-  // Hydrate from session cache for instant paint
+  // Hydrate session cache for instant paint
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(CACHE_KEY);
@@ -103,7 +203,9 @@ function ShopPage() {
           setLoading(false);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -111,11 +213,12 @@ function ShopPage() {
       const { data: userData } = await supabase.auth.getUser();
       const u = userData.user?.id ?? null;
       setUid(u);
+      setRecentlyShown(getRecentlySeen("shop", u));
       const [{ data: cat }, ci, fb] = await Promise.all([
         supabase
           .from("shop_catalog")
           .select(
-            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo",
+            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo,created_at",
           )
           .order("created_at", { ascending: false })
           .limit(200),
@@ -128,12 +231,11 @@ function ShopPage() {
           : Promise.resolve({ data: [] as ClosetItem[] }),
         u
           ? supabase.from("shop_feedback").select("catalog_id, saved, dismissed").eq("user_id", u)
-          : Promise.resolve({ data: [] as { catalog_id: string; saved: boolean; dismissed: boolean }[] }),
+          : Promise.resolve({
+              data: [] as { catalog_id: string; saved: boolean; dismissed: boolean }[],
+            }),
       ]);
-      const nextCatalog = ((cat ?? []) as CatalogItem[]).map((c) => ({
-        ...c,
-        kind: classifyKind(c.category),
-      }));
+      const nextCatalog = (cat ?? []) as CatalogItem[];
       const nextCloset = ((ci.data ?? []) as unknown[]).filter(
         (i) => (i as ClosetItem).kind !== "fragrance",
       ) as ClosetItem[];
@@ -144,16 +246,23 @@ function ShopPage() {
           CACHE_KEY,
           JSON.stringify({ catalog: nextCatalog, closet: nextCloset }),
         );
-      } catch { /* ignore */ }
-      const dSet = new Set<string>(), sSet = new Set<string>();
-      for (const r of (fb.data ?? []) as Array<{ catalog_id: string; saved: boolean; dismissed: boolean }>) {
+      } catch {
+        /* ignore */
+      }
+      const dSet = new Set<string>(),
+        sSet = new Set<string>();
+      for (const r of (fb.data ?? []) as Array<{
+        catalog_id: string;
+        saved: boolean;
+        dismissed: boolean;
+      }>) {
         if (r.dismissed) dSet.add(r.catalog_id);
         if (r.saved) sSet.add(r.catalog_id);
       }
       setDismissed(dSet);
       setSaved(sSet);
       setLoading(false);
-      // Signed URLs for owned items (used in "Shop the outfit" cards)
+      setLastRefreshedAt(new Date());
       const owned = nextCloset.filter((i) => i.image_url);
       if (owned.length) {
         const urls = await getSignedUrlsByItem(
@@ -165,27 +274,46 @@ function ShopPage() {
   }, []);
 
   const scored: GapScore[] = useMemo(() => {
-    const filtered = catalog.filter(
-      (c) =>
-        (source === "all" || c.condition === source) &&
-        (kind === "all" || c.kind === kind) &&
-        (c.availability ? c.availability !== "out_of_stock" : true) &&
-        !dismissed.has(c.id),
-    );
-    return scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed });
-  }, [catalog, closet, source, kind, dismissed, recentlyShown, refreshSeed]);
+    const filtered = catalog.filter((c) => {
+      if (dismissed.has(c.id)) return false;
+      if (c.availability === "out_of_stock") return false;
+      if (source !== "all" && c.condition !== source) return false;
+      const k = primaryKind(c.category);
+      if (tab === "outfits") return k === "clothing" || k === "shoes" || k === "accessories";
+      if (tab === "accessories") {
+        if (k !== "accessories") return false;
+        if (accSub !== "all" && accessorySubcategory(c) !== accSub) return false;
+        return true;
+      }
+      if (tab === "fragrance") {
+        if (k !== "fragrance") return false;
+        if (fragFam !== "all" && fragranceFamily(c) !== fragFam) return false;
+        return true;
+      }
+      return k === tab;
+    });
+    const s = scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed });
+    if (sort === "new") {
+      return [...s].sort((a, b) => {
+        const at = (a.item as CatalogItem & { created_at?: string }).created_at ?? "";
+        const bt = (b.item as CatalogItem & { created_at?: string }).created_at ?? "";
+        return bt.localeCompare(at);
+      });
+    }
+    return s;
+  }, [catalog, closet, source, tab, accSub, fragFam, sort, dismissed, recentlyShown, refreshSeed]);
 
   const visibleScored = useMemo(() => scored.slice(0, visible), [scored, visible]);
 
   const closetSummary = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const c of closet) {
-      const p = primary(c.category);
+      const p = primarySlot(c.category);
       counts[p] = (counts[p] ?? 0) + 1;
     }
     const total = closet.length;
     if (total === 0) return "Add pieces to your closet so Shop can rank real gaps.";
-    const targets: Array<["top" | "bottom" | "outerwear" | "shoes" | "accessory", number, string]> = [
+    const targets: Array<[string, number, string]> = [
       ["top", 5, "tops"],
       ["bottom", 4, "bottoms"],
       ["outerwear", 2, "outerwear"],
@@ -195,15 +323,14 @@ function ShopPage() {
     const gaps = targets
       .filter(([slot, tgt]) => (counts[slot] ?? 0) < tgt)
       .map(([, , label]) => label);
-    const owned = `You own ${counts.top ?? 0} tops, ${counts.bottom ?? 0} bottoms, ${counts.shoes ?? 0} shoes.`;
+    const owned = `You own ${counts.top ?? 0} tops, ${counts.bottom ?? 0} bottoms, ${counts.shoes ?? 0} shoes, ${counts.accessory ?? 0} accessories.`;
     return gaps.length
       ? `${owned} Best next additions: ${gaps.slice(0, 3).join(", ")}.`
-      : `${owned} Your core rotation is solid — refine with an accent piece.`;
+      : `${owned} Your core rotation is solid.`;
   }, [closet]);
 
   const outfitIdeas = useMemo(() => {
     if (tab !== "outfits") return [];
-    // Pick top scored items that have at least one matching owned piece and produce a small idea.
     return scored
       .filter((g) => g.matches.length > 0)
       .slice(0, 12)
@@ -212,29 +339,23 @@ function ShopPage() {
 
   function refresh() {
     const topIds = scored.slice(0, 6).map((g) => g.item.id);
-    setRecentlyShown((s) => {
-      const next = new Set(s);
-      topIds.forEach((id) => next.add(id));
-      return new Set(Array.from(next).slice(-20));
-    });
+    const next = pushRecentlySeen("shop", topIds, uid);
+    setRecentlyShown(next);
     setRefreshSeed((n) => n + 1);
     setVisible(INITIAL);
+    setLastRefreshedAt(new Date());
   }
 
   async function feedback(id: string, action: "save" | "dismiss") {
     if (!uid) return toast.error("Sign in to save");
     const saveFlag = action === "save";
     const dismissFlag = action === "dismiss";
-    const { error } = await supabase.from("shop_feedback").upsert(
-      {
-        user_id: uid,
-        catalog_id: id,
-        liked: saveFlag,
-        saved: saveFlag,
-        dismissed: dismissFlag,
-      },
-      { onConflict: "user_id,catalog_id" },
-    );
+    const { error } = await supabase
+      .from("shop_feedback")
+      .upsert(
+        { user_id: uid, catalog_id: id, liked: saveFlag, saved: saveFlag, dismissed: dismissFlag },
+        { onConflict: "user_id,catalog_id" },
+      );
     if (error) {
       toast.error(error.message);
       return;
@@ -242,9 +363,9 @@ function ShopPage() {
     if (dismissFlag) {
       setDismissed((s) => new Set(s).add(id));
       setSaved((s) => {
-        const next = new Set(s);
-        next.delete(id);
-        return next;
+        const n = new Set(s);
+        n.delete(id);
+        return n;
       });
     } else {
       setSaved((s) => new Set(s).add(id));
@@ -267,59 +388,78 @@ function ShopPage() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setTab("items")}
-          className={`inline-flex items-center gap-1 rounded-full border px-4 py-1.5 text-xs uppercase tracking-widest ${
-            tab === "items"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border text-foreground/80"
-          }`}
-        >
-          <ShoppingBag className="h-3.5 w-3.5" /> Items
-        </button>
-        <button
-          onClick={() => setTab("outfits")}
-          className={`inline-flex items-center gap-1 rounded-full border px-4 py-1.5 text-xs uppercase tracking-widest ${
-            tab === "outfits"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border text-foreground/80"
-          }`}
-        >
-          <Sparkles className="h-3.5 w-3.5" /> Shop the outfit
-        </button>
+      {/* Primary tabs */}
+      <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+        {PRIMARY_TABS.map((t) => (
+          <button
+            key={t.v}
+            onClick={() => {
+              setTab(t.v);
+              setVisible(INITIAL);
+              setAccSub("all");
+              setFragFam("all");
+            }}
+            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-4 py-1.5 text-xs uppercase tracking-widest ${
+              tab === t.v
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-foreground/80 hover:bg-surface-2"
+            }`}
+          >
+            {t.v === "outfits" ? (
+              <Sparkles className="h-3.5 w-3.5" />
+            ) : t.v === "accessories" ? (
+              <Layers className="h-3.5 w-3.5" />
+            ) : null}
+            {t.l}
+          </button>
+        ))}
       </div>
 
-      {/* Filters toolbar */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="-mx-5 flex flex-1 gap-2 overflow-x-auto px-5 scrollbar-hide">
-            {KINDS.map((k) => (
-              <button
-                key={k.v}
-                onClick={() => {
-                  setKind(k.v);
-                  setVisible(INITIAL);
-                }}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${
-                  kind === k.v
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-foreground/80"
-                }`}
-              >
-                {k.l}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={refresh}
-            className="shrink-0 inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs uppercase tracking-widest hover:bg-surface-2"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-        </div>
+      {/* Secondary chip row */}
+      {tab === "accessories" && (
         <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+          {ACC_SUBS.map((s) => (
+            <button
+              key={s.v}
+              onClick={() => {
+                setAccSub(s.v);
+                setVisible(INITIAL);
+              }}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-widest ${
+                accSub === s.v
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-foreground/80"
+              }`}
+            >
+              {s.l}
+            </button>
+          ))}
+        </div>
+      )}
+      {tab === "fragrance" && (
+        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+          {FRAG_FAMS.map((s) => (
+            <button
+              key={s.v}
+              onClick={() => {
+                setFragFam(s.v);
+                setVisible(INITIAL);
+              }}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-widest ${
+                fragFam === s.v
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-foreground/80"
+              }`}
+            >
+              {s.l}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Condition + refresh toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="-mx-5 flex flex-1 gap-2 overflow-x-auto px-5 scrollbar-hide">
           {CONDITIONS.map((s) => (
             <button
               key={s}
@@ -327,7 +467,7 @@ function ShopPage() {
                 setSource(s);
                 setVisible(INITIAL);
               }}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-widest ${
                 source === s
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border text-foreground/80"
@@ -337,7 +477,27 @@ function ShopPage() {
             </button>
           ))}
         </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as "gap" | "new")}
+            className="rounded-full border border-border bg-background px-3 py-1.5 text-[11px] uppercase tracking-widest"
+          >
+            <option value="gap">Best gap fit</option>
+            <option value="new">New arrivals</option>
+          </select>
+          <button
+            onClick={refresh}
+            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[11px] uppercase tracking-widest hover:bg-surface-2"
+          >
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </button>
+        </div>
       </div>
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Last refreshed{" "}
+        {lastRefreshedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </p>
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -345,53 +505,56 @@ function ShopPage() {
             <div key={i} className="h-64 animate-pulse rounded-lg bg-surface" />
           ))}
         </div>
-      ) : tab === "items" ? (
-        scored.length === 0 ? (
+      ) : tab === "outfits" ? (
+        outfitIdeas.length === 0 ? (
           <div className="card-surface p-6 text-center text-sm text-muted-foreground">
-            No matches in this filter.
+            Add a few pieces to your closet so we can build outfits around new items.
           </div>
         ) : (
-          <>
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleScored.map((g) => (
-                <ItemCard
-                  key={g.item.id}
-                  g={g}
-                  saved={saved.has(g.item.id)}
-                  onSave={() => feedback(g.item.id, "save")}
-                  onDismiss={() => feedback(g.item.id, "dismiss")}
-                />
-              ))}
-            </ul>
-            {visible < scored.length && (
-              <div className="flex justify-center pt-2">
-                <button
-                  onClick={() => setVisible((n) => n + PAGE_SIZE)}
-                  className="rounded-full border border-border px-5 py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
-                >
-                  Load more ({scored.length - visible})
-                </button>
-              </div>
-            )}
-          </>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {outfitIdeas.map(({ pick, owned }) => (
+              <OutfitCard
+                key={pick.item.id}
+                g={pick}
+                owned={owned}
+                closetUrls={closetUrls}
+                saved={saved.has(pick.item.id)}
+                onSave={() => feedback(pick.item.id, "save")}
+              />
+            ))}
+          </ul>
         )
-      ) : outfitIdeas.length === 0 ? (
+      ) : scored.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
-          Add a few pieces to your closet so we can build outfits around new items.
+          No matches in this filter. Try Refresh or a different tab.
         </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {outfitIdeas.map(({ pick, owned }) => (
-            <OutfitCard
-              key={pick.item.id}
-              g={pick}
-              owned={owned}
-              closetUrls={closetUrls}
-              saved={saved.has(pick.item.id)}
-              onSave={() => feedback(pick.item.id, "save")}
-            />
-          ))}
-        </ul>
+        <>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            {scored.length} result{scored.length === 1 ? "" : "s"}
+          </p>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleScored.map((g) => (
+              <ItemCard
+                key={g.item.id}
+                g={g}
+                saved={saved.has(g.item.id)}
+                onSave={() => feedback(g.item.id, "save")}
+                onDismiss={() => feedback(g.item.id, "dismiss")}
+              />
+            ))}
+          </ul>
+          {visible < scored.length && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setVisible((n) => n + PAGE_SIZE)}
+                className="rounded-full border border-border px-5 py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
+              >
+                Load more ({scored.length - visible})
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -457,14 +620,19 @@ function ItemCard({
         )}
         <ul className="space-y-0.5">
           {g.reasons.map((r, i) => (
-            <li key={i} className="text-xs text-muted-foreground">· {r}</li>
+            <li key={i} className="text-xs text-muted-foreground">
+              · {r}
+            </li>
           ))}
         </ul>
         {g.matches.length > 0 && (
           <p className="text-[11px] text-foreground/70">
             Pairs with:{" "}
             <span className="text-foreground/90">
-              {g.matches.slice(0, 3).map((m) => m.name).join(", ")}
+              {g.matches
+                .slice(0, 3)
+                .map((m) => m.name)
+                .join(", ")}
             </span>
           </p>
         )}
@@ -479,6 +647,13 @@ function ItemCard({
               <ExternalLink className="h-3 w-3" /> Shop now
             </a>
           )}
+          <Link
+            to="/inspo"
+            search={{ item: g.item.id }}
+            className="rounded-full border border-primary/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 inline-flex items-center gap-1"
+          >
+            <Sparkles className="h-3 w-3" /> Build around this
+          </Link>
           <button
             onClick={onSave}
             disabled={saved}
@@ -536,7 +711,10 @@ function OutfitCard({
         </div>
         <div className="col-span-3 grid grid-cols-2 gap-1">
           {owned.map((o) => (
-            <div key={o.id} className="aspect-square bg-surface-2 relative rounded-md overflow-hidden">
+            <div
+              key={o.id}
+              className="aspect-square bg-surface-2 relative rounded-md overflow-hidden"
+            >
               {closetUrls[o.id] ? (
                 <img
                   src={closetUrls[o.id]}
@@ -579,6 +757,13 @@ function OutfitCard({
               <ExternalLink className="h-3 w-3" /> Shop the new piece
             </a>
           )}
+          <Link
+            to="/inspo"
+            search={{ item: g.item.id }}
+            className="rounded-full border border-primary/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 inline-flex items-center gap-1"
+          >
+            <Sparkles className="h-3 w-3" /> Build around this
+          </Link>
           <button
             onClick={onSave}
             disabled={saved}

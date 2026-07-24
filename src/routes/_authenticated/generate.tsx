@@ -406,7 +406,6 @@ function GeneratePage() {
         <h1 className="mt-1 font-display text-4xl">Get dressed</h1>
       </div>
 
-
       {!hasEnough ? (
         <div className="card-surface p-6">
           <p className="text-sm text-muted-foreground">

@@ -33,10 +33,7 @@ function ItemPage() {
         .eq("closet_item_id", id)
         .order("worn_on", { ascending: false })
         .limit(30),
-      supabase
-        .from("outfit_items")
-        .select("outfit_id")
-        .eq("closet_item_id", id),
+      supabase.from("outfit_items").select("outfit_id").eq("closet_item_id", id),
     ]);
     const outfitIds = (oi ?? []).map((r) => r.outfit_id);
     let outfitWears: Wear[] = [];
@@ -86,12 +83,7 @@ function ItemPage() {
 
   async function remove() {
     if (!item) return;
-    if (
-      !confirm(
-        "Delete this piece? Outfits that reference it will lose this item.",
-      )
-    )
-      return;
+    if (!confirm("Delete this piece? Outfits that reference it will lose this item.")) return;
     setBusy(true);
     try {
       if (item.image_url) await deleteClosetImage(item.image_url);
@@ -180,10 +172,7 @@ function ItemPage() {
     ["Kind", item.kind],
     ["Brand", item.brand ?? "—"],
     ["Color", item.color ?? "—"],
-    [
-      "Also",
-      (item.secondary_colors ?? []).length ? item.secondary_colors!.join(", ") : "—",
-    ],
+    ["Also", (item.secondary_colors ?? []).length ? item.secondary_colors!.join(", ") : "—"],
     ["Material", item.material ?? "—"],
     ["Fit", item.fit ?? "—"],
     ["Size", item.size ?? "—"],
@@ -239,18 +228,12 @@ function ItemPage() {
         </div>
       )}
 
-      <button
-        onClick={markWorn}
-        disabled={busy}
-        className="btn-lime w-full disabled:opacity-60"
-      >
+      <button onClick={markWorn} disabled={busy} className="btn-lime w-full disabled:opacity-60">
         Mark worn today
       </button>
 
       <div className="card-surface p-4">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          Wear history
-        </p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Wear history</p>
         {wears.length === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">No wears recorded yet.</p>
         ) : (

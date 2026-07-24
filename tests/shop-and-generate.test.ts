@@ -1,5 +1,11 @@
 import { describe, it, expect } from "bun:test";
-import { scoreCatalog, hasValidBuyUrl, type CatalogItem } from "../src/lib/shop-gap";
+import {
+  scoreCatalog,
+  hasValidBuyUrl,
+  accessorySubcategory,
+  fragranceFamily,
+  type CatalogItem,
+} from "../src/lib/shop-gap";
 import type { ClosetItem } from "../src/lib/outfit-generator";
 
 const C = (over: Partial<CatalogItem>): CatalogItem => ({
@@ -59,54 +65,98 @@ describe("shop rotation & diversity", () => {
     });
     expect(second[0].item.id).not.toBe(first[0].item.id);
   });
-
   it("different seeds shuffle tied items", () => {
     const cat = [C({ id: "a" }), C({ id: "b" }), C({ id: "c" })];
     const s1 = scoreCatalog(cat, closet, { seed: 1 }).map((g) => g.item.id);
     const s2 = scoreCatalog(cat, closet, { seed: 42 }).map((g) => g.item.id);
-    // Not strictly guaranteed but overwhelmingly likely with 3 seeds
     expect(s1.join()).not.toBe(s2.join());
   });
 });
 
 describe("hasValidBuyUrl", () => {
-  it("accepts https", () => {
-    expect(hasValidBuyUrl(C({ buy_url: "https://uniqlo.com/x" }))).toBe(true);
-  });
+  it("accepts https", () =>
+    expect(hasValidBuyUrl(C({ buy_url: "https://uniqlo.com/x" }))).toBe(true));
   it("rejects missing / malformed", () => {
     expect(hasValidBuyUrl(C({ buy_url: null }))).toBe(false);
     expect(hasValidBuyUrl(C({ buy_url: "not-a-url" }))).toBe(false);
   });
 });
 
-// custom vibe validation as used in generate.tsx
 function validateVibe(vibe: string, custom: string): string | null {
   if (vibe !== "Other") return null;
   if (!custom.trim()) return "Describe your vibe first";
   if (custom.trim().length > 60) return "Keep it under 60 characters";
   return null;
 }
-
 describe("custom vibe validation", () => {
-  it("preset vibes require no custom text", () => {
-    expect(validateVibe("Streetwear", "")).toBeNull();
-  });
+  it("preset vibes require no custom text", () =>
+    expect(validateVibe("Streetwear", "")).toBeNull());
   it("Other requires text", () => {
     expect(validateVibe("Other", "  ")).toBe("Describe your vibe first");
     expect(validateVibe("Other", "blokecore")).toBeNull();
   });
 });
 
-// scent owned-vs-suggested: presence of any fragrance means "from shelf"
-describe("scent presentation", () => {
-  it("empty fragrance list yields a suggested profile, not a fake owned pairing", () => {
-    const list: unknown[] = [];
-    const owned = list.length > 0;
-    expect(owned).toBe(false);
+describe("accessorySubcategory", () => {
+  it("classifies common accessory names", () => {
+    expect(accessorySubcategory(C({ name: "Wool Beanie", category: "accessory" }))).toBe("beanie");
+    expect(accessorySubcategory(C({ name: "Leather Belt", category: "belt" }))).toBe("belt");
+    expect(accessorySubcategory(C({ name: "Crossbody Bag", category: "bag" }))).toBe("bag");
+    expect(accessorySubcategory(C({ name: "G-Shock Watch", category: "watch" }))).toBe("watch");
+    expect(accessorySubcategory(C({ name: "Silver Chain", category: "chain" }))).toBe("jewelry");
+    expect(accessorySubcategory(C({ name: "Ray-Ban Sunglasses", category: "sunglasses" }))).toBe(
+      "sunglasses",
+    );
+    expect(accessorySubcategory(C({ name: "Trucker Cap", category: "cap" }))).toBe("cap");
   });
 });
 
-// weather fallback: manual temp must remain usable when detect throws
+describe("fragranceFamily", () => {
+  it("classifies fragrance descriptors", () => {
+    expect(fragranceFamily(C({ name: "Bergamot Cologne" }))).toBe("fresh");
+    expect(fragranceFamily(C({ name: "Sandalwood Oud" }))).toBe("woody");
+    expect(fragranceFamily(C({ name: "Vanilla Gourmand" }))).toBe("sweet");
+    expect(fragranceFamily(C({ name: "Ocean Marine Splash" }))).toBe("aquatic");
+    expect(fragranceFamily(C({ name: "Amber Tobacco" }))).toBe("warm");
+  });
+});
+
+// recently-seen buffer behavior (pure logic — no localStorage)
+function pushRing(prev: string[], add: string[], max = 40): string[] {
+  const s = new Set(prev);
+  for (const id of add) s.add(id);
+  return Array.from(s).slice(-max);
+}
+describe("recently-seen ring buffer", () => {
+  it("dedupes and caps at max size", () => {
+    const r = pushRing(["a", "b"], ["b", "c", "d"]);
+    expect(r).toEqual(["a", "b", "c", "d"]);
+    const many = Array.from({ length: 60 }, (_, i) => `x${i}`);
+    expect(pushRing([], many, 40).length).toBe(40);
+  });
+});
+
+// Locked-slot preservation invariant used by Inspo Builder
+type Sel = Record<string, { id: string } | undefined>;
+function shuffleUnlocked(sel: Sel, locked: Set<string>, pool: Record<string, string[]>): Sel {
+  const next: Sel = {};
+  for (const k of Object.keys(sel)) if (locked.has(k) && sel[k]) next[k] = sel[k];
+  for (const k of Object.keys(pool)) {
+    if (next[k]) continue;
+    const p = pool[k];
+    if (p.length) next[k] = { id: p[0] };
+  }
+  return next;
+}
+describe("inspo locked slots", () => {
+  it("preserves locked assignments through shuffle", () => {
+    const sel: Sel = { top: { id: "t1" }, bottom: { id: "b1" } };
+    const out = shuffleUnlocked(sel, new Set(["top"]), { top: ["t9"], bottom: ["b9"] });
+    expect(out.top).toEqual({ id: "t1" });
+    expect(out.bottom).toEqual({ id: "b9" });
+  });
+});
+
 async function safeDetect(fn: () => Promise<{ temperatureF: number }>) {
   try {
     return await fn();

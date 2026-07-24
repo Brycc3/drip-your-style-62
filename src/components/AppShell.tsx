@@ -69,7 +69,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="flex-1 pb-28">
         <div
           className={`${
-            pathname === "/shop" || pathname.startsWith("/shop/") ? "container-wide" : "container-app"
+            pathname === "/shop" || pathname.startsWith("/shop/")
+              ? "container-wide"
+              : "container-app"
           } py-5`}
         >
           {children}
