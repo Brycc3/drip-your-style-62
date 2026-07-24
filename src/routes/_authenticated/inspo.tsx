@@ -580,7 +580,8 @@ function SuggestionTray({
   const isFragrance = SLOT_KIND[slot] === "fragrance";
   const showCloset = source === "closet" || source === "mix";
   const showShop = source === "shop" || source === "mix";
-  const shopItems = catalogItems.filter((c) => !showShop || true); // no-op filter
+  const shopItems = catalogItems;
+
   return (
     <div className="card-surface p-3 space-y-3">
       <div className="flex items-center justify-between">
