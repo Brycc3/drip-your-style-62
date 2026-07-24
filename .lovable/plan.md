@@ -1,78 +1,52 @@
 
-## Immediate fix (ships with Phase 2)
+# DRIP Stabilization Pass
 
-**Sign-in for Google accounts.** When email/password login returns `invalid_credentials`, silently probe whether the email has a Google identity and swap the error toast for: *"This email uses Google sign-in. Click Continue with Google."* Also detect "not confirmed" and route to a resend-confirmation action. No new tables.
+Big scope, so I'm laying out the plan before touching code. Nothing here adds marketplace features — it hardens what's already promised.
 
-**Add-a-piece bug.** Once I can see the exact error (screenshot or toast text — I'll add better logging), I'll fix it as part of this batch. Most likely the onboarding gate is bouncing you back before the form saves.
+## 1. Outfit generator (`src/lib/outfit-generator.ts`, `generate.tsx`)
 
----
+- Replace unused `regen` seed with a real **rotation index**: after sorting, take a window offset by `regen % N` so "More" cycles through the next best combos while staying deterministic per state.
+- Add `occasionScore`: match against profiles for `work, date, church, brunch, gym, errands, party/concert, travel, formal, outdoor` — each profile maps to preferred categories/formality/season/vibes and a keyword bloom over item names/brands/notes.
+- Add `preferenceScore` from `outfit_feedback` (liked item ids → boost, passed → penalty).
+- Return a **breakdown object** `{ color, silhouette, weather, formality, occasion, preference, diversity }` so cards show separate scores.
+- Fix `outfit_items` insert bug: currently zips pieces to `roles[i]` after filtering, mis-labeling when outerwear is null. Build explicit `[{role:'top',item},{role:'bottom',item},…]` pairs.
+- Fix **Mark worn**: if outfit not saved, save private first, then insert `wear_history` row and bump `times_worn`/`last_worn_at` on each `closet_items.id`.
 
-## Phase 2 — Outfit generator + Social
+## 2. Privacy & data correctness
 
-### 2A. Outfit generator (original plan)
-Rule-based scorer that reads your closet and returns 3–5 outfit cards for a given occasion.
+Migration:
+- Drop any public/anon SELECT policy on `storage.objects` for the `closet` bucket; keep owner-only (`bucket_id='closet' AND owner = auth.uid()`).
+- Audit RLS on `closet_items, saved_outfits, outfit_feedback, wear_history, fragrances, user_preferences`: private tables must scope every command to `auth.uid() = user_id`; only `saved_outfits` with `visibility='public'` and its `outfit_items`/counters may be anon-readable.
+- Public outfit share: `/o/$slug` should resolve via `saved_outfits.cover_image_url` (already a storage path). Add a server function `getPublicOutfitCover(slug)` that verifies visibility=public and returns a **short-lived signed URL** — do not expose the raw path or let anon list the bucket.
 
-- New page: `/generate` becomes interactive (form → cards).
-- Inputs: where you're going, vibe, temperature, dress code.
-- Scorer factors: color harmony (complementary + neutral anchors), silhouette balance (fitted vs. relaxed), season/temperature, formality match, stated style prefs from onboarding, swipe feedback signal (once 2B ships), diversity vs. recent wears.
-- Each card shows the pieces, a plain-English rationale ("navy bomber anchors the warm-tone tee; joggers keep the silhouette relaxed for 55°F casual"), and buttons: **Save**, **Regenerate**, **Mark worn**.
-- Persists to `saved_outfits` + `outfit_items` (already exist).
+Fragrance unification:
+- Remove `fragrance` from `closet.new` category options and from generator categories.
+- Build `/_authenticated/scents` add/edit/delete against `fragrances`.
+- Home scent count reads `fragrances`.
 
-### 2B. Social sharing + public profiles
-Opt-in. Default = private.
+## 3. Complete MVP interactions
 
-- New table `public_profiles` — handle, display name, bio, avatar, is_public flag.
-- Handle claim flow in `/profile` ("Make my profile public → choose @handle").
-- New public route `/u/$handle` — visible to anyone, shows public outfits + likes count + follow button. Own `head()` with OG image = user's top outfit.
-- `saved_outfits` gets a `visibility` column: `private | friends | public`.
-- Share-sheet on any saved outfit → copy link `/o/$outfitId` (public route, owner-controlled visibility).
+- **Swipe**: real page — generates 20 candidate outfits, shows one card at a time with Like/Pass buttons + basic pointer-drag translate/rotate. Persists to `outfit_feedback` (add liked/passed item ids as arrays or per-piece rows — reuse existing schema).
+- **Shop gap scorer**: for each `shop_catalog` item, compute (a) category shortfall vs a target profile (e.g. want ≥3 tops, ≥3 bottoms, ≥1 outerwear, ≥2 shoes), (b) matched owned pieces by color/formality/season, (c) estimated new outfits unlocked (count of valid top/bottom/shoe combos gained), (d) duplicate warning if user already owns same category+brand+color. Persist Save/Dismiss to `shop_feedback`.
+- **Scents pairing**: on generated outfit cards, pick best fragrance by (family↔vibe map, season/temp, projection↔formality, occasion). Show pairing + one-line rationale.
+- **Accessories**: add filter chip in `closet.tsx`; include as optional 5th slot in outfit cards (already partially wired).
+- **Home recently added**: render signed URLs (batch fetch).
 
-### 2C. Friends
-- `follows` table (follower_id → followee_id). Simple, no accept step (Pinterest-style).
-- Optional `friend_requests` for accept-required "friends-only" outfits.
-- `/profile/friends` — search by handle, follow/unfollow, see who follows you.
-- Friends-only outfits visible to accepted followers.
+## 4. PWA & quality
 
-### 2D. Global leaderboard
-Public route `/leaderboard` — Pinterest/Reddit-style grid of public outfits.
+- Add `public/sw.js` (network-first for HTML, cache-first for hashed assets, excludes `/~oauth`) via a small handwritten worker; guarded registration wrapper that refuses in Lovable preview/dev/iframe and supports `?sw=off`.
+- Manifest already valid; add theme-color and apple-touch-icon `<link>`s if missing.
+- `<InstallPrompt />` component: listens for `beforeinstallprompt`, shows lime CTA; on iOS Safari shows "Tap Share → Add to Home Screen".
+- Tests: add **vitest** + jsdom.
+  - Unit: `outfit-generator` (harmony, silhouette, season, formality, occasion, rotation determinism), gap scorer, fragrance pairer.
+  - Smoke: render key routes with mocked supabase client; assert critical CTAs exist.
+  - `package.json`: `"test": "vitest run"`, `"test:watch": "vitest"`.
+- Loading/empty/error states: audit each route, add retry buttons on failed queries, remove "Coming in Phase X" copy from Swipe.
 
-- Tabs: **Trending** (likes in last 7d, decayed), **Top all-time**, **New**.
-- Also `/leaderboard/users` — top public profiles by total likes.
-- New tables: `outfit_likes` (user, outfit, created_at), `outfit_saves` (Pinterest-style save-to-inspo), `outfit_comments` (Reddit-style with parent_id for threads).
-- Rate-limit likes/comments via RLS + insert throttling.
-- Each outfit card links to `/o/$outfitId` which shows fullscreen image, breakdown of pieces, comments thread, like/save buttons.
+## Out of scope (Phase 2, documented in README)
 
-### 2E. Inspo board (comes with saves)
-- New `/inspo` page under the auth gate — grid of outfits you've saved from others' feeds.
+Peer-to-peer selling, thrift feeds, live brand APIs, vision auto-tagging. I'll leave extension points: `shop_catalog.source_url`, `fragrances.notes` JSON, generator's pluggable scorer signature.
 
----
+## Deliverable
 
-## Nav changes
-Bottom tab bar gains a **Feed** (leaderboard) tab. Profile page gets: *Make public*, *Friends*, *My inspo*, *Shared with me*.
-
----
-
-## Technical details
-
-- **Auth fix:** call `supabase.auth.signInWithPassword`; on `invalid_credentials`, call a public server fn `checkEmailProviders(email)` that uses `supabaseAdmin` to look up identities and returns `{ hasGoogle, hasPassword, confirmed }`. Toast copy chosen from that.
-- **Public routes** (`/u/$handle`, `/o/$id`, `/leaderboard`) are top-level SSR-enabled with loaders calling **public server fns** using the server publishable client + narrow `TO anon` SELECT policies (only rows where `visibility='public'`; only public-profile columns).
-- **Private/friends reads** go through `requireSupabaseAuth` server fns with owner + follower policies.
-- **Likes/saves/comments tables** all have GRANTs to authenticated + service_role, RLS scoped to `auth.uid()` for writes, and `TO anon` reads for public outfits only.
-- **Leaderboard scoring** = SQL view: `likes * exp(-age_hours/72)` for trending; `count(likes)` for top; `created_at desc` for new.
-- **OG images** for `/u/$handle` and `/o/$id` use the outfit cover image URL directly — no image generation needed for MVP.
-- **Migrations** ship in one batch: `public_profiles`, `follows`, `outfit_likes`, `outfit_saves`, `outfit_comments`, add `visibility` + `share_slug` to `saved_outfits`, add `is_public` + `handle` to `profiles` (or via new `public_profiles` table).
-- **Recommendation engine** stays rule-based and transparent per your original spec; no AI branding.
-
----
-
-## What I'll ship in this turn
-
-1. Sign-in fix + better error copy.
-2. Debug + fix add-a-piece.
-3. All Phase 2 migrations (tables, RLS, GRANTs).
-4. Outfit generator working end-to-end.
-5. Public profile claim + `/u/$handle` + share links.
-6. `/leaderboard` with trending/top/new + likes + comments + saves.
-7. Feed tab in nav, Friends + Inspo in Profile.
-
-Phase 3 (advanced swipe training feeding back into the scorer) and Phase 4 (deeper scent pairing + analytics + offline polish) still come after.
+Concise summary of fixes + any manual config blockers (e.g. if a Supabase storage policy can't be dropped via migration and needs dashboard action — but on Lovable Cloud I'll do it via SQL).
