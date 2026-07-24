@@ -705,15 +705,13 @@ function OutfitCard({
         </p>
       </div>
       <div className="grid grid-cols-5 gap-1 px-3">
-        <div className="col-span-2 aspect-square bg-surface-2 relative rounded-md overflow-hidden">
-          {g.item.image_url ? (
-            <img
-              src={g.item.image_url}
-              alt={g.item.name}
-              loading="lazy"
-              className="h-full w-full object-cover"
-            />
-          ) : null}
+        <div className="col-span-2 relative rounded-md overflow-hidden">
+          <CatalogImage
+            src={g.item.image_url}
+            alt={g.item.name}
+            category={g.item.category}
+            className="aspect-square"
+          />
           <span className="absolute bottom-1 left-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary-foreground">
             New
           </span>
