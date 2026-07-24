@@ -2,11 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  uploadClosetImage,
-  deleteClosetImage,
-  getSignedUrl,
-} from "@/lib/closet-storage";
+import { uploadClosetImage, deleteClosetImage, getSignedUrl } from "@/lib/closet-storage";
 import type { Tables } from "@/integrations/supabase/types";
 import { Camera, X } from "lucide-react";
 
@@ -36,10 +32,7 @@ const FITS = ["Slim", "Regular", "Relaxed", "Oversized", "Boxy", "Cropped"] as c
 const SEASONS = ["spring", "summer", "fall", "winter", "all"] as const;
 const FORMALITY = ["loungewear", "casual", "smart_casual", "business", "formal"] as const;
 
-const KIND_FOR: Record<
-  (typeof CATEGORIES)[number],
-  "clothing" | "shoes" | "accessory"
-> = {
+const KIND_FOR: Record<(typeof CATEGORIES)[number], "clothing" | "shoes" | "accessory"> = {
   top: "clothing",
   bottom: "clothing",
   outerwear: "clothing",
@@ -56,11 +49,7 @@ const schema = z.object({
   material: z.string().trim().max(60).optional(),
   fit: z.string().trim().max(30).optional(),
   size: z.string().trim().max(20).optional(),
-  price: z
-    .number()
-    .nonnegative("Price can't be negative")
-    .max(100000, "Price too high")
-    .optional(),
+  price: z.number().nonnegative("Price can't be negative").max(100000, "Price too high").optional(),
   notes: z.string().trim().max(500, "Keep notes under 500 characters").optional(),
   tags: z.string().trim().max(200).optional(),
   subcategory: z.string().trim().max(40).optional(),
@@ -297,9 +286,7 @@ function EditItem() {
         <Field label="Category*">
           <Select
             value={form.category}
-            onChange={(v) =>
-              setForm({ ...form, category: v as (typeof CATEGORIES)[number] })
-            }
+            onChange={(v) => setForm({ ...form, category: v as (typeof CATEGORIES)[number] })}
             options={[...CATEGORIES]}
           />
         </Field>
@@ -361,9 +348,7 @@ function EditItem() {
         <Field label="Price ($)">
           <input
             value={form.price}
-            onChange={(e) =>
-              setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, "") })
-            }
+            onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, "") })}
             inputMode="decimal"
             className={inputCls}
           />
@@ -426,22 +411,16 @@ function EditItem() {
         >
           Cancel
         </button>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="btn-lime disabled:opacity-50"
-        >
+        <button onClick={save} disabled={saving} className="btn-lime disabled:opacity-50">
           {saving ? "Saving…" : "Save changes"}
         </button>
       </div>
 
       <div className="card-surface p-4">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          Danger zone
-        </p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Danger zone</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Archive hides this piece from outfit generation and shop analysis. You can
-          restore it any time.
+          Archive hides this piece from outfit generation and shop analysis. You can restore it any
+          time.
         </p>
         <button
           onClick={toggleArchive}
@@ -457,9 +436,7 @@ function EditItem() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-xs uppercase tracking-widest text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-xs uppercase tracking-widest text-muted-foreground">{label}</span>
       {children}
     </label>
   );
@@ -475,11 +452,7 @@ function Select({
   options: string[];
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={inputCls}
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
       {options.map((o) => (
         <option key={o} value={o}>
           {o || "—"}

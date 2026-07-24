@@ -64,9 +64,7 @@ function SavedPage() {
     }
     const { data: outfits } = await supabase
       .from("saved_outfits")
-      .select(
-        "id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,created_at",
-      )
+      .select("id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,created_at")
       .eq("user_id", u)
       .eq("is_shopping_idea", false)
       .order("pinned", { ascending: false })
@@ -117,10 +115,7 @@ function SavedPage() {
   async function rename(o: Outfit) {
     const val = renameVal.trim();
     if (!val) return setRenaming(null);
-    const { error } = await supabase
-      .from("saved_outfits")
-      .update({ name: val })
-      .eq("id", o.id);
+    const { error } = await supabase.from("saved_outfits").update({ name: val }).eq("id", o.id);
     if (error) return toast.error(error.message);
     setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, name: val } : r)));
     setRenaming(null);

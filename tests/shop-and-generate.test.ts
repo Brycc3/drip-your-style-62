@@ -23,15 +23,46 @@ const C = (over: Partial<CatalogItem>): CatalogItem => ({
 });
 
 const closet: ClosetItem[] = [
-  { id: "t1", name: "tee", category: "top", kind: "clothing", color: "black", material: "cotton", fit: "relaxed", season: "all", formality: "casual", brand: null, image_url: null },
-  { id: "b1", name: "jeans", category: "bottom", kind: "clothing", color: "indigo", material: "denim", fit: "slim", season: "all", formality: "casual", brand: null, image_url: null },
+  {
+    id: "t1",
+    name: "tee",
+    category: "top",
+    kind: "clothing",
+    color: "black",
+    material: "cotton",
+    fit: "relaxed",
+    season: "all",
+    formality: "casual",
+    brand: null,
+    image_url: null,
+  },
+  {
+    id: "b1",
+    name: "jeans",
+    category: "bottom",
+    kind: "clothing",
+    color: "indigo",
+    material: "denim",
+    fit: "slim",
+    season: "all",
+    formality: "casual",
+    brand: null,
+    image_url: null,
+  },
 ];
 
 describe("shop rotation & diversity", () => {
   it("penalizes items shown recently so refresh reshuffles", () => {
-    const cat = [C({ id: "a", category: "shoes" }), C({ id: "b", category: "shoes" }), C({ id: "c", category: "shoes" })];
+    const cat = [
+      C({ id: "a", category: "shoes" }),
+      C({ id: "b", category: "shoes" }),
+      C({ id: "c", category: "shoes" }),
+    ];
     const first = scoreCatalog(cat, closet, { recentlyShown: new Set(), seed: 1 });
-    const second = scoreCatalog(cat, closet, { recentlyShown: new Set([first[0].item.id]), seed: 2 });
+    const second = scoreCatalog(cat, closet, {
+      recentlyShown: new Set([first[0].item.id]),
+      seed: 2,
+    });
     expect(second[0].item.id).not.toBe(first[0].item.id);
   });
   it("different seeds shuffle tied items", () => {
@@ -43,7 +74,8 @@ describe("shop rotation & diversity", () => {
 });
 
 describe("hasValidBuyUrl", () => {
-  it("accepts https", () => expect(hasValidBuyUrl(C({ buy_url: "https://uniqlo.com/x" }))).toBe(true));
+  it("accepts https", () =>
+    expect(hasValidBuyUrl(C({ buy_url: "https://uniqlo.com/x" }))).toBe(true));
   it("rejects missing / malformed", () => {
     expect(hasValidBuyUrl(C({ buy_url: null }))).toBe(false);
     expect(hasValidBuyUrl(C({ buy_url: "not-a-url" }))).toBe(false);
@@ -57,7 +89,8 @@ function validateVibe(vibe: string, custom: string): string | null {
   return null;
 }
 describe("custom vibe validation", () => {
-  it("preset vibes require no custom text", () => expect(validateVibe("Streetwear", "")).toBeNull());
+  it("preset vibes require no custom text", () =>
+    expect(validateVibe("Streetwear", "")).toBeNull());
   it("Other requires text", () => {
     expect(validateVibe("Other", "  ")).toBe("Describe your vibe first");
     expect(validateVibe("Other", "blokecore")).toBeNull();
@@ -71,7 +104,9 @@ describe("accessorySubcategory", () => {
     expect(accessorySubcategory(C({ name: "Crossbody Bag", category: "bag" }))).toBe("bag");
     expect(accessorySubcategory(C({ name: "G-Shock Watch", category: "watch" }))).toBe("watch");
     expect(accessorySubcategory(C({ name: "Silver Chain", category: "chain" }))).toBe("jewelry");
-    expect(accessorySubcategory(C({ name: "Ray-Ban Sunglasses", category: "sunglasses" }))).toBe("sunglasses");
+    expect(accessorySubcategory(C({ name: "Ray-Ban Sunglasses", category: "sunglasses" }))).toBe(
+      "sunglasses",
+    );
     expect(accessorySubcategory(C({ name: "Trucker Cap", category: "cap" }))).toBe("cap");
   });
 });
@@ -123,11 +158,17 @@ describe("inspo locked slots", () => {
 });
 
 async function safeDetect(fn: () => Promise<{ temperatureF: number }>) {
-  try { return await fn(); } catch { return null; }
+  try {
+    return await fn();
+  } catch {
+    return null;
+  }
 }
 describe("weather fallback", () => {
   it("returns null on denial without throwing", async () => {
-    const r = await safeDetect(async () => { throw new Error("denied"); });
+    const r = await safeDetect(async () => {
+      throw new Error("denied");
+    });
     expect(r).toBeNull();
   });
 });

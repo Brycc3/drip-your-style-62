@@ -40,9 +40,7 @@ type Feedback = {
 
 function piecesOf(s: Snapshot | null): SnapPiece[] {
   if (!s) return [];
-  return [s.top, s.bottom, s.outerwear, s.shoes, s.accessory].filter(
-    (p): p is SnapPiece => !!p,
-  );
+  return [s.top, s.bottom, s.outerwear, s.shoes, s.accessory].filter((p): p is SnapPiece => !!p);
 }
 
 function TastePage() {
@@ -84,9 +82,7 @@ function TastePage() {
     if (paths.length) {
       const entries = await Promise.all(
         paths.map(async (p) => {
-          const { data: sig } = await supabase.storage
-            .from("closet")
-            .createSignedUrl(p, 60 * 60);
+          const { data: sig } = await supabase.storage.from("closet").createSignedUrl(p, 60 * 60);
           return [p, sig?.signedUrl ?? ""] as const;
         }),
       );
@@ -195,13 +191,8 @@ function TastePage() {
       await supabase.from("saved_outfits").delete().eq("id", outfit.id);
       return toast.error(`Could not save pieces: ${ie.message}`);
     }
-    await supabase
-      .from("outfit_feedback")
-      .update({ outfit_id: outfit.id })
-      .eq("id", fb.id);
-    setRows((rs) =>
-      rs.map((r) => (r.id === fb.id ? { ...r, outfit_id: outfit.id } : r)),
-    );
+    await supabase.from("outfit_feedback").update({ outfit_id: outfit.id }).eq("id", fb.id);
+    setRows((rs) => rs.map((r) => (r.id === fb.id ? { ...r, outfit_id: outfit.id } : r)));
     toast.success("Saved to Saved Outfits");
   }
 

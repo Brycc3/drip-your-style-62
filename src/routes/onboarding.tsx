@@ -49,7 +49,6 @@ function Onboarding() {
     if (!loading && !user) navigate({ to: "/auth", replace: true });
   }, [loading, user, navigate]);
 
-
   useEffect(() => {
     if (!user) return;
     supabase
@@ -119,7 +118,6 @@ function Onboarding() {
       setSaving(false);
     }
   }
-
 
   return (
     <div className="min-h-dvh bg-background">
@@ -228,7 +226,6 @@ function Onboarding() {
             <button onClick={handleContinue} className="btn-lime flex-1">
               Continue
             </button>
-
           ) : (
             <button
               onClick={finish}

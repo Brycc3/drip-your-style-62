@@ -2,11 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
-import {
-  generateOutfits,
-  type ClosetItem,
-  type OutfitPick,
-} from "@/lib/outfit-generator";
+import { generateOutfits, type ClosetItem, type OutfitPick } from "@/lib/outfit-generator";
 import { toast } from "sonner";
 import { Heart, X, RefreshCw, Undo2, Eye } from "lucide-react";
 import { StyleTabs } from "@/components/StyleTabs";
@@ -321,24 +317,22 @@ function SwipePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-1 bg-surface-2">
-              {[pick.top, pick.bottom, pick.outerwear, pick.shoes]
-                .filter(Boolean)
-                .map((p) => (
-                  <div key={p!.id} className="aspect-square bg-surface">
-                    {urls[p!.id] ? (
-                      <img
-                        src={urls[p!.id]}
-                        alt={p!.name}
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center p-2 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {p!.name}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              {[pick.top, pick.bottom, pick.outerwear, pick.shoes].filter(Boolean).map((p) => (
+                <div key={p!.id} className="aspect-square bg-surface">
+                  {urls[p!.id] ? (
+                    <img
+                      src={urls[p!.id]}
+                      alt={p!.name}
+                      className="h-full w-full object-cover"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center p-2 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {p!.name}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -378,7 +372,11 @@ function SwipePage() {
                       <li key={label} className="flex justify-between gap-2">
                         <span className="text-muted-foreground">{label}</span>
                         <span className="text-foreground/90 truncate">
-                          {[(p as ClosetItem).brand, (p as ClosetItem).color, (p as ClosetItem).name]
+                          {[
+                            (p as ClosetItem).brand,
+                            (p as ClosetItem).color,
+                            (p as ClosetItem).name,
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </span>

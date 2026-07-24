@@ -34,33 +34,72 @@ export const Route = createFileRoute("/_authenticated/inspo")({
   component: InspoPage,
 });
 
-type SlotKey =
-  | "top" | "bottom" | "outerwear" | "shoes"
-  | "acc1" | "acc2" | "acc3" | "fragrance";
+type SlotKey = "top" | "bottom" | "outerwear" | "shoes" | "acc1" | "acc2" | "acc3" | "fragrance";
 
 type SlotKind = "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "fragrance";
 
-const SLOT_ORDER: SlotKey[] = ["top", "bottom", "outerwear", "shoes", "acc1", "acc2", "acc3", "fragrance"];
+const SLOT_ORDER: SlotKey[] = [
+  "top",
+  "bottom",
+  "outerwear",
+  "shoes",
+  "acc1",
+  "acc2",
+  "acc3",
+  "fragrance",
+];
 
 const SLOT_KIND: Record<SlotKey, SlotKind> = {
-  top: "top", bottom: "bottom", outerwear: "outerwear", shoes: "shoes",
-  acc1: "accessory", acc2: "accessory", acc3: "accessory", fragrance: "fragrance",
+  top: "top",
+  bottom: "bottom",
+  outerwear: "outerwear",
+  shoes: "shoes",
+  acc1: "accessory",
+  acc2: "accessory",
+  acc3: "accessory",
+  fragrance: "fragrance",
 };
 
 const SLOT_LABEL: Record<SlotKey, string> = {
-  top: "Top", bottom: "Bottom", outerwear: "Outerwear", shoes: "Shoes",
-  acc1: "Accessory", acc2: "Accessory", acc3: "Accessory", fragrance: "Fragrance",
+  top: "Top",
+  bottom: "Bottom",
+  outerwear: "Outerwear",
+  shoes: "Shoes",
+  acc1: "Accessory",
+  acc2: "Accessory",
+  acc3: "Accessory",
+  fragrance: "Fragrance",
 };
 
 function primaryOfClosetCategory(cat: string): SlotKind | null {
   const c = cat.toLowerCase();
   if (["top", "tee", "hoodie", "shirt", "polo"].includes(c)) return "top";
-  if (["bottom", "trousers", "cargos", "joggers", "shorts", "denim", "pants"].includes(c)) return "bottom";
+  if (["bottom", "trousers", "cargos", "joggers", "shorts", "denim", "pants"].includes(c))
+    return "bottom";
   if (["outerwear", "bomber", "chore", "jacket", "coat"].includes(c)) return "outerwear";
-  if (["shoes","sneaker","jordan","vomero","new_balance","loafer","boot","runner"].includes(c)) return "shoes";
-  if ([
-    "accessory","hat","cap","beanie","belt","watch","chain","bracelet","ring","bag","sunglasses","tie","socks","grill",
-  ].includes(c)) return "accessory";
+  if (
+    ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
+  )
+    return "shoes";
+  if (
+    [
+      "accessory",
+      "hat",
+      "cap",
+      "beanie",
+      "belt",
+      "watch",
+      "chain",
+      "bracelet",
+      "ring",
+      "bag",
+      "sunglasses",
+      "tie",
+      "socks",
+      "grill",
+    ].includes(c)
+  )
+    return "accessory";
   return null;
 }
 
@@ -101,13 +140,19 @@ function InspoPage() {
       setUid(u);
       if (!u) return;
       const [{ data: items }, { data: cat }, { data: frs }] = await Promise.all([
-        supabase.from("closet_items")
+        supabase
+          .from("closet_items")
           .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
-          .eq("user_id", u).eq("archived", false),
-        supabase.from("shop_catalog")
-          .select("id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo")
+          .eq("user_id", u)
+          .eq("archived", false),
+        supabase
+          .from("shop_catalog")
+          .select(
+            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo",
+          )
           .limit(120),
-        supabase.from("fragrances")
+        supabase
+          .from("fragrances")
           .select("id,name,brand,family,season,projection,longevity,occasions")
           .eq("user_id", u),
       ]);
@@ -135,12 +180,19 @@ function InspoPage() {
     setLocked((l) => new Set(l).add(inferred));
     if (inferred === "acc2") setVisibleAcc((n) => Math.max(n, 2));
     if (inferred === "acc3") setVisibleAcc((n) => Math.max(n, 3));
-    toast.success(`Locked "${item.name}" into ${SLOT_LABEL[inferred]}. Suggest owned pieces around it.`);
+    toast.success(
+      `Locked "${item.name}" into ${SLOT_LABEL[inferred]}. Suggest owned pieces around it.`,
+    );
   }, [loading, catalog, search.item, search.slot]);
 
   const closetBySlot = useMemo(() => {
     const m: Record<SlotKind, ClosetItem[]> = {
-      top: [], bottom: [], outerwear: [], shoes: [], accessory: [], fragrance: [],
+      top: [],
+      bottom: [],
+      outerwear: [],
+      shoes: [],
+      accessory: [],
+      fragrance: [],
     };
     for (const c of closet) {
       const p = primaryOfClosetCategory(c.category);
@@ -151,12 +203,19 @@ function InspoPage() {
 
   const catalogBySlot = useMemo(() => {
     const m: Record<SlotKind, CatalogItem[]> = {
-      top: [], bottom: [], outerwear: [], shoes: [], accessory: [], fragrance: [],
+      top: [],
+      bottom: [],
+      outerwear: [],
+      shoes: [],
+      accessory: [],
+      fragrance: [],
     };
     for (const c of catalog) {
-      const kind = c.category.toLowerCase() === "fragrance" || /perfume|cologne|scent/.test(c.category.toLowerCase())
-        ? "fragrance"
-        : primaryOfClosetCategory(c.category);
+      const kind =
+        c.category.toLowerCase() === "fragrance" ||
+        /perfume|cologne|scent/.test(c.category.toLowerCase())
+          ? "fragrance"
+          : primaryOfClosetCategory(c.category);
       if (kind) m[kind].push(c);
     }
     return m;
@@ -184,11 +243,23 @@ function InspoPage() {
   }
   function clearSlot(slot: SlotKey) {
     pushHistory();
-    setSelection((s) => { const n = { ...s }; delete n[slot]; return n; });
-    setLocked((l) => { const n = new Set(l); n.delete(slot); return n; });
+    setSelection((s) => {
+      const n = { ...s };
+      delete n[slot];
+      return n;
+    });
+    setLocked((l) => {
+      const n = new Set(l);
+      n.delete(slot);
+      return n;
+    });
   }
   function toggleLock(slot: SlotKey) {
-    setLocked((l) => { const n = new Set(l); n.has(slot) ? n.delete(slot) : n.add(slot); return n; });
+    setLocked((l) => {
+      const n = new Set(l);
+      n.has(slot) ? n.delete(slot) : n.add(slot);
+      return n;
+    });
   }
   function undo() {
     setHistory((h) => {
@@ -227,12 +298,17 @@ function InspoPage() {
   );
 
   function suggestNext() {
-    const target = activeSlot && !locked.has(activeSlot) && !selection[activeSlot]
-      ? activeSlot
-      : emptySlots[0];
-    if (!target) { toast("Every slot is filled."); return; }
+    const target =
+      activeSlot && !locked.has(activeSlot) && !selection[activeSlot] ? activeSlot : emptySlots[0];
+    if (!target) {
+      toast("Every slot is filled.");
+      return;
+    }
     const pick = pickForSlot(target, rotation);
-    if (!pick) { toast(`No ${SLOT_LABEL[target].toLowerCase()} in your closet or shop.`); return; }
+    if (!pick) {
+      toast(`No ${SLOT_LABEL[target].toLowerCase()} in your closet or shop.`);
+      return;
+    }
     pushHistory();
     setSelection((s) => ({ ...s, [target]: pick }));
     setRotation((r) => r + 1);
@@ -248,7 +324,10 @@ function InspoPage() {
       if (slot === "acc2" && visibleAcc < 2) continue;
       if (slot === "acc3" && visibleAcc < 3) continue;
       const pick = pickForSlot(slot, rotation + slot.charCodeAt(0));
-      if (pick) { next[slot] = pick; changed = true; }
+      if (pick) {
+        next[slot] = pick;
+        changed = true;
+      }
     }
     if (!changed) toast("Nothing to add.");
     setSelection(next);
@@ -273,9 +352,15 @@ function InspoPage() {
   }
 
   // Resolvers ---------------------------------------------------------------
-  function resolveClosetItem(id: string) { return closet.find((c) => c.id === id); }
-  function resolveCatalog(id: string) { return catalog.find((c) => c.id === id); }
-  function resolveFragrance(id: string) { return fragrances.find((f) => f.id === id); }
+  function resolveClosetItem(id: string) {
+    return closet.find((c) => c.id === id);
+  }
+  function resolveCatalog(id: string) {
+    return catalog.find((c) => c.id === id);
+  }
+  function resolveFragrance(id: string) {
+    return fragrances.find((f) => f.id === id);
+  }
 
   const unownedTotal = useMemo(() => {
     let total = 0;
@@ -291,8 +376,7 @@ function InspoPage() {
 
   const chosenClosetPieces = useMemo(
     () =>
-      SLOT_ORDER
-        .map((s) => selection[s])
+      SLOT_ORDER.map((s) => selection[s])
         .filter((a): a is Assignment => !!a && a.source === "closet")
         .map((a) => resolveClosetItem(a.id))
         .filter((c): c is ClosetItem => !!c),
@@ -315,10 +399,13 @@ function InspoPage() {
         visibility: "private",
         explanation: "Built in Inspo Builder",
       })
-      .select("id").single();
-    if (error || !outfit) { setSaving(false); return toast.error(error?.message ?? "Save failed"); }
-    const rows = SLOT_ORDER
-      .map((s) => ({ slot: s, a: selection[s] }))
+      .select("id")
+      .single();
+    if (error || !outfit) {
+      setSaving(false);
+      return toast.error(error?.message ?? "Save failed");
+    }
+    const rows = SLOT_ORDER.map((s) => ({ slot: s, a: selection[s] }))
       .filter((r) => r.a && r.a.source === "closet")
       .map((r) => ({
         outfit_id: outfit.id,
@@ -338,7 +425,10 @@ function InspoPage() {
 
   if (loading) {
     return (
-      <div className="space-y-5"><StyleTabs /><p className="text-sm text-muted-foreground">Loading…</p></div>
+      <div className="space-y-5">
+        <StyleTabs />
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
     );
   }
 
@@ -356,7 +446,9 @@ function InspoPage() {
       {closet.length === 0 && catalog.length === 0 ? (
         <div className="card-surface p-6 text-center">
           <p className="text-sm text-muted-foreground">Add closet pieces to start building.</p>
-          <Link to="/closet/new" className="btn-lime mt-4 inline-flex">Add a piece</Link>
+          <Link to="/closet/new" className="btn-lime mt-4 inline-flex">
+            Add a piece
+          </Link>
         </div>
       ) : (
         <>
@@ -389,7 +481,9 @@ function InspoPage() {
                   className="flex h-full min-h-[10rem] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-muted-foreground hover:bg-surface-2"
                 >
                   <Plus className="h-5 w-5" />
-                  <span className="text-[10px] uppercase tracking-widest">Add another accessory</span>
+                  <span className="text-[10px] uppercase tracking-widest">
+                    Add another accessory
+                  </span>
                 </button>
               </li>
             )}
@@ -398,7 +492,8 @@ function InspoPage() {
           {/* Unowned subtotal */}
           {unownedTotal > 0 && (
             <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-              Recommended pieces subtotal: <span className="font-semibold">${unownedTotal.toFixed(0)}</span>
+              Recommended pieces subtotal:{" "}
+              <span className="font-semibold">${unownedTotal.toFixed(0)}</span>
               <span className="ml-2 text-muted-foreground">(owned pieces excluded)</span>
             </div>
           )}
@@ -422,12 +517,18 @@ function InspoPage() {
 
           {/* Save */}
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={save} disabled={saving || chosenClosetPieces.length < 2}
-              className="btn-lime inline-flex items-center gap-1 disabled:opacity-60">
+            <button
+              onClick={save}
+              disabled={saving || chosenClosetPieces.length < 2}
+              className="btn-lime inline-flex items-center gap-1 disabled:opacity-60"
+            >
               <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save outfit"}
             </button>
             {savedId && (
-              <Link to="/saved" className="text-xs uppercase tracking-widest text-primary hover:underline">
+              <Link
+                to="/saved"
+                className="text-xs uppercase tracking-widest text-primary hover:underline"
+              >
                 View in Saved →
               </Link>
             )}
@@ -439,20 +540,29 @@ function InspoPage() {
       {emptySlots.length > 0 && (
         <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-md">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
-            <button onClick={suggestNext}
-              className="btn-lime inline-flex items-center gap-1 !px-3 !py-2 text-xs">
+            <button
+              onClick={suggestNext}
+              className="btn-lime inline-flex items-center gap-1 !px-3 !py-2 text-xs"
+            >
               <Sparkles className="h-4 w-4" /> Suggest next piece
             </button>
-            <button onClick={completeOutfit}
-              className="inline-flex items-center gap-1 rounded-full border border-primary px-3 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary/10">
+            <button
+              onClick={completeOutfit}
+              className="inline-flex items-center gap-1 rounded-full border border-primary px-3 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary/10"
+            >
               <Sparkles className="h-3.5 w-3.5" /> Complete outfit
             </button>
-            <button onClick={shuffleUnlocked}
-              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-2 text-xs uppercase tracking-widest hover:bg-surface-2">
+            <button
+              onClick={shuffleUnlocked}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
+            >
               <Shuffle className="h-3.5 w-3.5" /> Shuffle
             </button>
-            <button onClick={undo} disabled={!history.length}
-              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-2 text-xs uppercase tracking-widest hover:bg-surface-2 disabled:opacity-40">
+            <button
+              onClick={undo}
+              disabled={!history.length}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-2 text-xs uppercase tracking-widest hover:bg-surface-2 disabled:opacity-40"
+            >
               <Undo2 className="h-3.5 w-3.5" /> Undo
             </button>
             <span className="ml-auto text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -477,9 +587,17 @@ function inferSlotFromCategory(cat: string): SlotKey | null {
 }
 
 function SlotCard({
-  slot, active, assignment, locked, closetImg,
-  resolveClosetItem, resolveCatalog, resolveFragrance,
-  onOpen, onClear, onLock,
+  slot,
+  active,
+  assignment,
+  locked,
+  closetImg,
+  resolveClosetItem,
+  resolveCatalog,
+  resolveFragrance,
+  onOpen,
+  onClear,
+  onLock,
 }: {
   slot: SlotKey;
   active: boolean;
@@ -498,20 +616,33 @@ function SlotCard({
   let badge: { label: string; className: string } | null = null;
   if (assignment?.source === "closet") {
     const it = resolveClosetItem(assignment.id);
-    if (it) { image = closetImg(it.id); name = it.name; badge = { label: "Owned", className: "text-primary" }; }
+    if (it) {
+      image = closetImg(it.id);
+      name = it.name;
+      badge = { label: "Owned", className: "text-primary" };
+    }
   } else if (assignment?.source === "catalog") {
     const it = resolveCatalog(assignment.id);
-    if (it) { image = it.image_url ?? undefined; name = it.name; badge = { label: "Buy", className: "text-primary" }; }
+    if (it) {
+      image = it.image_url ?? undefined;
+      name = it.name;
+      badge = { label: "Buy", className: "text-primary" };
+    }
   } else if (assignment?.source === "fragrance") {
     const it = resolveFragrance(assignment.id);
-    if (it) { name = it.name; badge = { label: "Owned", className: "text-primary" }; }
+    if (it) {
+      name = it.name;
+      badge = { label: "Owned", className: "text-primary" };
+    }
   }
 
   return (
     <li className={`card-surface overflow-hidden ${active ? "ring-2 ring-primary" : ""}`}>
       <button
         onClick={onOpen}
-        aria-label={assignment ? `Change ${SLOT_LABEL[slot]}` : `Add ${SLOT_LABEL[slot].toLowerCase()}`}
+        aria-label={
+          assignment ? `Change ${SLOT_LABEL[slot]}` : `Add ${SLOT_LABEL[slot].toLowerCase()}`
+        }
         className="relative block aspect-square w-full bg-surface-2 text-left"
       >
         {image ? (
@@ -532,25 +663,45 @@ function SlotCard({
           {SLOT_LABEL[slot]}
         </span>
         {badge && (
-          <span className={`absolute top-1 right-1 rounded-full bg-background/85 px-2 py-0.5 text-[9px] uppercase tracking-widest ${badge.className}`}>
+          <span
+            className={`absolute top-1 right-1 rounded-full bg-background/85 px-2 py-0.5 text-[9px] uppercase tracking-widest ${badge.className}`}
+          >
             {badge.label}
           </span>
         )}
       </button>
       {assignment && (
         <div className="flex flex-wrap gap-1 p-2">
-          <button onClick={onOpen}
-            className="rounded-full border border-border px-2 py-0.5 text-[9px] uppercase tracking-widest hover:bg-surface-2">
+          <button
+            onClick={onOpen}
+            className="rounded-full border border-border px-2 py-0.5 text-[9px] uppercase tracking-widest hover:bg-surface-2"
+          >
             Swap
           </button>
-          <button onClick={onLock}
+          <button
+            onClick={onLock}
             className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-widest ${
-              locked ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-surface-2"
-            }`}>
-            {locked ? <><Lock className="mr-1 inline h-2.5 w-2.5" />Locked</> : <><Unlock className="mr-1 inline h-2.5 w-2.5" />Lock</>}
+              locked
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:bg-surface-2"
+            }`}
+          >
+            {locked ? (
+              <>
+                <Lock className="mr-1 inline h-2.5 w-2.5" />
+                Locked
+              </>
+            ) : (
+              <>
+                <Unlock className="mr-1 inline h-2.5 w-2.5" />
+                Lock
+              </>
+            )}
           </button>
-          <button onClick={onClear}
-            className="rounded-full border border-border px-2 py-0.5 text-[9px] uppercase tracking-widest hover:bg-surface-2">
+          <button
+            onClick={onClear}
+            className="rounded-full border border-border px-2 py-0.5 text-[9px] uppercase tracking-widest hover:bg-surface-2"
+          >
             Clear
           </button>
         </div>
@@ -560,10 +711,17 @@ function SlotCard({
 }
 
 function SuggestionTray({
-  slot, source, setSource,
-  closetItems, catalogItems, fragrances,
+  slot,
+  source,
+  setSource,
+  closetItems,
+  catalogItems,
+  fragrances,
   urls,
-  onPickCloset, onPickCatalog, onPickFragrance, onClose,
+  onPickCloset,
+  onPickCatalog,
+  onPickFragrance,
+  onClose,
 }: {
   slot: SlotKey;
   source: Source;
@@ -588,18 +746,36 @@ function SuggestionTray({
         <p className="text-sm">
           <span className="font-display text-lg">Pick a {SLOT_LABEL[slot].toLowerCase()}</span>
         </p>
-        <button onClick={onClose} className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+        <button
+          onClick={onClose}
+          className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+        >
           <X className="mr-1 inline h-3 w-3" /> Close
         </button>
       </div>
 
       <div className="flex gap-2">
         {(["closet", "shop", "mix"] as Source[]).map((s) => (
-          <button key={s} onClick={() => setSource(s)}
+          <button
+            key={s}
+            onClick={() => setSource(s)}
             className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-widest ${
-              source === s ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80 hover:bg-surface-2"
-            }`}>
-            {s === "closet" ? <><Shirt className="h-3 w-3" /> My Closet</> : s === "shop" ? <><ShoppingBag className="h-3 w-3" /> Shop</> : "Mix"}
+              source === s
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-foreground/80 hover:bg-surface-2"
+            }`}
+          >
+            {s === "closet" ? (
+              <>
+                <Shirt className="h-3 w-3" /> My Closet
+              </>
+            ) : s === "shop" ? (
+              <>
+                <ShoppingBag className="h-3 w-3" /> Shop
+              </>
+            ) : (
+              "Mix"
+            )}
           </button>
         ))}
       </div>
@@ -612,14 +788,14 @@ function SuggestionTray({
         <ClosetGrid items={closetItems} urls={urls} onPick={onPickCloset} />
       )}
 
-      {showShop && shopItems.length > 0 && (
-        <CatalogGrid items={shopItems} onPick={onPickCatalog} />
-      )}
+      {showShop && shopItems.length > 0 && <CatalogGrid items={shopItems} onPick={onPickCatalog} />}
 
       {showCloset && !isFragrance && closetItems.length === 0 && (
         <p className="text-xs text-muted-foreground">
           No {SLOT_LABEL[slot].toLowerCase()}s in your closet.{" "}
-          <Link to="/closet/new" className="text-primary underline">Add one</Link>
+          <Link to="/closet/new" className="text-primary underline">
+            Add one
+          </Link>
         </p>
       )}
     </div>
@@ -627,23 +803,43 @@ function SuggestionTray({
 }
 
 function ClosetGrid({
-  items, urls, onPick,
-}: { items: ClosetItem[]; urls: Record<string, string>; onPick: (c: ClosetItem) => void }) {
+  items,
+  urls,
+  onPick,
+}: {
+  items: ClosetItem[];
+  urls: Record<string, string>;
+  onPick: (c: ClosetItem) => void;
+}) {
   if (!items.length) return null;
   return (
     <div>
-      <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">From your closet</p>
+      <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+        From your closet
+      </p>
       <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         {items.map((c) => (
           <li key={c.id}>
-            <button onClick={() => onPick(c)} className="card-surface w-full overflow-hidden text-left">
+            <button
+              onClick={() => onPick(c)}
+              className="card-surface w-full overflow-hidden text-left"
+            >
               <div className="aspect-square bg-surface-2 relative">
                 {urls[c.id] ? (
-                  <img src={urls[c.id]} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
+                  <img
+                    src={urls[c.id]}
+                    alt={c.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="flex h-full items-center justify-center p-1 text-center text-[9px] text-muted-foreground">{c.name}</div>
+                  <div className="flex h-full items-center justify-center p-1 text-center text-[9px] text-muted-foreground">
+                    {c.name}
+                  </div>
                 )}
-                <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary">Owned</span>
+                <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary">
+                  Owned
+                </span>
               </div>
               <p className="line-clamp-1 p-1.5 text-[11px]">{c.name}</p>
             </button>
@@ -655,19 +851,32 @@ function ClosetGrid({
 }
 
 function CatalogGrid({
-  items, onPick,
-}: { items: CatalogItem[]; onPick: (c: CatalogItem) => void }) {
+  items,
+  onPick,
+}: {
+  items: CatalogItem[];
+  onPick: (c: CatalogItem) => void;
+}) {
   return (
     <div>
-      <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">From the Shop — not owned</p>
+      <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+        From the Shop — not owned
+      </p>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {items.slice(0, 16).map((c) => (
           <li key={c.id} className="card-surface overflow-hidden">
             <div className="aspect-square bg-surface-2 relative">
               {c.image_url ? (
-                <img src={c.image_url} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
+                <img
+                  src={c.image_url}
+                  alt={c.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
               ) : (
-                <div className="flex h-full items-center justify-center p-1 text-center text-[9px] text-muted-foreground">{c.name}</div>
+                <div className="flex h-full items-center justify-center p-1 text-center text-[9px] text-muted-foreground">
+                  {c.name}
+                </div>
               )}
               <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary">
                 Buy · ${c.current_price ?? c.price ?? "—"}
@@ -679,14 +888,20 @@ function CatalogGrid({
                 {[c.brand, c.retailer].filter(Boolean).join(" · ")}
               </p>
               <div className="flex gap-1">
-                <button onClick={() => onPick(c)}
-                  className="flex-1 rounded-full border border-primary bg-primary/10 py-1 text-[9px] uppercase tracking-widest text-primary hover:bg-primary/20">
+                <button
+                  onClick={() => onPick(c)}
+                  className="flex-1 rounded-full border border-primary bg-primary/10 py-1 text-[9px] uppercase tracking-widest text-primary hover:bg-primary/20"
+                >
                   Add to builder
                 </button>
                 {hasValidBuyUrl(c) && (
-                  <a href={c.buy_url!} target="_blank" rel="noopener noreferrer nofollow"
+                  <a
+                    href={c.buy_url!}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
                     aria-label={`Buy ${c.name}`}
-                    className="rounded-full border border-border px-2 py-1 text-[9px] uppercase tracking-widest hover:bg-surface-2">
+                    className="rounded-full border border-border px-2 py-1 text-[9px] uppercase tracking-widest hover:bg-surface-2"
+                  >
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
@@ -700,13 +915,19 @@ function CatalogGrid({
 }
 
 function FragranceGrid({
-  fragrances, onPick,
-}: { fragrances: Fragrance[]; onPick: (f: Fragrance) => void }) {
+  fragrances,
+  onPick,
+}: {
+  fragrances: Fragrance[];
+  onPick: (f: Fragrance) => void;
+}) {
   if (!fragrances.length) {
     return (
       <p className="text-xs text-muted-foreground">
         No fragrances in your collection yet.{" "}
-        <Link to="/scents" className="text-primary underline">Add one</Link>
+        <Link to="/scents" className="text-primary underline">
+          Add one
+        </Link>
       </p>
     );
   }

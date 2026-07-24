@@ -181,8 +181,18 @@ function hashStr(s: string): number {
 
 // Accessory subcategory taxonomy — used by the Shop Accessories tab.
 export type AccessorySub =
-  | "hat" | "cap" | "beanie" | "belt" | "bag" | "watch"
-  | "jewelry" | "sunglasses" | "socks" | "scarf" | "wallet" | "other";
+  | "hat"
+  | "cap"
+  | "beanie"
+  | "belt"
+  | "bag"
+  | "watch"
+  | "jewelry"
+  | "sunglasses"
+  | "socks"
+  | "scarf"
+  | "wallet"
+  | "other";
 
 export function accessorySubcategory(item: CatalogItem): AccessorySub {
   const blob = `${item.category} ${item.name} ${item.brand ?? ""}`.toLowerCase();
@@ -202,7 +212,14 @@ export function accessorySubcategory(item: CatalogItem): AccessorySub {
 
 // Fragrance family classifier (fresh/woody/warm/sweet/aquatic/floral).
 export type FragranceFamily =
-  | "fresh" | "woody" | "warm" | "sweet" | "aquatic" | "floral" | "leather" | "other";
+  | "fresh"
+  | "woody"
+  | "warm"
+  | "sweet"
+  | "aquatic"
+  | "floral"
+  | "leather"
+  | "other";
 
 export function fragranceFamily(item: CatalogItem): FragranceFamily {
   const blob = `${item.name} ${item.brand ?? ""} ${item.color ?? ""}`.toLowerCase();
