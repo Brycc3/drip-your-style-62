@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Home, Shirt, Sparkles, Flame, ShoppingBag, FlaskConical, User } from "lucide-react";
+import { InstallPrompt } from "./InstallPrompt";
 
 const tabs = [
   { to: "/home", label: "Home", icon: Home },
@@ -55,6 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </div>
       </nav>
+      <InstallPrompt />
     </div>
   );
 }

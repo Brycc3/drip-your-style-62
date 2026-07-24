@@ -14,12 +14,17 @@ export async function uploadClosetImage(userId: string, file: File): Promise<str
   return path;
 }
 
-/** Storage path -> short-lived signed URL for private bucket. */
+/** Owner-only signed URL. Anonymous visitors cannot use this. */
 export async function getSignedUrl(path: string, expiresIn = 60 * 60): Promise<string | null> {
   if (!path) return null;
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
   if (error) return null;
   return data.signedUrl;
+}
+
+export async function getSignedUrls(paths: string[], expiresIn = 60 * 60): Promise<Record<string, string>> {
+  const entries = await Promise.all(paths.filter(Boolean).map(async (p) => [p, (await getSignedUrl(p, expiresIn)) ?? ""] as const));
+  return Object.fromEntries(entries.filter(([, u]) => u));
 }
 
 export async function deleteClosetImage(path: string): Promise<void> {

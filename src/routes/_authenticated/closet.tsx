@@ -24,7 +24,7 @@ type Item = {
   image_url: string | null;
 };
 
-const CATEGORIES = ["all", "top", "bottom", "outerwear", "shoes", "accessory", "fragrance"] as const;
+const CATEGORIES = ["all", "top", "bottom", "outerwear", "shoes", "accessory"] as const;
 
 function ClosetPage() {
   const [items, setItems] = useState<Item[]>([]);

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrls } from "@/lib/closet-storage";
 import { Shirt, Sparkles, ShoppingBag, TrendingUp } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
@@ -20,6 +21,7 @@ function HomePage() {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [recent, setRecent] = useState<Array<{ id: string; name: string; image_url: string | null; color: string | null }>>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
@@ -27,31 +29,27 @@ function HomePage() {
       const uid = userData.user?.id;
       if (!uid) return;
 
-      const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", uid).maybeSingle();
+      const [{ data: profile }, { data: items }, { count: fragCount }, { data: recentItems }] = await Promise.all([
+        supabase.from("profiles").select("display_name").eq("id", uid).maybeSingle(),
+        supabase.from("closet_items").select("id,category,kind").eq("user_id", uid),
+        supabase.from("fragrances").select("*", { count: "exact", head: true }).eq("user_id", uid),
+        supabase.from("closet_items").select("id,name,image_url,color").eq("user_id", uid).order("created_at", { ascending: false }).limit(6),
+      ]);
       setDisplayName(profile?.display_name ?? "");
-
-      const { data: items } = await supabase.from("closet_items").select("id,name,image_url,color,category,kind").eq("user_id", uid);
       if (items) {
-        const c: Counts = { total: items.length, tops: 0, bottoms: 0, shoes: 0, outer: 0, accessories: 0, fragrances: 0 };
+        const c: Counts = { total: items.length, tops: 0, bottoms: 0, shoes: 0, outer: 0, accessories: 0, fragrances: fragCount ?? 0 };
         for (const i of items) {
-          const cat = i.category;
-          const kind = i.kind;
-          if (kind === "fragrance") c.fragrances++;
-          else if (kind === "shoes") c.shoes++;
-          else if (kind === "accessory") c.accessories++;
-          else if (cat === "top") c.tops++;
-          else if (cat === "bottom") c.bottoms++;
-          else if (cat === "outerwear") c.outer++;
+          if (i.kind === "shoes") c.shoes++;
+          else if (i.kind === "accessory") c.accessories++;
+          else if (i.category === "top") c.tops++;
+          else if (i.category === "bottom") c.bottoms++;
+          else if (i.category === "outerwear") c.outer++;
         }
         setCounts(c);
       }
-      const { data: recentItems } = await supabase
-        .from("closet_items")
-        .select("id,name,image_url,color")
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(6);
       setRecent(recentItems ?? []);
+      const paths = (recentItems ?? []).map((r) => r.image_url).filter(Boolean) as string[];
+      if (paths.length) setUrls(await getSignedUrls(paths));
     })();
   }, []);
 
@@ -101,13 +99,15 @@ function HomePage() {
               </div>
               <ul className="mt-3 grid grid-cols-3 gap-3">
                 {recent.map((r) => (
-                  <li key={r.id} className="card-surface aspect-square overflow-hidden p-2 text-xs">
-                    <div className="flex h-full flex-col items-center justify-center">
-                      <span className="line-clamp-2 text-center text-foreground/80">{r.name}</span>
-                      <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {r.color || ""}
-                      </span>
-                    </div>
+                  <li key={r.id} className="card-surface aspect-square overflow-hidden text-xs">
+                    {urls[r.id] ? (
+                      <img src={urls[r.id]} alt={r.name} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center p-2">
+                        <span className="line-clamp-2 text-center text-foreground/80">{r.name}</span>
+                        <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">{r.color || ""}</span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
