@@ -41,7 +41,8 @@ function FeedPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const col = tab === "trending" ? "trending_score" : tab === "top" ? "like_count" : "created_at";
+      const col =
+        tab === "trending" ? "trending_score" : tab === "top" ? "like_count" : "created_at";
       const { data } = await supabase
         .from("outfit_leaderboard")
         .select("*")
@@ -52,11 +53,20 @@ function FeedPage() {
       setLoading(false);
 
       const [coversBySlug, profs] = await Promise.all([
-        getPublicOutfitCovers({ data: { slugs: list.map((r) => r.share_slug ?? "").filter(Boolean) } }).catch(() => ({} as Record<string, string>)),
-        supabase.from("profiles").select("id, handle").in("id", list.map((r) => r.user_id)),
+        getPublicOutfitCovers({
+          data: { slugs: list.map((r) => r.share_slug ?? "").filter(Boolean) },
+        }).catch(() => ({}) as Record<string, string>),
+        supabase
+          .from("profiles")
+          .select("id, handle")
+          .in(
+            "id",
+            list.map((r) => r.user_id),
+          ),
       ]);
       const byId: Record<string, string> = {};
-      for (const r of list) if (r.share_slug && coversBySlug[r.share_slug]) byId[r.id] = coversBySlug[r.share_slug];
+      for (const r of list)
+        if (r.share_slug && coversBySlug[r.share_slug]) byId[r.id] = coversBySlug[r.share_slug];
       setUrls(byId);
       setHandles(Object.fromEntries((profs.data ?? []).map((p) => [p.id, p.handle])));
     })();
@@ -69,14 +79,34 @@ function FeedPage() {
         <h1 className="mt-1 font-display text-4xl">Feed</h1>
       </div>
       <div className="flex gap-2">
-        <TabBtn active={tab === "trending"} onClick={() => setTab("trending")} icon={<Flame className="h-3.5 w-3.5" />}>Trending</TabBtn>
-        <TabBtn active={tab === "top"} onClick={() => setTab("top")} icon={<Trophy className="h-3.5 w-3.5" />}>Top</TabBtn>
-        <TabBtn active={tab === "new"} onClick={() => setTab("new")} icon={<Clock className="h-3.5 w-3.5" />}>New</TabBtn>
+        <TabBtn
+          active={tab === "trending"}
+          onClick={() => setTab("trending")}
+          icon={<Flame className="h-3.5 w-3.5" />}
+        >
+          Trending
+        </TabBtn>
+        <TabBtn
+          active={tab === "top"}
+          onClick={() => setTab("top")}
+          icon={<Trophy className="h-3.5 w-3.5" />}
+        >
+          Top
+        </TabBtn>
+        <TabBtn
+          active={tab === "new"}
+          onClick={() => setTab("new")}
+          icon={<Clock className="h-3.5 w-3.5" />}
+        >
+          New
+        </TabBtn>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-2 gap-3">
-          {[...Array(4)].map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-lg bg-surface" />)}
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="aspect-[3/4] animate-pulse rounded-lg bg-surface" />
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
@@ -86,17 +116,32 @@ function FeedPage() {
         <ul className="grid grid-cols-2 gap-3">
           {rows.map((r) => (
             <li key={r.id}>
-              <Link to="/o/$slug" params={{ slug: r.share_slug ?? "" }} className="card-surface block overflow-hidden">
+              <Link
+                to="/o/$slug"
+                params={{ slug: r.share_slug ?? "" }}
+                className="card-surface block overflow-hidden"
+              >
                 <div className="aspect-[3/4] bg-surface-2">
-                  {urls[r.id] ? <img src={urls[r.id]} alt={r.name ?? ""} className="h-full w-full object-cover" loading="lazy" /> : null}
+                  {urls[r.id] ? (
+                    <img
+                      src={urls[r.id]}
+                      alt={r.name ?? ""}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : null}
                 </div>
                 <div className="p-3">
                   <p className="line-clamp-1 text-sm font-medium">{r.name ?? "Outfit"}</p>
                   <div className="mt-1 flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
                     <span>@{handles[r.user_id] ?? "anon"}</span>
                     <span className="flex items-center gap-2">
-                      <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" /> {r.like_count}</span>
-                      <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" /> {r.comment_count}</span>
+                      <span className="flex items-center gap-0.5">
+                        <Heart className="h-3 w-3" /> {r.like_count}
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <MessageCircle className="h-3 w-3" /> {r.comment_count}
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -109,11 +154,24 @@ function FeedPage() {
   );
 }
 
-function TabBtn({ children, active, onClick, icon }: { children: React.ReactNode; active: boolean; onClick: () => void; icon: React.ReactNode }) {
+function TabBtn({
+  children,
+  active,
+  onClick,
+  icon,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+}) {
   return (
-    <button onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${active ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80"}`}>
-      {icon}{children}
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${active ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80"}`}
+    >
+      {icon}
+      {children}
     </button>
   );
 }

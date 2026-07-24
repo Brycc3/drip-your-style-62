@@ -10,10 +10,7 @@ type ClosetItem = Tables<"closet_items">;
 
 export const Route = createFileRoute("/_authenticated/closet/$id")({
   head: () => ({
-    meta: [
-      { title: "Piece — DRIP" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Piece — DRIP" }, { name: "robots", content: "noindex" }],
   }),
   component: ItemPage,
 });
@@ -28,7 +25,11 @@ function ItemPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("closet_items").select("*").eq("id", id).maybeSingle();
+      const { data, error } = await supabase
+        .from("closet_items")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
       if (error || !data) {
         toast.error("Not found");
         navigate({ to: "/closet" });
@@ -68,7 +69,11 @@ function ItemPage() {
     if (error) toast.error(error.message);
     else {
       toast.success("Marked worn today");
-      setItem({ ...item, times_worn: (item.times_worn ?? 0) + 1, last_worn_at: new Date().toISOString() });
+      setItem({
+        ...item,
+        times_worn: (item.times_worn ?? 0) + 1,
+        last_worn_at: new Date().toISOString(),
+      });
     }
   }
 
@@ -91,7 +96,10 @@ function ItemPage() {
 
   return (
     <div className="space-y-5">
-      <button onClick={() => navigate({ to: "/closet" })} className="inline-flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
+      <button
+        onClick={() => navigate({ to: "/closet" })}
+        className="inline-flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Closet
       </button>
 
@@ -125,7 +133,9 @@ function ItemPage() {
         </div>
       )}
 
-      <button onClick={markWorn} className="btn-lime w-full">Mark worn today</button>
+      <button onClick={markWorn} className="btn-lime w-full">
+        Mark worn today
+      </button>
       <button
         onClick={remove}
         disabled={deleting}

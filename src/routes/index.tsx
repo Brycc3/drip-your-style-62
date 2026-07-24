@@ -29,7 +29,10 @@ function Landing() {
           <span className="font-display text-2xl tracking-widest">
             DRIP<span className="text-primary">.</span>
           </span>
-          <Link to="/auth" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+          <Link
+            to="/auth"
+            className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+          >
             Sign in
           </Link>
         </div>
@@ -46,21 +49,33 @@ function Landing() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-primary">Wardrobe · Outfits · Scents</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-primary">
+              Wardrobe · Outfits · Scents
+            </p>
             <h1 className="mt-2 font-display text-5xl leading-[0.9] sm:text-6xl">
-              Wear<br />what you<br />actually<br />own.
+              Wear
+              <br />
+              what you
+              <br />
+              actually
+              <br />
+              own.
             </h1>
           </div>
         </div>
 
         <p className="mt-8 text-base leading-relaxed text-muted-foreground">
-          DRIP is a private wardrobe, outfit generator, and shopping-gap finder for people who care what
-          they wear. Log every piece. Get outfits built only from your closet. Stop buying the fifth black
-          hoodie.
+          DRIP is a private wardrobe, outfit generator, and shopping-gap finder for people who care
+          what they wear. Log every piece. Get outfits built only from your closet. Stop buying the
+          fifth black hoodie.
         </p>
 
         <div className="mt-8 space-y-3">
-          <Link to="/auth" search={{ mode: "signup" }} className="btn-lime block w-full text-center">
+          <Link
+            to="/auth"
+            search={{ mode: "signup" }}
+            className="btn-lime block w-full text-center"
+          >
             Start your closet
           </Link>
           <Link
