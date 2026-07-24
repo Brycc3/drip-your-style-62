@@ -9,38 +9,205 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
+import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
+import { Route as AuthenticatedScentsRouteImport } from './routes/_authenticated/scents'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedGenerateRouteImport } from './routes/_authenticated/generate'
+import { Route as AuthenticatedClosetRouteImport } from './routes/_authenticated/closet'
+import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
+import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
 
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSwipeRoute = AuthenticatedSwipeRouteImport.update({
+  id: '/swipe',
+  path: '/swipe',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedScentsRoute = AuthenticatedScentsRouteImport.update({
+  id: '/scents',
+  path: '/scents',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedGenerateRoute = AuthenticatedGenerateRouteImport.update({
+  id: '/generate',
+  path: '/generate',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClosetRoute = AuthenticatedClosetRouteImport.update({
+  id: '/closet',
+  path: '/closet',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClosetNewRoute = AuthenticatedClosetNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AuthenticatedClosetRoute,
+} as any)
+const AuthenticatedClosetIdRoute = AuthenticatedClosetIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedClosetRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/onboarding': typeof OnboardingRoute
+  '/closet': typeof AuthenticatedClosetRouteWithChildren
+  '/generate': typeof AuthenticatedGenerateRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/scents': typeof AuthenticatedScentsRoute
+  '/shop': typeof AuthenticatedShopRoute
+  '/swipe': typeof AuthenticatedSwipeRoute
+  '/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/closet/new': typeof AuthenticatedClosetNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/onboarding': typeof OnboardingRoute
+  '/closet': typeof AuthenticatedClosetRouteWithChildren
+  '/generate': typeof AuthenticatedGenerateRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/scents': typeof AuthenticatedScentsRoute
+  '/shop': typeof AuthenticatedShopRoute
+  '/swipe': typeof AuthenticatedSwipeRoute
+  '/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/closet/new': typeof AuthenticatedClosetNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/onboarding': typeof OnboardingRoute
+  '/_authenticated/closet': typeof AuthenticatedClosetRouteWithChildren
+  '/_authenticated/generate': typeof AuthenticatedGenerateRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/scents': typeof AuthenticatedScentsRoute
+  '/_authenticated/shop': typeof AuthenticatedShopRoute
+  '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
+  '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRoute
+  '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/onboarding'
+    | '/closet'
+    | '/generate'
+    | '/home'
+    | '/profile'
+    | '/scents'
+    | '/shop'
+    | '/swipe'
+    | '/closet/$id'
+    | '/closet/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/onboarding'
+    | '/closet'
+    | '/generate'
+    | '/home'
+    | '/profile'
+    | '/scents'
+    | '/shop'
+    | '/swipe'
+    | '/closet/$id'
+    | '/closet/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/onboarding'
+    | '/_authenticated/closet'
+    | '/_authenticated/generate'
+    | '/_authenticated/home'
+    | '/_authenticated/profile'
+    | '/_authenticated/scents'
+    | '/_authenticated/shop'
+    | '/_authenticated/swipe'
+    | '/_authenticated/closet/$id'
+    | '/_authenticated/closet/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  OnboardingRoute: typeof OnboardingRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +215,113 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/swipe': {
+      id: '/_authenticated/swipe'
+      path: '/swipe'
+      fullPath: '/swipe'
+      preLoaderRoute: typeof AuthenticatedSwipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/shop': {
+      id: '/_authenticated/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof AuthenticatedShopRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/scents': {
+      id: '/_authenticated/scents'
+      path: '/scents'
+      fullPath: '/scents'
+      preLoaderRoute: typeof AuthenticatedScentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/generate': {
+      id: '/_authenticated/generate'
+      path: '/generate'
+      fullPath: '/generate'
+      preLoaderRoute: typeof AuthenticatedGenerateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/closet': {
+      id: '/_authenticated/closet'
+      path: '/closet'
+      fullPath: '/closet'
+      preLoaderRoute: typeof AuthenticatedClosetRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/closet/new': {
+      id: '/_authenticated/closet/new'
+      path: '/new'
+      fullPath: '/closet/new'
+      preLoaderRoute: typeof AuthenticatedClosetNewRouteImport
+      parentRoute: typeof AuthenticatedClosetRoute
+    }
+    '/_authenticated/closet/$id': {
+      id: '/_authenticated/closet/$id'
+      path: '/$id'
+      fullPath: '/closet/$id'
+      preLoaderRoute: typeof AuthenticatedClosetIdRouteImport
+      parentRoute: typeof AuthenticatedClosetRoute
+    }
   }
 }
 
+interface AuthenticatedClosetRouteChildren {
+  AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRoute
+  AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
+}
+
+const AuthenticatedClosetRouteChildren: AuthenticatedClosetRouteChildren = {
+  AuthenticatedClosetIdRoute: AuthenticatedClosetIdRoute,
+  AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
+}
+
+const AuthenticatedClosetRouteWithChildren =
+  AuthenticatedClosetRoute._addFileChildren(AuthenticatedClosetRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedClosetRoute: typeof AuthenticatedClosetRouteWithChildren
+  AuthenticatedGenerateRoute: typeof AuthenticatedGenerateRoute
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedScentsRoute: typeof AuthenticatedScentsRoute
+  AuthenticatedShopRoute: typeof AuthenticatedShopRoute
+  AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedClosetRoute: AuthenticatedClosetRouteWithChildren,
+  AuthenticatedGenerateRoute: AuthenticatedGenerateRoute,
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedScentsRoute: AuthenticatedScentsRoute,
+  AuthenticatedShopRoute: AuthenticatedShopRoute,
+  AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  OnboardingRoute: OnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
