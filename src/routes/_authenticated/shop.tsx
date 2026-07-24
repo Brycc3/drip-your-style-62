@@ -14,6 +14,7 @@ import {
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
+import { CatalogImage } from "@/components/CatalogImage";
 import { toast } from "sonner";
 import {
   Bookmark,
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   Sparkles,
   Layers,
+  Eye,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/shop")({
@@ -534,10 +536,11 @@ function ShopPage() {
             {scored.length} result{scored.length === 1 ? "" : "s"}
           </p>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleScored.map((g) => (
+            {visibleScored.map((g, i) => (
               <ItemCard
                 key={g.item.id}
                 g={g}
+                eager={i < 3}
                 saved={saved.has(g.item.id)}
                 onSave={() => feedback(g.item.id, "save")}
                 onDismiss={() => feedback(g.item.id, "dismiss")}
@@ -565,34 +568,33 @@ function ItemCard({
   saved,
   onSave,
   onDismiss,
+  eager,
 }: {
   g: GapScore;
   saved: boolean;
   onSave: () => void;
   onDismiss: () => void;
+  eager?: boolean;
 }) {
   const validBuy = hasValidBuyUrl(g.item);
   return (
     <li className="card-surface overflow-hidden flex flex-col">
-      <div className="aspect-square bg-surface-2 relative">
-        {g.item.image_url ? (
-          <img
-            src={g.item.image_url}
-            alt={g.item.name}
-            loading="lazy"
-            width={480}
-            height={480}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
-        <span className="absolute top-2 right-2 rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-          Fit {(g.score * 100).toFixed(0)}
-        </span>
-        {g.item.is_demo && (
-          <span className="absolute top-2 left-2 rounded-full bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+      <CatalogImage
+        src={g.item.image_url}
+        alt={g.item.name}
+        category={g.item.category}
+        className="aspect-square"
+        eager={eager}
+      />
+      <div className="relative -mt-8 flex justify-between px-2 pointer-events-none">
+        {g.item.is_demo ? (
+          <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
             Demo
           </span>
-        )}
+        ) : <span />}
+        <span className="rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
+          Fit {(g.score * 100).toFixed(0)}
+        </span>
       </div>
       <div className="p-3 flex-1 flex flex-col gap-2">
         <div>
@@ -637,7 +639,7 @@ function ItemCard({
           </p>
         )}
         <div className="mt-auto flex flex-wrap gap-2 pt-2">
-          {validBuy && (
+          {validBuy ? (
             <a
               href={g.item.buy_url!}
               target="_blank"
@@ -646,6 +648,13 @@ function ItemCard({
             >
               <ExternalLink className="h-3 w-3" /> Shop now
             </a>
+          ) : (
+            <span
+              title="No retailer link — demo catalog"
+              className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> View sample
+            </span>
           )}
           <Link
             to="/inspo"
@@ -696,15 +705,13 @@ function OutfitCard({
         </p>
       </div>
       <div className="grid grid-cols-5 gap-1 px-3">
-        <div className="col-span-2 aspect-square bg-surface-2 relative rounded-md overflow-hidden">
-          {g.item.image_url ? (
-            <img
-              src={g.item.image_url}
-              alt={g.item.name}
-              loading="lazy"
-              className="h-full w-full object-cover"
-            />
-          ) : null}
+        <div className="col-span-2 relative rounded-md overflow-hidden">
+          <CatalogImage
+            src={g.item.image_url}
+            alt={g.item.name}
+            category={g.item.category}
+            className="aspect-square"
+          />
           <span className="absolute bottom-1 left-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary-foreground">
             New
           </span>
@@ -747,7 +754,7 @@ function OutfitCard({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {validBuy && (
+          {validBuy ? (
             <a
               href={g.item.buy_url!}
               target="_blank"
@@ -756,6 +763,10 @@ function OutfitCard({
             >
               <ExternalLink className="h-3 w-3" /> Shop the new piece
             </a>
+          ) : (
+            <span className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+              <Eye className="h-3 w-3" /> View sample
+            </span>
           )}
           <Link
             to="/inspo"

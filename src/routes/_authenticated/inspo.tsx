@@ -181,8 +181,10 @@ function InspoPage() {
     if (inferred === "acc2") setVisibleAcc((n) => Math.max(n, 2));
     if (inferred === "acc3") setVisibleAcc((n) => Math.max(n, 3));
     toast.success(
-      `Locked "${item.name}" into ${SLOT_LABEL[inferred]}. Suggest owned pieces around it.`,
+      `Locked "${item.name}" — auto-filled owned pieces around it.`,
     );
+    // Auto-complete outfit with owned pieces once locked item is set.
+    setTimeout(() => completeOutfit(), 50);
   }, [loading, catalog, search.item, search.slot]);
 
   const closetBySlot = useMemo(() => {
