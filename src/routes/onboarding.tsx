@@ -163,6 +163,28 @@ function Onboarding() {
                   </Chip>
                 ))}
               </div>
+              {otherSelected && (
+                <label className="mt-4 block">
+                  <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                    Describe your vibe
+                  </span>
+                  <input
+                    value={customVibe}
+                    onChange={(e) => {
+                      setCustomVibe(e.target.value);
+                      if (customVibeError) setCustomVibeError(null);
+                    }}
+                    placeholder="e.g. clean Houston streetwear, vintage athlete"
+                    maxLength={60}
+                    className="mt-1 w-full rounded-lg border border-border bg-input px-4 py-3 outline-none focus:border-primary"
+                  />
+                  {customVibeError && (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      {customVibeError}
+                    </p>
+                  )}
+                </label>
+              )}
               <p className="mt-8 text-xs uppercase tracking-widest text-muted-foreground">
                 Favorite colors
               </p>
@@ -203,9 +225,10 @@ function Onboarding() {
             </button>
           )}
           {step < 3 ? (
-            <button onClick={() => setStep(step + 1)} className="btn-lime flex-1">
+            <button onClick={handleContinue} className="btn-lime flex-1">
               Continue
             </button>
+
           ) : (
             <button
               onClick={finish}
