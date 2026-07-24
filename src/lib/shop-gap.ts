@@ -60,16 +60,7 @@ function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "acces
     return "bottom";
   if (["outerwear", "bomber", "chore", "jacket", "coat"].includes(c)) return "outerwear";
   if (
-    [
-      "shoes",
-      "sneaker",
-      "jordan",
-      "vomero",
-      "new_balance",
-      "loafer",
-      "boot",
-      "runner",
-    ].includes(c)
+    ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
   )
     return "shoes";
   if (

@@ -11,22 +11,9 @@ import {
   type Occasion,
   type Fragrance,
 } from "@/lib/outfit-generator";
-import {
-  detectWeather,
-  readCachedWeather,
-  type Weather,
-} from "@/lib/weather";
+import { detectWeather, readCachedWeather, type Weather } from "@/lib/weather";
 import { toast } from "sonner";
-import {
-  Sparkles,
-  RefreshCw,
-  Save,
-  Share2,
-  Check,
-  MapPin,
-  Copy,
-  ExternalLink,
-} from "lucide-react";
+import { Sparkles, RefreshCw, Save, Share2, Check, MapPin, Copy, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/generate")({
   head: () => ({
@@ -165,7 +152,7 @@ function GeneratePage() {
     void load();
   }, []);
 
-  async function useMyWeather() {
+  async function loadWeather() {
     setWeatherLoading(true);
     setWeatherErr(null);
     try {
@@ -253,8 +240,7 @@ function GeneratePage() {
       return existing;
     }
 
-    const cover =
-      pick.top.image_url ?? pick.bottom.image_url ?? pick.outerwear?.image_url ?? null;
+    const cover = pick.top.image_url ?? pick.bottom.image_url ?? pick.outerwear?.image_url ?? null;
     const scent = pairScent(
       pick,
       scents,
@@ -462,7 +448,7 @@ function GeneratePage() {
                   Weather
                 </span>
                 <button
-                  onClick={() => void useMyWeather()}
+                  onClick={() => void loadWeather()}
                   disabled={weatherLoading}
                   className="text-[10px] uppercase tracking-widest text-primary flex items-center gap-1 disabled:opacity-50"
                 >
@@ -660,8 +646,7 @@ function OutfitCard({
               Scent pairing {hasFragrances ? "· from your shelf" : ""}
             </p>
             <p className="mt-1 text-sm">
-              {scent.scent.name}{" "}
-              <span className="text-muted-foreground">— {scent.reason}</span>
+              {scent.scent.name} <span className="text-muted-foreground">— {scent.reason}</span>
             </p>
           </div>
         ) : (

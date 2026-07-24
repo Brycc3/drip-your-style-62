@@ -31,7 +31,9 @@ const KINDS = [
 
 function classifyKind(cat: string): string {
   const c = cat.toLowerCase();
-  if (["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c))
+  if (
+    ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
+  )
     return "shoes";
   if (
     [
@@ -90,7 +92,9 @@ function ShopPage() {
           ? supabase.from("shop_feedback").select("catalog_id, saved, dismissed").eq("user_id", u)
           : Promise.resolve({ data: [] }),
       ]);
-      setCatalog(((cat ?? []) as CatalogItem[]).map((c) => ({ ...c, kind: classifyKind(c.category) })));
+      setCatalog(
+        ((cat ?? []) as CatalogItem[]).map((c) => ({ ...c, kind: classifyKind(c.category) })),
+      );
       setCloset(
         ((ci.data ?? []) as unknown[]).filter(
           (i) => (i as ClosetItem).kind !== "fragrance",
