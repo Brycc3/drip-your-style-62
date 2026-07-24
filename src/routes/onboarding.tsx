@@ -67,10 +67,37 @@ function Onboarding() {
     setter(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   }
 
+  function validateCustomVibe(): string | null {
+    if (!otherSelected) return null;
+    const t = customVibe.trim();
+    if (t.length < 2) return "Describe your vibe (2–60 characters)";
+    if (t.length > 60) return "Keep it under 60 characters";
+    return null;
+  }
+
+  function handleContinue() {
+    if (step === 2) {
+      const err = validateCustomVibe();
+      setCustomVibeError(err);
+      if (err) return;
+    }
+    setStep(step + 1);
+  }
+
   async function finish() {
     if (!user) return;
+    const err = validateCustomVibe();
+    if (err) {
+      setCustomVibeError(err);
+      setStep(2);
+      return;
+    }
     setSaving(true);
     try {
+      // Never persist the literal "Other" — replace it with the custom text.
+      const finalVibes = vibes
+        .filter((v) => v !== "Other")
+        .concat(otherSelected ? [customVibe.trim()] : []);
       const { error: pErr } = await supabase.from("profiles").upsert({
         id: user.id,
         display_name: displayName || null,
@@ -79,9 +106,10 @@ function Onboarding() {
       if (pErr) throw pErr;
       const { error: prefErr } = await supabase.from("user_preferences").upsert({
         user_id: user.id,
-        style_vibes: vibes,
+        style_vibes: finalVibes,
         favorite_colors: favColors,
         sizes: { top: topSize, bottom: bottomSize, shoe: shoeSize },
+        custom_vibes: otherSelected ? [customVibe.trim()] : [],
       });
       if (prefErr) throw prefErr;
       navigate({ to: "/home", replace: true });
@@ -91,6 +119,7 @@ function Onboarding() {
       setSaving(false);
     }
   }
+
 
   return (
     <div className="min-h-dvh bg-background">
