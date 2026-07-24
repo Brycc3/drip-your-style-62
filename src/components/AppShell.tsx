@@ -1,6 +1,6 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Home, Shirt, Sparkles, Flame, ShoppingBag, User } from "lucide-react";
+import { Home, Shirt, Sparkles, Flame, ShoppingBag, User, ArrowLeft } from "lucide-react";
 import { InstallPrompt } from "./InstallPrompt";
 
 const tabs = [
@@ -12,16 +12,53 @@ const tabs = [
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
+const PRIMARY_PATHS = new Set(tabs.map((t) => t.to as string));
+
+// Contextual fallback when browser history has no in-app entry.
+function fallbackFor(pathname: string): string {
+  if (pathname.startsWith("/closet/")) return "/closet";
+  if (pathname.startsWith("/saved/") || pathname === "/saved") return "/generate";
+  if (pathname.startsWith("/o/")) return "/feed";
+  if (pathname.startsWith("/u/")) return "/feed";
+  if (pathname.startsWith("/shop/")) return "/shop";
+  return "/home";
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
+  const showBack = !PRIMARY_PATHS.has(pathname);
+
+  function goBack() {
+    // Prefer real history for scroll/state; fallback contextually.
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.history.back();
+    } else {
+      router.navigate({ to: fallbackFor(pathname) });
+    }
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       <header className="safe-t sticky top-0 z-20 border-b border-border/60 bg-background/85 backdrop-blur">
-        <div className="container-app flex h-14 items-center justify-between">
-          <Link to="/home" className="font-display text-2xl tracking-widest text-foreground">
-            DRIP<span className="text-primary">.</span>
-          </Link>
+        <div className="container-app flex h-14 items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {showBack && (
+              <button
+                onClick={goBack}
+                aria-label="Back"
+                className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground/80 hover:bg-surface-2"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            )}
+            <Link
+              to="/home"
+              className="font-display text-2xl tracking-widest text-foreground truncate"
+            >
+              DRIP<span className="text-primary">.</span>
+            </Link>
+          </div>
           <Link to="/profile" className="text-xs uppercase tracking-widest text-muted-foreground">
             Account
           </Link>
