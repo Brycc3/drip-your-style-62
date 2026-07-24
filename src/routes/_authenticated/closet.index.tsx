@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrl } from "@/lib/closet-storage";
-import { Plus, FlaskConical } from "lucide-react";
+import { Plus, FlaskConical, Archive } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/closet/")({
   head: () => ({
@@ -23,6 +23,7 @@ type Item = {
   color: string | null;
   brand: string | null;
   image_url: string | null;
+  archived: boolean;
 };
 
 const FILTERS = [
@@ -33,6 +34,7 @@ const FILTERS = [
   { v: "shoes", l: "Shoes" },
   { v: "accessory", l: "Accessories" },
   { v: "fragrance", l: "Fragrances" },
+  { v: "archived", l: "Archived" },
 ] as const;
 type FilterKey = (typeof FILTERS)[number]["v"];
 
@@ -49,7 +51,7 @@ function ClosetPage() {
       if (!uid) return;
       const { data } = await supabase
         .from("closet_items")
-        .select("id,name,category,kind,color,brand,image_url")
+        .select("id,name,category,kind,color,brand,image_url,archived")
         .eq("user_id", uid)
         .order("created_at", { ascending: false });
       const list = (data ?? []) as Item[];
@@ -65,9 +67,11 @@ function ClosetPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return items;
-    if (filter === "fragrance") return items.filter((i) => i.kind === "fragrance");
-    return items.filter((i) => i.category === filter && i.kind !== "fragrance");
+    if (filter === "archived") return items.filter((i) => i.archived);
+    const active = items.filter((i) => !i.archived);
+    if (filter === "all") return active;
+    if (filter === "fragrance") return active.filter((i) => i.kind === "fragrance");
+    return active.filter((i) => i.category === filter && i.kind !== "fragrance");
   }, [items, filter]);
 
   return (
@@ -84,7 +88,7 @@ function ClosetPage() {
           >
             <FlaskConical className="h-4 w-4" /> Add scent
           </Link>
-        ) : (
+        ) : filter === "archived" ? null : (
           <Link
             to="/closet/new"
             className="btn-lime inline-flex items-center gap-1 !px-4 !py-2 text-xs"
@@ -94,52 +98,54 @@ function ClosetPage() {
         )}
       </div>
 
-      <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+      <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-hide">
         {FILTERS.map((c) => (
           <button
             key={c.v}
             onClick={() => setFilter(c.v)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest ${
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest inline-flex items-center gap-1 ${
               filter === c.v
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border text-foreground/80"
             }`}
           >
+            {c.v === "archived" && <Archive className="h-3 w-3" />}
             {c.l}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-3">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[...Array(6)].map((_, i) => (
             <div key={i} className="aspect-[3/4] animate-pulse rounded-lg bg-surface" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="card-surface p-6 text-center">
           <p className="text-sm text-muted-foreground">
-            {filter === "fragrance"
-              ? "No fragrances yet. Add one so DRIP can pair scents with outfits."
-              : items.length === 0
-                ? "No pieces yet."
-                : "Nothing in this category."}
+            {filter === "archived"
+              ? "No archived pieces."
+              : filter === "fragrance"
+                ? "No fragrances yet. Add one so DRIP can pair scents with outfits."
+                : items.length === 0
+                  ? "No pieces yet."
+                  : "Nothing in this category."}
           </p>
           {filter === "fragrance" ? (
             <Link to="/scents" className="btn-lime mt-4 inline-flex">
               Manage fragrances
             </Link>
-          ) : (
+          ) : filter !== "archived" ? (
             <Link to="/closet/new" className="btn-lime mt-4 inline-flex">
               Add a piece
             </Link>
-          )}
+          ) : null}
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-3">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((i) => {
             const isFrag = i.kind === "fragrance";
-            const target = isFrag ? "/scents" : "/closet/$id";
             return (
               <li key={i.id}>
                 {isFrag ? (
@@ -148,9 +154,11 @@ function ClosetPage() {
                   </Link>
                 ) : (
                   <Link
-                    to={target as "/closet/$id"}
+                    to="/closet/$id"
                     params={{ id: i.id }}
-                    className="card-surface block overflow-hidden"
+                    className={`card-surface block overflow-hidden ${
+                      i.archived ? "opacity-60" : ""
+                    }`}
                   >
                     <Body item={i} url={urls[i.id]} />
                   </Link>
