@@ -639,7 +639,7 @@ function ItemCard({
           </p>
         )}
         <div className="mt-auto flex flex-wrap gap-2 pt-2">
-          {validBuy && (
+          {validBuy ? (
             <a
               href={g.item.buy_url!}
               target="_blank"
@@ -648,6 +648,13 @@ function ItemCard({
             >
               <ExternalLink className="h-3 w-3" /> Shop now
             </a>
+          ) : (
+            <span
+              title="No retailer link — demo catalog"
+              className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> View sample
+            </span>
           )}
           <Link
             to="/inspo"
