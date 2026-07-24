@@ -37,7 +37,7 @@ type SnapPiece = {
 };
 
 function pickToSnapshot(p: OutfitPick): Snapshot {
-  const map = (c: ClosetItem | undefined): SnapPiece | undefined =>
+  const map = (c: ClosetItem | undefined | null): SnapPiece | undefined =>
     c
       ? {
           id: c.id,

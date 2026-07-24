@@ -15,10 +15,13 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UHandleRouteImport } from './routes/u.$handle'
 import { Route as OSlugRouteImport } from './routes/o.$slug'
+import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
 import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
 import { Route as AuthenticatedScentsRouteImport } from './routes/_authenticated/scents'
+import { Route as AuthenticatedSavedRouteImport } from './routes/_authenticated/saved'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedInspoRouteImport } from './routes/_authenticated/inspo'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedGenerateRouteImport } from './routes/_authenticated/generate'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
@@ -56,6 +59,11 @@ const OSlugRoute = OSlugRouteImport.update({
   path: '/o/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
+  id: '/taste',
+  path: '/taste',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSwipeRoute = AuthenticatedSwipeRouteImport.update({
   id: '/swipe',
   path: '/swipe',
@@ -71,9 +79,19 @@ const AuthenticatedScentsRoute = AuthenticatedScentsRouteImport.update({
   path: '/scents',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSavedRoute = AuthenticatedSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInspoRoute = AuthenticatedInspoRouteImport.update({
+  id: '/inspo',
+  path: '/inspo',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
@@ -121,10 +139,13 @@ export interface FileRoutesByFullPath {
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/inspo': typeof AuthenticatedInspoRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/saved': typeof AuthenticatedSavedRoute
   '/scents': typeof AuthenticatedScentsRoute
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
+  '/taste': typeof AuthenticatedTasteRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
@@ -139,10 +160,13 @@ export interface FileRoutesByTo {
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/inspo': typeof AuthenticatedInspoRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/saved': typeof AuthenticatedSavedRoute
   '/scents': typeof AuthenticatedScentsRoute
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
+  '/taste': typeof AuthenticatedTasteRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
@@ -159,10 +183,13 @@ export interface FileRoutesById {
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/generate': typeof AuthenticatedGenerateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/inspo': typeof AuthenticatedInspoRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/saved': typeof AuthenticatedSavedRoute
   '/_authenticated/scents': typeof AuthenticatedScentsRoute
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
+  '/_authenticated/taste': typeof AuthenticatedTasteRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
@@ -179,10 +206,13 @@ export interface FileRouteTypes {
     | '/feed'
     | '/generate'
     | '/home'
+    | '/inspo'
     | '/profile'
+    | '/saved'
     | '/scents'
     | '/shop'
     | '/swipe'
+    | '/taste'
     | '/o/$slug'
     | '/u/$handle'
     | '/closet/$id'
@@ -197,10 +227,13 @@ export interface FileRouteTypes {
     | '/feed'
     | '/generate'
     | '/home'
+    | '/inspo'
     | '/profile'
+    | '/saved'
     | '/scents'
     | '/shop'
     | '/swipe'
+    | '/taste'
     | '/o/$slug'
     | '/u/$handle'
     | '/closet/$id'
@@ -216,10 +249,13 @@ export interface FileRouteTypes {
     | '/_authenticated/feed'
     | '/_authenticated/generate'
     | '/_authenticated/home'
+    | '/_authenticated/inspo'
     | '/_authenticated/profile'
+    | '/_authenticated/saved'
     | '/_authenticated/scents'
     | '/_authenticated/shop'
     | '/_authenticated/swipe'
+    | '/_authenticated/taste'
     | '/o/$slug'
     | '/u/$handle'
     | '/_authenticated/closet/$id'
@@ -281,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/taste': {
+      id: '/_authenticated/taste'
+      path: '/taste'
+      fullPath: '/taste'
+      preLoaderRoute: typeof AuthenticatedTasteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/swipe': {
       id: '/_authenticated/swipe'
       path: '/swipe'
@@ -302,11 +345,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/saved': {
+      id: '/_authenticated/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof AuthenticatedSavedRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspo': {
+      id: '/_authenticated/inspo'
+      path: '/inspo'
+      fullPath: '/inspo'
+      preLoaderRoute: typeof AuthenticatedInspoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/home': {
@@ -378,10 +435,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedGenerateRoute: typeof AuthenticatedGenerateRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedInspoRoute: typeof AuthenticatedInspoRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedSavedRoute: typeof AuthenticatedSavedRoute
   AuthenticatedScentsRoute: typeof AuthenticatedScentsRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
+  AuthenticatedTasteRoute: typeof AuthenticatedTasteRoute
   AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRouteWithChildren
   AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
   AuthenticatedClosetIndexRoute: typeof AuthenticatedClosetIndexRoute
@@ -391,10 +451,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedGenerateRoute: AuthenticatedGenerateRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedInspoRoute: AuthenticatedInspoRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedSavedRoute: AuthenticatedSavedRoute,
   AuthenticatedScentsRoute: AuthenticatedScentsRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
+  AuthenticatedTasteRoute: AuthenticatedTasteRoute,
   AuthenticatedClosetIdRoute: AuthenticatedClosetIdRouteWithChildren,
   AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
   AuthenticatedClosetIndexRoute: AuthenticatedClosetIndexRoute,
