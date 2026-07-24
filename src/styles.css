@@ -120,19 +120,25 @@
   width: 100%;
 }
 
-@utility container-wide {
-  max-width: 72rem; /* desktop-friendly for grids like Shop */
-  margin-inline: auto;
-  padding-inline: 1.25rem;
-  width: 100%;
-}
-
-@utility scrollbar-hide {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-@utility scrollbar-hide::-webkit-scrollbar {
-  display: none;
+@layer utilities {
+  .container-wide {
+    max-width: 72rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+    width: 100%;
+  }
+  .escape-container-app {
+    /* Cancel the parent container-app max-width for wide pages like Shop. */
+    max-width: none;
+    margin-inline: calc(-1 * ((100vw - min(100vw, 32rem)) / 2));
+  }
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility card-surface {
