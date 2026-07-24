@@ -56,6 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </div>
       </nav>
+      <InstallPrompt />
     </div>
   );
 }
