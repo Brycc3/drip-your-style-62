@@ -536,10 +536,11 @@ function ShopPage() {
             {scored.length} result{scored.length === 1 ? "" : "s"}
           </p>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleScored.map((g) => (
+            {visibleScored.map((g, i) => (
               <ItemCard
                 key={g.item.id}
                 g={g}
+                eager={i < 3}
                 saved={saved.has(g.item.id)}
                 onSave={() => feedback(g.item.id, "save")}
                 onDismiss={() => feedback(g.item.id, "dismiss")}
