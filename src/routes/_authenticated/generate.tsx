@@ -46,6 +46,16 @@ function GeneratePage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  // outfit signature -> saved_outfits.id so Mark Worn doesn't create duplicates
+  const [savedBySig, setSavedBySig] = useState<Record<string, string>>({});
+
+  function pickSignature(pick: OutfitPick): string {
+    return [pick.top, pick.bottom, pick.outerwear, pick.shoes, pick.accessory]
+      .filter(Boolean)
+      .map((p) => (p as ClosetItem).id)
+      .sort()
+      .join("|");
+  }
 
   async function load() {
     setLoading(true); setErr(null);
