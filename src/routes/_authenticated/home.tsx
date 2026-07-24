@@ -47,9 +47,9 @@ function HomePage() {
         }
         setCounts(c);
       }
-      setRecent(recentItems ?? []);
-      const paths = (recentItems ?? []).map((r) => r.image_url).filter(Boolean) as string[];
-      if (paths.length) setUrls(await getSignedUrls(paths));
+      const list = recentItems ?? [];
+      setRecent(list);
+      if (list.length) setUrls(await getSignedUrlsByItem(list));
     })();
   }, []);
 
