@@ -567,11 +567,13 @@ function ItemCard({
   saved,
   onSave,
   onDismiss,
+  eager,
 }: {
   g: GapScore;
   saved: boolean;
   onSave: () => void;
   onDismiss: () => void;
+  eager?: boolean;
 }) {
   const validBuy = hasValidBuyUrl(g.item);
   return (
