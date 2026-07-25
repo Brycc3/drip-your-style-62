@@ -10,11 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as LegalRouteImport } from './routes/legal'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as UHandleRouteImport } from './routes/u.$handle'
 import { Route as OSlugRouteImport } from './routes/o.$slug'
+import { Route as LegalTermsRouteImport } from './routes/legal.terms'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalLocationWeatherRouteImport } from './routes/legal.location-weather'
+import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
+import { Route as LegalCommunityGuidelinesRouteImport } from './routes/legal.community-guidelines'
+import { Route as LegalBetaNoticeRouteImport } from './routes/legal.beta-notice'
+import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-image-processing'
+import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
+import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
+import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
 import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
@@ -35,6 +47,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalRoute = LegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -49,6 +66,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalIndexRoute = LegalIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LegalRoute,
+} as any)
 const UHandleRoute = UHandleRouteImport.update({
   id: '/u/$handle',
   path: '/u/$handle',
@@ -58,6 +80,58 @@ const OSlugRoute = OSlugRouteImport.update({
   id: '/o/$slug',
   path: '/o/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalLocationWeatherRoute = LegalLocationWeatherRouteImport.update({
+  id: '/location-weather',
+  path: '/location-weather',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCommunityGuidelinesRoute =
+  LegalCommunityGuidelinesRouteImport.update({
+    id: '/community-guidelines',
+    path: '/community-guidelines',
+    getParentRoute: () => LegalRoute,
+  } as any)
+const LegalBetaNoticeRoute = LegalBetaNoticeRouteImport.update({
+  id: '/beta-notice',
+  path: '/beta-notice',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAiImageProcessingRoute = LegalAiImageProcessingRouteImport.update({
+  id: '/ai-image-processing',
+  path: '/ai-image-processing',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAffiliateDisclosureRoute =
+  LegalAffiliateDisclosureRouteImport.update({
+    id: '/affiliate-disclosure',
+    path: '/affiliate-disclosure',
+    getParentRoute: () => LegalRoute,
+  } as any)
+const LegalAccountDeletionRoute = LegalAccountDeletionRouteImport.update({
+  id: '/account-deletion',
+  path: '/account-deletion',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
+  id: '/acceptable-use',
+  path: '/acceptable-use',
+  getParentRoute: () => LegalRoute,
 } as any)
 const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
   id: '/taste',
@@ -135,6 +209,7 @@ const AuthenticatedClosetIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
@@ -146,8 +221,19 @@ export interface FileRoutesByFullPath {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/account-deletion': typeof LegalAccountDeletionRoute
+  '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
+  '/legal/ai-image-processing': typeof LegalAiImageProcessingRoute
+  '/legal/beta-notice': typeof LegalBetaNoticeRoute
+  '/legal/community-guidelines': typeof LegalCommunityGuidelinesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/location-weather': typeof LegalLocationWeatherRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
+  '/legal/': typeof LegalIndexRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
   '/closet/': typeof AuthenticatedClosetIndexRoute
@@ -167,8 +253,19 @@ export interface FileRoutesByTo {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/account-deletion': typeof LegalAccountDeletionRoute
+  '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
+  '/legal/ai-image-processing': typeof LegalAiImageProcessingRoute
+  '/legal/beta-notice': typeof LegalBetaNoticeRoute
+  '/legal/community-guidelines': typeof LegalCommunityGuidelinesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/location-weather': typeof LegalLocationWeatherRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
+  '/legal': typeof LegalIndexRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
   '/closet': typeof AuthenticatedClosetIndexRoute
@@ -179,6 +276,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/generate': typeof AuthenticatedGenerateRoute
@@ -190,8 +288,19 @@ export interface FileRoutesById {
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
   '/_authenticated/taste': typeof AuthenticatedTasteRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/account-deletion': typeof LegalAccountDeletionRoute
+  '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
+  '/legal/ai-image-processing': typeof LegalAiImageProcessingRoute
+  '/legal/beta-notice': typeof LegalBetaNoticeRoute
+  '/legal/community-guidelines': typeof LegalCommunityGuidelinesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/location-weather': typeof LegalLocationWeatherRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
+  '/legal/': typeof LegalIndexRoute
   '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
   '/_authenticated/closet/': typeof AuthenticatedClosetIndexRoute
@@ -202,6 +311,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/legal'
     | '/onboarding'
     | '/feed'
     | '/generate'
@@ -213,8 +323,19 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/legal/acceptable-use'
+    | '/legal/account-deletion'
+    | '/legal/affiliate-disclosure'
+    | '/legal/ai-image-processing'
+    | '/legal/beta-notice'
+    | '/legal/community-guidelines'
+    | '/legal/copyright'
+    | '/legal/location-weather'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/o/$slug'
     | '/u/$handle'
+    | '/legal/'
     | '/closet/$id'
     | '/closet/new'
     | '/closet/'
@@ -234,8 +355,19 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/legal/acceptable-use'
+    | '/legal/account-deletion'
+    | '/legal/affiliate-disclosure'
+    | '/legal/ai-image-processing'
+    | '/legal/beta-notice'
+    | '/legal/community-guidelines'
+    | '/legal/copyright'
+    | '/legal/location-weather'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/o/$slug'
     | '/u/$handle'
+    | '/legal'
     | '/closet/$id'
     | '/closet/new'
     | '/closet'
@@ -245,6 +377,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/legal'
     | '/onboarding'
     | '/_authenticated/feed'
     | '/_authenticated/generate'
@@ -256,8 +389,19 @@ export interface FileRouteTypes {
     | '/_authenticated/shop'
     | '/_authenticated/swipe'
     | '/_authenticated/taste'
+    | '/legal/acceptable-use'
+    | '/legal/account-deletion'
+    | '/legal/affiliate-disclosure'
+    | '/legal/ai-image-processing'
+    | '/legal/beta-notice'
+    | '/legal/community-guidelines'
+    | '/legal/copyright'
+    | '/legal/location-weather'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/o/$slug'
     | '/u/$handle'
+    | '/legal/'
     | '/_authenticated/closet/$id'
     | '/_authenticated/closet/new'
     | '/_authenticated/closet/'
@@ -268,6 +412,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  LegalRoute: typeof LegalRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
   OSlugRoute: typeof OSlugRoute
   UHandleRoute: typeof UHandleRoute
@@ -280,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal': {
+      id: '/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof LegalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -303,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/': {
+      id: '/legal/'
+      path: '/'
+      fullPath: '/legal/'
+      preLoaderRoute: typeof LegalIndexRouteImport
+      parentRoute: typeof LegalRoute
+    }
     '/u/$handle': {
       id: '/u/$handle'
       path: '/u/$handle'
@@ -316,6 +475,76 @@ declare module '@tanstack/react-router' {
       fullPath: '/o/$slug'
       preLoaderRoute: typeof OSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/location-weather': {
+      id: '/legal/location-weather'
+      path: '/location-weather'
+      fullPath: '/legal/location-weather'
+      preLoaderRoute: typeof LegalLocationWeatherRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/copyright': {
+      id: '/legal/copyright'
+      path: '/copyright'
+      fullPath: '/legal/copyright'
+      preLoaderRoute: typeof LegalCopyrightRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/community-guidelines': {
+      id: '/legal/community-guidelines'
+      path: '/community-guidelines'
+      fullPath: '/legal/community-guidelines'
+      preLoaderRoute: typeof LegalCommunityGuidelinesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/beta-notice': {
+      id: '/legal/beta-notice'
+      path: '/beta-notice'
+      fullPath: '/legal/beta-notice'
+      preLoaderRoute: typeof LegalBetaNoticeRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/ai-image-processing': {
+      id: '/legal/ai-image-processing'
+      path: '/ai-image-processing'
+      fullPath: '/legal/ai-image-processing'
+      preLoaderRoute: typeof LegalAiImageProcessingRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/affiliate-disclosure': {
+      id: '/legal/affiliate-disclosure'
+      path: '/affiliate-disclosure'
+      fullPath: '/legal/affiliate-disclosure'
+      preLoaderRoute: typeof LegalAffiliateDisclosureRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/account-deletion': {
+      id: '/legal/account-deletion'
+      path: '/account-deletion'
+      fullPath: '/legal/account-deletion'
+      preLoaderRoute: typeof LegalAccountDeletionRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/acceptable-use': {
+      id: '/legal/acceptable-use'
+      path: '/acceptable-use'
+      fullPath: '/legal/acceptable-use'
+      preLoaderRoute: typeof LegalAcceptableUseRouteImport
+      parentRoute: typeof LegalRoute
     }
     '/_authenticated/taste': {
       id: '/_authenticated/taste'
@@ -466,10 +695,41 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface LegalRouteChildren {
+  LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
+  LegalAccountDeletionRoute: typeof LegalAccountDeletionRoute
+  LegalAffiliateDisclosureRoute: typeof LegalAffiliateDisclosureRoute
+  LegalAiImageProcessingRoute: typeof LegalAiImageProcessingRoute
+  LegalBetaNoticeRoute: typeof LegalBetaNoticeRoute
+  LegalCommunityGuidelinesRoute: typeof LegalCommunityGuidelinesRoute
+  LegalCopyrightRoute: typeof LegalCopyrightRoute
+  LegalLocationWeatherRoute: typeof LegalLocationWeatherRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalTermsRoute: typeof LegalTermsRoute
+  LegalIndexRoute: typeof LegalIndexRoute
+}
+
+const LegalRouteChildren: LegalRouteChildren = {
+  LegalAcceptableUseRoute: LegalAcceptableUseRoute,
+  LegalAccountDeletionRoute: LegalAccountDeletionRoute,
+  LegalAffiliateDisclosureRoute: LegalAffiliateDisclosureRoute,
+  LegalAiImageProcessingRoute: LegalAiImageProcessingRoute,
+  LegalBetaNoticeRoute: LegalBetaNoticeRoute,
+  LegalCommunityGuidelinesRoute: LegalCommunityGuidelinesRoute,
+  LegalCopyrightRoute: LegalCopyrightRoute,
+  LegalLocationWeatherRoute: LegalLocationWeatherRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalTermsRoute: LegalTermsRoute,
+  LegalIndexRoute: LegalIndexRoute,
+}
+
+const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  LegalRoute: LegalRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
   OSlugRoute: OSlugRoute,
   UHandleRoute: UHandleRoute,
