@@ -6,6 +6,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Dynamic table names — we intentionally use `any` on the supabase client for
+// these loops because the generated Database type narrows table names to a
+// literal union and does not accept a string variable.
+type AnyRow = Record<string, unknown>;
+
 const OWNED_TABLES = [
   "closet_items",
   "saved_outfits",
@@ -21,6 +26,7 @@ const OWNED_TABLES = [
   "follows",
   "user_blocks",
 ] as const;
+
 
 export const exportMyData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
