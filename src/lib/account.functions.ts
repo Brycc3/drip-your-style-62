@@ -178,7 +178,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
 
 
     // Finally: auth.users
-    const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    const { error: delErr } = await _admin.auth.admin.deleteUser(userId);
     if (delErr) throw new Error(`Account row deleted, but auth user removal failed: ${delErr.message}`);
 
     return { ok: true };
