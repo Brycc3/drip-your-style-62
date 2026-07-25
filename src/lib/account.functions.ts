@@ -32,43 +32,68 @@ export const exportMyData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const bundle: Record<string, unknown> = { user_id: userId, exported_at: new Date().toISOString() };
+    // Cast to any: dynamic table names + JSON blob don't play nice with the
+    // generated Database types or with the server-fn serializable inference.
+    const sb = supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (col: string, val: string) => Promise<{ data: AnyRow[] | null }> & {
+            maybeSingle: () => Promise<{ data: AnyRow | null }>;
+          };
+          in: (col: string, ids: string[]) => Promise<{ data: AnyRow[] | null }>;
+          or: (q: string) => Promise<{ data: AnyRow[] | null }>;
+        };
+      };
+    };
+    const bundle: Record<string, unknown> = {
+      user_id: userId,
+      exported_at: new Date().toISOString(),
+    };
 
     const [{ data: profile }, { data: prefs }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.from("user_preferences").select("*").eq("user_id", userId).maybeSingle(),
+      sb.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      sb.from("user_preferences").select("*").eq("user_id", userId).maybeSingle(),
     ]);
     bundle.profile = profile ?? null;
     bundle.preferences = prefs ?? null;
 
-    // Per-table dumps for anything scoped by user_id.
     for (const table of OWNED_TABLES) {
       if (table === "user_preferences") continue;
       if (table === "follows") {
-        const { data } = await supabase.from("follows").select("*").or(`follower_id.eq.${userId},followee_id.eq.${userId}`);
+        const { data } = await sb
+          .from("follows")
+          .select("*")
+          .or(`follower_id.eq.${userId},followee_id.eq.${userId}`);
         bundle[table] = data ?? [];
         continue;
       }
       if (table === "user_blocks") {
-        const { data } = await supabase.from("user_blocks").select("*").eq("blocker_id", userId);
+        const { data } = await sb.from("user_blocks").select("*").eq("blocker_id", userId);
         bundle[table] = data ?? [];
         continue;
       }
       if (table === "outfit_items") {
-        // scoped indirectly via saved_outfits
-        const { data: outfits } = await supabase.from("saved_outfits").select("id").eq("user_id", userId);
-        const ids = (outfits ?? []).map((o) => o.id);
-        if (ids.length === 0) { bundle[table] = []; continue; }
-        const { data } = await supabase.from("outfit_items").select("*").in("outfit_id", ids);
+        const { data: outfits } = await sb
+          .from("saved_outfits")
+          .select("id")
+          .eq("user_id", userId);
+        const ids = (outfits ?? []).map((o) => String(o.id));
+        if (ids.length === 0) {
+          bundle[table] = [];
+          continue;
+        }
+        const { data } = await sb.from("outfit_items").select("*").in("outfit_id", ids);
         bundle[table] = data ?? [];
         continue;
       }
-      const { data } = await supabase.from(table).select("*").eq("user_id", userId);
+      const { data } = await sb.from(table).select("*").eq("user_id", userId);
       bundle[table] = data ?? [];
     }
 
-    return bundle;
+    // JSON-round-trip guarantees the value is serializable for the server-fn boundary.
+    return JSON.parse(JSON.stringify(bundle)) as { user_id: string; exported_at: string };
   });
+
 
 export const deleteMyAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
