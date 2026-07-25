@@ -106,45 +106,76 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       throw new Error("Email confirmation did not match your account email.");
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server");
+    // Cast for dynamic table names.
+    const admin = _admin as unknown as {
+      from: (t: string) => {
+        delete: () => {
+          eq: (col: string, val: string) => Promise<{ error: { message: string } | null }>;
+          in: (col: string, vals: string[]) => Promise<{ error: { message: string } | null }>;
+          or: (q: string) => Promise<{ error: { message: string } | null }>;
+        };
+        update: (patch: Record<string, unknown>) => {
+          eq: (col: string, val: string) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+      storage: typeof _admin.storage;
+      auth: typeof _admin.auth;
+    };
 
     // Delete storage objects under closet/<uid>/
     try {
-      const { data: files } = await supabaseAdmin.storage.from("closet").list(userId, { limit: 1000 });
+      const { data: files } = await _admin.storage.from("closet").list(userId, { limit: 1000 });
       if (files && files.length > 0) {
         const paths = files.map((f) => `${userId}/${f.name}`);
-        await supabaseAdmin.storage.from("closet").remove(paths);
+        await _admin.storage.from("closet").remove(paths);
       }
     } catch (e) {
       console.error("[deleteMyAccount] storage cleanup failed", e);
     }
 
-    // DB rows. auth.users delete cascades most, but we scrub explicitly first
-    // to protect against missing FKs and to null-out reports.
-    await supabaseAdmin.from("content_reports").update({ reporter_id: null }).eq("reporter_id", userId);
+    await admin
+      .from("content_reports")
+      .update({ reporter_id: null })
+      .eq("reporter_id", userId);
 
-    // The remaining owned tables cascade off auth.users FK, but we do the
-    // explicit deletes as belt-and-braces + to satisfy the RLS-scoped user
-    // client for tables without ON DELETE CASCADE.
-    for (const table of ["outfit_items"]) {
-      const { data: outfits } = await supabase.from("saved_outfits").select("id").eq("user_id", userId);
-      const ids = (outfits ?? []).map((o) => o.id);
-      if (ids.length > 0) await supabaseAdmin.from(table).delete().in("outfit_id", ids);
+    // outfit_items via saved_outfits ids
+    const sbUser = supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (col: string, val: string) => Promise<{ data: { id: string }[] | null }>;
+        };
+      };
+    };
+    const { data: outfits } = await sbUser
+      .from("saved_outfits")
+      .select("id")
+      .eq("user_id", userId);
+    const outfitIds = (outfits ?? []).map((o) => String(o.id));
+    if (outfitIds.length > 0) {
+      await admin.from("outfit_items").delete().in("outfit_id", outfitIds);
     }
+
     for (const table of OWNED_TABLES) {
       if (table === "outfit_items") continue;
       if (table === "follows") {
-        await supabaseAdmin.from("follows").delete().or(`follower_id.eq.${userId},followee_id.eq.${userId}`);
+        await admin
+          .from("follows")
+          .delete()
+          .or(`follower_id.eq.${userId},followee_id.eq.${userId}`);
         continue;
       }
       if (table === "user_blocks") {
-        await supabaseAdmin.from("user_blocks").delete().or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+        await admin
+          .from("user_blocks")
+          .delete()
+          .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
         continue;
       }
-      const col = table === "user_preferences" ? "user_id" : "user_id";
-      await supabaseAdmin.from(table).delete().eq(col, userId);
+      await admin.from(table).delete().eq("user_id", userId);
     }
-    await supabaseAdmin.from("profiles").delete().eq("id", userId);
+    await admin.from("profiles").delete().eq("id", userId);
+
 
     // Finally: auth.users
     const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
