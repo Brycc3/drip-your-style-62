@@ -1,63 +1,88 @@
 
-This is a large, multi-surface pass. I want to align on scope before writing code so we don't repeat the "claimed but not visible" cycle.
+This is a very large multi-surface build. I want to align on scope and sequencing before writing code, because doing all six priorities in one pass would produce a mess and hide honest gaps. I'll flag exactly what will be real vs. mocked.
 
-## Scope (what will be visibly changed in the preview)
+## What I will build (in this order, one PR-sized pass each)
 
-### 1. Inspo Builder (`src/routes/_authenticated/inspo.tsx`)
-- Sticky bottom action bar (mobile) / top bar (desktop) with **Suggest next piece** + **Complete outfit** whenever any slot is empty.
-- Six always-visible slots in a fixed grid: Top, Bottom, Shoes, Outerwear, Accessory, Fragrance. Empty slots get a prominent labeled `+ Add {slot}` button.
-- Tapping any slot (empty or filled) sets it as the active target and opens a suggestion tray directly under the outfit.
-- Suggestion tray has a source selector: **My Closet / Shop / Mix**, each card badged `Owned` or `Buy · $price`.
-- Locked slots persist across `Suggest`, `Complete outfit`, `Shuffle`, and single-slot swaps.
-- **Shuffle alternatives** (re-rolls active slot) + **Undo last swap** (single-step history stack).
-- Saving supports mixed owned/unowned outfits; footer shows unowned subtotal only.
-- Accepts `?item={catalog_id}&slot={slot}` search param to open with a Shop item locked (used by "Build around this item").
+### P1 — Legal & Safety Center
+- New `src/config/legal.ts` with admin placeholders: `LEGAL_OWNER`, `SUPPORT_EMAIL`, `JURISDICTION`, `EFFECTIVE_DATE`, `MIN_AGE=18`, `ENTITY_CONFIGURED=false`.
+- New public routes under `/legal/*`: `privacy`, `terms`, `community-guidelines`, `acceptable-use`, `account-deletion`, `copyright`, `affiliate-disclosure`, `location-weather`, `ai-image-processing`, `beta-notice`. Index page at `/legal`.
+- Every page reads copy from `legal.ts` and shows a red admin banner ("Beta legal drafts — review before public commercial launch. Publishing blocked until owner fields are set.") whenever `ENTITY_CONFIGURED=false`.
+- Footer link on public landing + `/legal` link in Profile → Settings section.
+- Real user controls in Profile → Privacy & Data:
+  - Export my data (server fn: zips closet/outfits/feedback/preferences JSON, returns download).
+  - Delete account (requires typing email to confirm + re-auth via password prompt; server fn deletes rows across owned tables and storage objects in `closet/{uid}/`, then `supabaseAdmin.auth.admin.deleteUser`).
+  - Per-photo delete already exists in closet edit; surface a "Delete photo only" button.
+- Full-fit photos and new outfit photos default `visibility='private'`; migration adds `visibility` column to `saved_outfits` if missing and flips default.
+- Report/block scaffolding: `content_reports` table + report button on public outfit pages (`/o/$slug`).
 
-### 2. Accessories: up to 3 slots
-- Accessory becomes a repeatable slot: `Accessory 1/2/3` with `+ Add another accessory` and a `No accessory` opt-out.
-- Suggestion scoring weights color/metal/scale/occasion (extend `outfit-generator.ts`).
-- Accessory subcategory taxonomy added to `shop-gap.ts` classifier: hats, caps, beanies, belts, bags, watches, jewelry, sunglasses, socks, scarves, wallets.
+### P2 — Rebuild demo catalog
+- Migration: `TRUNCATE shop_catalog` then insert ~100 rows across Clothing/Shoes/Accessories/Fragrance with balanced color/price/season/formality and NO `buy_url` (all "View sample"). `is_demo=true`, `retailer=null`.
+- All images use the existing `CatalogImage` category fallback (already polished). I will not fabricate retailer photos or hotlink. Optional: generate ~15 hero images for the most-shown items via imagegen and upload as lovable-assets; the rest use the gradient/emoji placeholder. **This means most tiles will remain placeholder art — that is honest for a demo catalog and I will not disguise it.**
+- Shop query: first page limited to 12 (`.limit(12)`), "Load more" appends next page, sessionStorage for tab/filter/scroll, `recently-seen` already wired for refresh diversity.
+- Outfit Ideas tab: real generator that pairs 1 recommended demo item with 2–4 owned closet pieces, each labeled Owned/Recommended. Empty state when closet is too small.
+- Recommendation reasons already computed in `shop-gap.ts`; surface owned-piece thumbnails on each card and "estimated outfits unlocked".
+- "Report broken link" button (writes to `content_reports` with kind='broken_link').
 
-### 3. Shop redesign (`src/routes/_authenticated/shop.tsx`)
-- Primary tabs replace current Kind chips: **Clothing / Shoes / Accessories / Fragrance / Outfit Ideas**.
-- Accessories tab exposes subcategory chips + "Missing from your closet" / "Under $X" quick filters.
-- Fragrance tab exposes family filters (fresh, woody, warm/spicy, sweet, aquatic) + occasion (date night, office, hot weather, evening).
-- Session-persisted `recentlyShownIds` (localStorage keyed per user) so Refresh actually rotates and excludes recent IDs across reloads.
-- Diversity penalty extended: category + brand + color + price bucket.
-- Sort control adds **New arrivals** (by `created_at`).
-- Skeleton grid renders immediately; cached results paint first, then SWR revalidates in the background.
-- `Last refreshed HH:MM` timestamp shown.
-- Every product card gets a **Build around this item** action linking to `/inspo?item={id}&slot={inferred}`.
-- Filters + scroll preserved via URL search params + sessionStorage scroll restoration.
-- Honest demo-catalog banner stays; catalog seeded with more variety (see §5).
+### P3 — The Edit (Discover sub-section)
+- New route `/_authenticated/discover.tsx` with sub-tab "The Edit" (not a new bottom-nav item; lives inside a new Discover entry point I'll place under Profile menu + Home quick link to avoid nav overload).
+- Migration: `news_articles` (source, author, published_at, headline, summary, why_matters, topics text[], external_url, canonical_url, image_url, image_license, is_demo), `news_topic_follows`, `news_interactions` (saved/hidden/read).
+- Seed ~15 demo articles across streetwear, sneakers, menswear, womenswear, accessories, jewelry, eyewear, fragrance, thrift, sustainability, runway, business, Houston, releases. Marked `is_demo=true`. Summaries are original short blurbs; no copied content.
+- Personalization score = overlap(user vibes/brands/colors/topics_followed, article.topics + keywords) - hidden penalty.
+- Controls: Follow topic, Mute source/topic, Save, Not interested, "Why recommended" popover, Mark read.
+- Schema is ready for RSS ingestion later; no scraper included.
 
-### 4. Fragrance freshness
-- Fragrance tab uses same recently-seen exclusion + diversity by family.
-- Generate/Inspo pairing logic (in `outfit-generator.ts` scent picker) rotates through owned fragrances instead of always returning the first match — track last-picked per session.
+### P4 — Fit Scan + Lookbook
+- Migration: `outfit_logs` (user_id, photo_path, date, occasion, weather, location text, vibe, notes, rating int, compliments int, visibility default 'private', keep_photo bool) and `outfit_log_items` (log_id, closet_item_id, region jsonb nullable).
+- Route `/_authenticated/fit-scan.tsx`: upload/camera → client-side crop (react-easy-crop already unavailable; use a lightweight canvas cropper I'll write) → optional face blur (canvas: detect via `FaceDetector` API when available, else user draws a rect to blur) → confirm-pieces step: manual slot picker (top/bottom/shoes/outerwear/accessories×N) → for each slot, match to existing closet item (fuzzy on category+color+brand) OR "Create new closet item" prefilled.
+- No claim of AI extraction. Copy: "Help us identify each piece."
+- Route `/_authenticated/lookbook.tsx`: grid of outfit_logs, filters (occasion/season/vibe/favorite/date), detail view with flat-lay of linked items, edit linked pieces, duplicate, "Recreate this fit" → `/inspo?log={id}` preloads slots.
+- "Delete photo only" keeps the log record.
 
-### 5. Catalog seed expansion (data migration via `supabase--insert`)
-- Add ~40 more `shop_catalog` rows: broader accessories (hats/belts/bags/watches/jewelry/sunglasses/socks/scarves/wallets), more shoes, and ~15 additional fragrances covering the family filters. All rows `is_demo=true` with plausible `buy_url` or omitted (button hidden when invalid).
+### P5 — First-class accessories
+- Migration: extend `closet_items` with `accessory_subtype text`, `placement text`, `material text` (if missing), `metal_finish text`, `measurements text`. Add CHECK-less validation via trigger.
+- New taxonomy file `src/lib/accessories.ts` with all subtypes grouped by placement (head/eyes/ears/neck/wrist/hands/waist/bag/socks/face). Full list per your spec.
+- Closet add/edit form: when category='accessory', show subtype + placement + metal/finish + measurements fields.
+- Inspo Builder: replace single accessory slot with an "Accessory drawer" grouped by placement. Multi-add up to 6 with soft warning "This look is getting busy" past 4.
+- Outfit generator: pick 1–4 accessories weighted by vibe/formality; explanations include contrast/polish/scale/metal harmony/color repetition/focal point.
+- Fit Scan, Saved Outfits, Shop Outfit Ideas, and outfit cards all render accessory lists with placement labels.
 
-### 6. Recently-seen store
-- New helper `src/lib/recently-seen.ts`: localStorage-backed ring buffer (per user, per kind: `shop`, `fragrance`, `swipe`). Consumed by shop scoring, fragrance picker, and swipe deck.
+### P6 — Beta Readiness admin
+- Route `/_authenticated/admin/beta-readiness.tsx` gated by a new `user_roles` row (`admin`). Uses the `has_role` pattern.
+- Checklist reads live state:
+  - legal placeholders (`legal.ts` ENTITY_CONFIGURED)
+  - support email set
+  - account deletion test flag (manual toggle)
+  - two-user privacy test (manual)
+  - storage privacy test (auto: attempt anon download of a known private path)
+  - catalog audit (auto: count items with valid image or placeholder = 100%)
+  - social report/block test (manual)
+  - Fit Scan consent test (manual)
+  - news labeled demo (auto: all articles is_demo=true)
+  - marketplace disabled (constant)
+  - error monitoring (checks Sentry env var; not configured by default → shown as "Not configured", honest)
+- App-wide "Ready for public launch" banner only appears when all mandatory checks pass; otherwise shows "Beta — not ready for public launch".
 
-### 7. Tests
-- Extend `tests/shop-and-generate.test.ts`:
-  - Refresh excludes recently-seen IDs
-  - Accessory subcategory classifier
-  - Fragrance family filter
-  - Locked-slot preservation in a small builder helper
-- Run `bun test`, `bun run build`, and report exact results.
+## QA I will run at the end
+- `bun test`, `bun run build`, `bun run lint` — report exact output.
+- Playwright: desktop + mobile viewport walkthrough of Legal Center, Shop tabs+refresh, The Edit personalization, Fit Scan upload with manual confirm, add earrings/glasses/chain/watch/bag/socks/grills, multi-accessory Inspo, private-by-default check on new outfit photo.
 
-## Out of scope (call out honestly, do not fake)
-- No real live product feed — remains labeled DEMO.
-- No image-based inspo matching.
-- "New arrivals" sorts by `created_at` on the seeded catalog, not a live retailer feed.
-- Accessory-scale scoring is heuristic (category-based), not vision-derived.
+## Honest limitations I will NOT hide
+- No real retailer feed, no real news feed, no real image-analysis model. Everything AI/retail/news-facing is clearly labeled DEMO in-app.
+- Legal copy is my draft, not attorney-reviewed. Every page carries the beta banner.
+- Face blur uses browser `FaceDetector` when available (Chromium) and falls back to manual rectangle blur.
+- Data export is JSON only, not a full GDPR-grade portable archive.
+- Storage-privacy check hits a known private path; not a full pen test.
+- Sentry/error monitoring is not wired unless the user provides a DSN secret.
+- No trademark rebrand.
 
-## Technical notes
-- No schema migrations required for §1–4; only a data insert for §5.
-- Files touched: `inspo.tsx`, `shop.tsx`, `shop-gap.ts`, `outfit-generator.ts` (fragrance picker + accessory slot type), new `recently-seen.ts`, `StyleTabs.tsx` (no change expected), tests.
-- Keep the dark-lime streetwear design tokens; no visual rework beyond layout described above.
+## Sequencing
+Because this is ~6 PRs of work, I'll ship it in this order and pause for your OK between P2 and P3 so you can sanity-check the catalog before I invest in news + fit scan + lookbook:
+1. P1 Legal Center + deletion + defaults
+2. P2 Catalog rebuild + Shop pagination + Outfit Ideas
+   → checkpoint
+3. P5 Accessories taxonomy (needed by P4 and P3 personalization)
+4. P4 Fit Scan + Lookbook
+5. P3 The Edit
+6. P6 Admin checklist + final QA
 
-Confirm and I'll implement in one focused pass, then report exact test/build/lint output and the specific preview interactions to verify.
+Reply "go" to proceed with P1, or tell me which priorities to drop/reorder. If you want it all in one shot with less thorough QA between steps, say "one pass" and I'll batch it.
