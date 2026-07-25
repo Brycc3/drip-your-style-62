@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Share2 } from "lucide-react";
+import { Users, Share2, Download, Trash2, Shield } from "lucide-react";
+import { exportMyData, deleteMyAccount } from "@/lib/account.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
@@ -10,6 +12,7 @@ export const Route = createFileRoute("/_authenticated/profile")({
   }),
   component: ProfilePage,
 });
+
 
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
