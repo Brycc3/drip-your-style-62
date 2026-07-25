@@ -97,8 +97,16 @@ function Landing() {
         </ul>
 
         <footer className="mt-16 pb-10 text-center text-xs uppercase tracking-widest text-muted-foreground">
-          Built for the closet you already have.
+          <p>Built for the closet you already have.</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[10px]">
+            <Link to="/legal/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link to="/legal/terms" className="hover:text-foreground">Terms</Link>
+            <Link to="/legal/community-guidelines" className="hover:text-foreground">Community</Link>
+            <Link to="/legal/beta-notice" className="hover:text-foreground">Beta notice</Link>
+            <Link to="/legal" className="text-primary hover:text-foreground">Legal & Safety Center</Link>
+          </div>
         </footer>
+
       </section>
     </div>
   );
