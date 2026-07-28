@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="salt-window-edt" data-category="edt">
+  <title id="title">Salt Window EDT — aqua blue edt</title>
+  <desc id="description">Original project-owned illustration for the Salt Window EDT demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#45a9c0" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#45a9c0" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <path d="m70 620 170 110M560 70l170 110" stroke="#c9f2f6" stroke-opacity=".18" stroke-width="3"/>
+  <g filter="url(#shadow)">
+    <path d="M330 176h140v90H330z" fill="#c9f2f6" stroke="#f7f7f2" stroke-width="10"/>
+    <path d="M352 126h96v62h-96z" fill="#17191c" stroke="#c9f2f6" stroke-width="10"/>
+    <rect x="232" y="258" width="336" height="332" rx="68" fill="#45a9c0" fill-opacity=".85" stroke="#f7f7f2" stroke-width="12"/>
+    <rect x="280" y="352" width="240" height="116" rx="16" fill="#17191c" fill-opacity=".72" stroke="#c9f2f6" stroke-width="8"/>
+    <circle cx="400" cy="410" r="28" fill="#c9f2f6" fill-opacity=".8"/>
+    <path d="M322 520q78 42 156 0" fill="none" stroke="#c9f2f6" stroke-width="9"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Salt Window EDT</text>
+    <text x="400" y="746" fill="#c9f2f6" font-size="15" font-weight="700" letter-spacing="4">AQUA BLUE · EDT</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>

@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "bun test"
+    "test": "bun test",
+    "catalog:generate": "node scripts/generate-shop-catalog.mjs",
+    "catalog:check": "node scripts/generate-shop-catalog.mjs --check"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -12,7 +12,12 @@ import {
   type AccessorySub,
   type FragranceFamily,
 } from "@/lib/shop-gap";
-import { dedupeCatalog, productActionFor } from "@/lib/shop-catalog";
+import {
+  catalogWindowSize,
+  dedupeCatalog,
+  prioritizeUnseenCatalog,
+  productActionFor,
+} from "@/lib/shop-catalog";
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
@@ -64,9 +69,9 @@ const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "leather", l: "Leather" },
 ];
 
-const CACHE_KEY = "drip.shop.cache.v2";
+const CACHE_KEY = "drip.shop.cache.v3";
 const PAGE_SIZE = 12;
-const INITIAL = 16;
+const INITIAL = 12;
 
 function primaryKind(cat: string): PrimaryTab | "other" {
   const c = cat.toLowerCase();
@@ -135,6 +140,7 @@ function ShopPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [recentlyShown, setRecentlyShown] = useState<Set<string>>(new Set());
+  const [immediatelyShown, setImmediatelyShown] = useState<Set<string>>(new Set());
   const [visible, setVisible] = useState(INITIAL);
   const [closetUrls, setClosetUrls] = useState<Record<string, string>>({});
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
@@ -165,9 +171,7 @@ function ShopPage() {
       const [{ data: cat }, ci, fb] = await Promise.all([
         supabase
           .from("shop_catalog")
-          .select(
-            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,last_checked_at,external_id,is_demo,created_at",
-          )
+          .select("*")
           .order("created_at", { ascending: false })
           .limit(200),
         u
@@ -244,13 +248,16 @@ function ShopPage() {
     });
     const s = scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed });
     if (sort === "new") {
-      return [...s].sort((a, b) => {
-        const at = (a.item as CatalogItem & { created_at?: string }).created_at ?? "";
-        const bt = (b.item as CatalogItem & { created_at?: string }).created_at ?? "";
-        return bt.localeCompare(at);
-      });
+      return prioritizeUnseenCatalog(
+        [...s].sort((a, b) => {
+          const at = (a.item as CatalogItem & { created_at?: string }).created_at ?? "";
+          const bt = (b.item as CatalogItem & { created_at?: string }).created_at ?? "";
+          return bt.localeCompare(at);
+        }),
+        immediatelyShown,
+      );
     }
-    return s;
+    return prioritizeUnseenCatalog(s, immediatelyShown);
   }, [
     distinctCatalog,
     closet,
@@ -262,9 +269,14 @@ function ShopPage() {
     dismissed,
     recentlyShown,
     refreshSeed,
+    immediatelyShown,
   ]);
 
-  const visibleScored = useMemo(() => scored.slice(0, visible), [scored, visible]);
+  const visibleLimit =
+    visible === INITIAL
+      ? catalogWindowSize(scored.length, INITIAL)
+      : Math.min(visible, scored.length);
+  const visibleScored = useMemo(() => scored.slice(0, visibleLimit), [scored, visibleLimit]);
 
   const closetSummary = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -299,8 +311,12 @@ function ShopPage() {
   }, [tab, scored]);
 
   function refresh() {
-    const topIds = scored.slice(0, 6).map((g) => g.item.id);
-    const next = pushRecentlySeen("shop", topIds, uid);
+    const shownIds =
+      tab === "outfits"
+        ? outfitIdeas.map(({ pick }) => pick.item.id)
+        : visibleScored.map((g) => g.item.id);
+    const next = pushRecentlySeen("shop", shownIds, uid);
+    setImmediatelyShown(new Set(shownIds));
     setRecentlyShown(next);
     setRefreshSeed((n) => n + 1);
     setVisible(INITIAL);
@@ -507,13 +523,13 @@ function ShopPage() {
               />
             ))}
           </ul>
-          {visible < scored.length && (
+          {visibleLimit < scored.length && (
             <div className="flex justify-center pt-2">
               <button
-                onClick={() => setVisible((n) => n + PAGE_SIZE)}
+                onClick={() => setVisible(visibleLimit + PAGE_SIZE)}
                 className="rounded-full border border-border px-5 py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
               >
-                Load more ({scored.length - visible})
+                Load more ({scored.length - visibleLimit})
               </button>
             </div>
           )}
@@ -567,6 +583,23 @@ function ItemCard({
               .filter(Boolean)
               .join(" · ")}
           </p>
+        </div>
+        {g.item.description && (
+          <p className="line-clamp-2 text-xs leading-relaxed text-foreground/70">
+            {g.item.description}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-1">
+          {[g.item.color, g.item.material, g.item.vibe, g.item.price_tier]
+            .filter(Boolean)
+            .map((detail) => (
+              <span
+                key={detail}
+                className="rounded-full border border-border/70 px-2 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              >
+                {detail}
+              </span>
+            ))}
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
           <p className="font-display text-lg text-primary">

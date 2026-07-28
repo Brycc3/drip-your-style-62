@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="fog-overcoat" data-category="coat">
+  <title id="title">Fog Overcoat — fog gray coat</title>
+  <desc id="description">Original project-owned illustration for the Fog Overcoat demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#aeb5bc" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#aeb5bc" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <path d="m70 620 170 110M560 70l170 110" stroke="#f2f5f7" stroke-opacity=".18" stroke-width="3"/>
+  <g filter="url(#shadow)">
+    <path d="M274 270 348 224h104l74 46 77 126-82 48-38-65v422H317V379l-38 65-82-48 77-126Z"
+      fill="#aeb5bc" stroke="#f7f7f2" stroke-width="10" stroke-linejoin="round"/>
+    <path d="m354 228 46 96 46-96M400 324v322" fill="none" stroke="#f2f5f7" stroke-width="10"/>
+    <path d="M334 402h58v78h-58zm74 0h58v78h-58z" fill="#f2f5f7" fill-opacity=".25" stroke="#f2f5f7" stroke-width="7"/>
+    <path d="M318 646h164" stroke="#f7f7f2" stroke-width="11" stroke-linecap="round"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Fog Overcoat</text>
+    <text x="400" y="746" fill="#f2f5f7" font-size="15" font-weight="700" letter-spacing="4">FOG GRAY · COAT</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>

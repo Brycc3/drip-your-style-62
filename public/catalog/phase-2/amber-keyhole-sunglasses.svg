@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="amber-keyhole-sunglasses" data-category="sunglasses">
+  <title id="title">Amber Keyhole Sunglasses — amber sunglasses</title>
+  <desc id="description">Original project-owned illustration for the Amber Keyhole Sunglasses demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#ba6d24" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#ba6d24" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <circle cx="110" cy="110" r="70" fill="none" stroke="#ffcb72" stroke-opacity=".18" stroke-width="2"/><circle cx="690" cy="690" r="70" fill="none" stroke="#ffcb72" stroke-opacity=".18" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <path d="M146 292q100-55 221-3l33 30 33-30q121-52 221 3" fill="none" stroke="#ffcb72" stroke-width="13" stroke-linecap="round"/>
+    <path d="M160 306q102-44 205 0l-12 139q-86 78-172 0l-21-139Zm275 0q102-44 205 0l-21 139q-86 78-172 0l-12-139Z"
+      fill="#ba6d24" fill-opacity=".9" stroke="#f7f7f2" stroke-width="11"/>
+    <path d="M359 326q41-31 82 0" fill="none" stroke="#ffcb72" stroke-width="13" stroke-linecap="round"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Amber Keyhole Sunglasses</text>
+    <text x="400" y="746" fill="#ffcb72" font-size="15" font-weight="700" letter-spacing="4">AMBER · SUNGLASSES</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>
