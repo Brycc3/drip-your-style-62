@@ -33,6 +33,22 @@ export function dedupeCatalog(items: CatalogItem[]): CatalogItem[] {
   });
 }
 
+export function catalogWindowSize(total: number, maximum = 12): number {
+  if (total <= 1) return Math.max(0, total);
+  return Math.min(maximum, Math.floor(total / 2));
+}
+
+export function prioritizeUnseenCatalog<T extends { item: { id: string } }>(
+  items: T[],
+  immediatelyShown: ReadonlySet<string>,
+): T[] {
+  if (immediatelyShown.size === 0) return items;
+  return [
+    ...items.filter(({ item }) => !immediatelyShown.has(item.id)),
+    ...items.filter(({ item }) => immediatelyShown.has(item.id)),
+  ];
+}
+
 export function productActionFor(item: CatalogItem): ProductAction {
   return hasValidBuyUrl(item)
     ? { kind: "retailer", label: "Shop now", href: item.buy_url as string }

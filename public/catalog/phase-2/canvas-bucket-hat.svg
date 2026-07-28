@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="canvas-bucket-hat" data-category="hat">
+  <title id="title">Canvas Bucket Hat — khaki hat</title>
+  <desc id="description">Original project-owned illustration for the Canvas Bucket Hat demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#a4936d" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#a4936d" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <circle cx="110" cy="110" r="70" fill="none" stroke="#e7ddbf" stroke-opacity=".18" stroke-width="2"/><circle cx="690" cy="690" r="70" fill="none" stroke="#e7ddbf" stroke-opacity=".18" stroke-width="2"/>
+  <g filter="url(#shadow)"><path d="M236 424q20-220 164-220t164 220H236Z" fill="#a4936d" stroke="#f7f7f2" stroke-width="11"/>
+    <ellipse cx="400" cy="470" rx="250" ry="70" fill="#e7ddbf" stroke="#f7f7f2" stroke-width="11"/>
+    <path d="M250 405h300" stroke="#e7ddbf" stroke-width="18"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Canvas Bucket Hat</text>
+    <text x="400" y="746" fill="#e7ddbf" font-size="15" font-weight="700" letter-spacing="4">KHAKI · HAT</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>

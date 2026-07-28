@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="stone-ridge-boot" data-category="boot">
+  <title id="title">Stone Ridge Boot — taupe boot</title>
+  <desc id="description">Original project-owned illustration for the Stone Ridge Boot demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#8e7d6e" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#8e7d6e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <path d="m70 620 170 110M560 70l170 110" stroke="#e1d4c7" stroke-opacity=".18" stroke-width="3"/>
+  <g filter="url(#shadow)">
+    <path d="M282 220h181l15 224 134 64q30 15 16 74H188q-8-72 46-88l70-24-22-250Z" fill="#8e7d6e" stroke="#f7f7f2" stroke-width="11"/>
+    <path d="M182 526h438" stroke="#e1d4c7" stroke-width="19" stroke-linecap="round"/>
+    <path d="m322 362 132 1M307 398h168M290 435h205" stroke="#e1d4c7" stroke-width="10" stroke-linecap="round"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Stone Ridge Boot</text>
+    <text x="400" y="746" fill="#e1d4c7" font-size="15" font-weight="700" letter-spacing="4">TAUPE · BOOT</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>

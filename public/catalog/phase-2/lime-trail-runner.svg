@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title description" data-product="lime-trail-runner" data-category="runner">
+  <title id="title">Lime Trail Runner — black and lime runner</title>
+  <desc id="description">Original project-owned illustration for the Lime Trail Runner demo product.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#262a31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#171717" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#171717" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="42" fill="url(#background)"/>
+  <rect width="800" height="800" rx="42" fill="url(#glow)"/>
+  <path d="M86 118h628M86 682h628" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <path d="M176 442q94-8 146-92l46-76h92l44 92q43 44 116 80 30 15 20 92H166q-12-58 10-96Z" fill="#171717" stroke="#f7f7f2" stroke-width="11"/>
+    <path d="M182 526h438" stroke="#c7ff32" stroke-width="19" stroke-linecap="round"/>
+    <path d="m322 362 132 1M307 398h168M290 435h205" stroke="#c7ff32" stroke-width="10" stroke-linecap="round"/></g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="400" y="710" fill="#f7f7f2" font-size="24" font-weight="700" letter-spacing="2">Lime Trail Runner</text>
+    <text x="400" y="746" fill="#c7ff32" font-size="15" font-weight="700" letter-spacing="4">BLACK AND LIME · RUNNER</text>
+  </g>
+  <rect x="22" y="22" width="756" height="756" rx="30" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+</svg>

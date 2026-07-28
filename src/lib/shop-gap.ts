@@ -6,6 +6,8 @@ export type CatalogItem = {
   brand: string | null;
   category: string;
   color: string | null;
+  material?: string | null;
+  fit?: string | null;
   price: number | null;
   current_price?: number | null;
   original_price?: number | null;
@@ -20,6 +22,11 @@ export type CatalogItem = {
   external_id?: string | null;
   is_demo?: boolean;
   kind?: string; // clothing | shoes | accessory | fragrance
+  vibe?: string | null;
+  price_tier?: string | null;
+  accessory_subtype?: string | null;
+  fragrance_family?: string | null;
+  description?: string | null;
 };
 
 export type GapScore = {
@@ -257,6 +264,13 @@ export const ACCESSORY_SUBTYPE_FILTERS: ReadonlyArray<{
 ] as const;
 
 export function accessorySubcategory(item: CatalogItem): AccessorySub {
+  const explicit = item.accessory_subtype?.trim() as AccessorySub | undefined;
+  if (
+    explicit &&
+    ACCESSORY_SUBTYPE_FILTERS.some((filter) => filter.value !== "all" && filter.value === explicit)
+  )
+    return explicit;
+
   const blob = `${item.category} ${item.name} ${item.brand ?? ""}`.toLowerCase();
   if (/(sunglass|shades)/.test(blob)) return "sunglasses";
   if (/(prescription|optical|eyeglass|eye glass|spectacle|glasses|eyewear)/.test(blob))
@@ -292,6 +306,13 @@ export type FragranceFamily =
   | "other";
 
 export function fragranceFamily(item: CatalogItem): FragranceFamily {
+  const explicit = item.fragrance_family?.trim() as FragranceFamily | undefined;
+  if (
+    explicit &&
+    ["fresh", "woody", "warm", "sweet", "aquatic", "floral", "leather", "other"].includes(explicit)
+  )
+    return explicit;
+
   const blob = `${item.name} ${item.brand ?? ""} ${item.color ?? ""}`.toLowerCase();
   if (/(aqua|marine|salt|ocean|sea)/.test(blob)) return "aquatic";
   if (/(citrus|bergamot|lemon|mint|green|fresh|cologne)/.test(blob)) return "fresh";
