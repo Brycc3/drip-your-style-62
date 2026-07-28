@@ -75,10 +75,30 @@ describe("shop rotation & diversity", () => {
 
 describe("hasValidBuyUrl", () => {
   it("accepts https", () =>
-    expect(hasValidBuyUrl(C({ buy_url: "https://uniqlo.com/x" }))).toBe(true));
+    expect(
+      hasValidBuyUrl(
+        C({
+          buy_url: "https://uniqlo.com/x",
+          retailer: "Uniqlo",
+          availability: "in_stock",
+          last_checked_at: "2026-07-27T12:00:00Z",
+          is_demo: false,
+        }),
+      ),
+    ).toBe(true));
   it("rejects missing / malformed", () => {
     expect(hasValidBuyUrl(C({ buy_url: null }))).toBe(false);
-    expect(hasValidBuyUrl(C({ buy_url: "not-a-url" }))).toBe(false);
+    expect(
+      hasValidBuyUrl(
+        C({
+          buy_url: "not-a-url",
+          retailer: "Uniqlo",
+          availability: "in_stock",
+          last_checked_at: "2026-07-27T12:00:00Z",
+          is_demo: false,
+        }),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -100,10 +120,10 @@ describe("custom vibe validation", () => {
 describe("accessorySubcategory", () => {
   it("classifies common accessory names", () => {
     expect(accessorySubcategory(C({ name: "Wool Beanie", category: "accessory" }))).toBe("beanie");
-    expect(accessorySubcategory(C({ name: "Leather Belt", category: "belt" }))).toBe("belt");
-    expect(accessorySubcategory(C({ name: "Crossbody Bag", category: "bag" }))).toBe("bag");
-    expect(accessorySubcategory(C({ name: "G-Shock Watch", category: "watch" }))).toBe("watch");
-    expect(accessorySubcategory(C({ name: "Silver Chain", category: "chain" }))).toBe("jewelry");
+    expect(accessorySubcategory(C({ name: "Leather Belt", category: "belt" }))).toBe("belts");
+    expect(accessorySubcategory(C({ name: "Crossbody Bag", category: "bag" }))).toBe("bags");
+    expect(accessorySubcategory(C({ name: "G-Shock Watch", category: "watch" }))).toBe("watches");
+    expect(accessorySubcategory(C({ name: "Silver Chain", category: "chain" }))).toBe("chains");
     expect(accessorySubcategory(C({ name: "Ray-Ban Sunglasses", category: "sunglasses" }))).toBe(
       "sunglasses",
     );

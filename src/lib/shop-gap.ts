@@ -16,6 +16,8 @@ export type CatalogItem = {
   retailer?: string | null;
   buy_url?: string | null;
   availability?: string | null;
+  last_checked_at?: string | null;
+  external_id?: string | null;
   is_demo?: boolean;
   kind?: string; // clothing | shoes | accessory | fragrance
 };
@@ -52,6 +54,52 @@ function isPair(a: ClosetItem | CatalogItem, b: ClosetItem | CatalogItem): boole
   return true;
 }
 
+const ACCESSORY_CATEGORIES = new Set([
+  "accessory",
+  "bag",
+  "bags",
+  "belt",
+  "belts",
+  "beanie",
+  "bracelet",
+  "bracelets",
+  "cap",
+  "chain",
+  "chains",
+  "earring",
+  "earrings",
+  "eyeglasses",
+  "glasses",
+  "grill",
+  "grills",
+  "hat",
+  "hats",
+  "jewelry",
+  "necklace",
+  "necklaces",
+  "prescription_glasses",
+  "ring",
+  "rings",
+  "scarf",
+  "scarves",
+  "socks",
+  "sunglasses",
+  "tie",
+  "wallet",
+  "wallets",
+  "watch",
+  "watches",
+]);
+
+export function isAccessoryCategory(category: string): boolean {
+  return ACCESSORY_CATEGORIES.has(
+    category
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_"),
+  );
+}
+
 // Coarse mapping from many subcategories to the 5 primary generator slots.
 function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "other" {
   const c = cat.toLowerCase();
@@ -63,25 +111,7 @@ function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "acces
     ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
   )
     return "shoes";
-  if (
-    [
-      "accessory",
-      "hat",
-      "cap",
-      "beanie",
-      "belt",
-      "watch",
-      "chain",
-      "bracelet",
-      "ring",
-      "bag",
-      "sunglasses",
-      "tie",
-      "socks",
-      "grill",
-    ].includes(c)
-  )
-    return "accessory";
+  if (isAccessoryCategory(c)) return "accessory";
   return "other";
 }
 
@@ -181,32 +211,72 @@ function hashStr(s: string): number {
 
 // Accessory subcategory taxonomy — used by the Shop Accessories tab.
 export type AccessorySub =
+  | "earrings"
+  | "prescription_glasses"
+  | "sunglasses"
+  | "necklaces"
+  | "chains"
+  | "bracelets"
+  | "rings"
+  | "watches"
   | "hat"
   | "cap"
   | "beanie"
-  | "belt"
-  | "bag"
-  | "watch"
-  | "jewelry"
-  | "sunglasses"
+  | "belts"
+  | "bags"
   | "socks"
-  | "scarf"
-  | "wallet"
+  | "scarves"
+  | "wallets"
+  | "grills"
+  | "jewelry"
   | "other";
+
+export const ACCESSORY_SUBTYPE_FILTERS: ReadonlyArray<{
+  value: AccessorySub | "all";
+  label: string;
+}> = [
+  { value: "all", label: "All" },
+  { value: "earrings", label: "Earrings" },
+  { value: "prescription_glasses", label: "Prescription glasses" },
+  { value: "sunglasses", label: "Sunglasses" },
+  { value: "necklaces", label: "Necklaces" },
+  { value: "chains", label: "Chains" },
+  { value: "bracelets", label: "Bracelets" },
+  { value: "rings", label: "Rings" },
+  { value: "watches", label: "Watches" },
+  { value: "hat", label: "Hats" },
+  { value: "cap", label: "Caps" },
+  { value: "beanie", label: "Beanies" },
+  { value: "belts", label: "Belts" },
+  { value: "bags", label: "Bags" },
+  { value: "socks", label: "Socks" },
+  { value: "scarves", label: "Scarves" },
+  { value: "wallets", label: "Wallets" },
+  { value: "grills", label: "Grills" },
+  { value: "jewelry", label: "Other jewelry" },
+] as const;
 
 export function accessorySubcategory(item: CatalogItem): AccessorySub {
   const blob = `${item.category} ${item.name} ${item.brand ?? ""}`.toLowerCase();
+  if (/(sunglass|shades)/.test(blob)) return "sunglasses";
+  if (/(prescription|optical|eyeglass|eye glass|spectacle|glasses|eyewear)/.test(blob))
+    return "prescription_glasses";
+  if (/(earring|ear stud)/.test(blob)) return "earrings";
+  if (/necklace|pendant/.test(blob)) return "necklaces";
+  if (/\bchain(s)?\b/.test(blob)) return "chains";
+  if (/bracelet|bangle/.test(blob)) return "bracelets";
+  if (/\bring(s)?\b/.test(blob)) return "rings";
+  if (/grill/.test(blob)) return "grills";
+  if (/watch|timepiece/.test(blob)) return "watches";
   if (/(beanie|toque)/.test(blob)) return "beanie";
   if (/\bcap\b/.test(blob)) return "cap";
   if (/(hat|bucket|fedora)/.test(blob)) return "hat";
-  if (/belt/.test(blob)) return "belt";
-  if (/(bag|tote|crossbody|backpack|sling|duffle|clutch)/.test(blob)) return "bag";
-  if (/watch/.test(blob)) return "watch";
-  if (/(chain|necklace|bracelet|ring|earring|jewel|pendant|grill)/.test(blob)) return "jewelry";
-  if (/(sunglass|shades|eyewear)/.test(blob)) return "sunglasses";
+  if (/belt/.test(blob)) return "belts";
+  if (/(bag|tote|crossbody|backpack|sling|duffle|clutch)/.test(blob)) return "bags";
   if (/sock/.test(blob)) return "socks";
-  if (/scarf/.test(blob)) return "scarf";
-  if (/wallet|cardholder/.test(blob)) return "wallet";
+  if (/scarf/.test(blob)) return "scarves";
+  if (/wallet|cardholder/.test(blob)) return "wallets";
+  if (/jewel/.test(blob)) return "jewelry";
   return "other";
 }
 
@@ -234,10 +304,21 @@ export function fragranceFamily(item: CatalogItem): FragranceFamily {
 }
 
 export function hasValidBuyUrl(item: CatalogItem): boolean {
-  if (!item.buy_url) return false;
+  if (
+    item.is_demo !== false ||
+    !item.buy_url ||
+    !item.retailer?.trim() ||
+    item.availability !== "in_stock" ||
+    !item.last_checked_at
+  )
+    return false;
   try {
     const u = new URL(item.buy_url);
-    return u.protocol === "https:" || u.protocol === "http:";
+    return (
+      u.protocol === "https:" &&
+      Number.isFinite(Date.parse(item.last_checked_at)) &&
+      !/demo|sample/i.test(item.retailer)
+    );
   } catch {
     return false;
   }
