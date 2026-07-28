@@ -3,14 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   scoreCatalog,
-  hasValidBuyUrl,
   accessorySubcategory,
   fragranceFamily,
+  isAccessoryCategory,
+  ACCESSORY_SUBTYPE_FILTERS,
   type CatalogItem,
   type GapScore,
   type AccessorySub,
   type FragranceFamily,
 } from "@/lib/shop-gap";
+import { dedupeCatalog, productActionFor } from "@/lib/shop-catalog";
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
@@ -51,20 +53,6 @@ const PRIMARY_TABS: { v: PrimaryTab; l: string }[] = [
 ];
 
 const CONDITIONS = ["all", "new", "vintage", "thrift", "resale"] as const;
-const ACC_SUBS: { v: AccessorySub | "all"; l: string }[] = [
-  { v: "all", l: "All" },
-  { v: "hat", l: "Hats" },
-  { v: "cap", l: "Caps" },
-  { v: "beanie", l: "Beanies" },
-  { v: "belt", l: "Belts" },
-  { v: "bag", l: "Bags" },
-  { v: "watch", l: "Watches" },
-  { v: "jewelry", l: "Jewelry" },
-  { v: "sunglasses", l: "Sunglasses" },
-  { v: "socks", l: "Socks" },
-  { v: "scarf", l: "Scarves" },
-  { v: "wallet", l: "Wallets" },
-];
 const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "all", l: "All" },
   { v: "fresh", l: "Fresh" },
@@ -86,30 +74,9 @@ function primaryKind(cat: string): PrimaryTab | "other" {
     ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
   )
     return "shoes";
+  if (isAccessoryCategory(c)) return "accessories";
   if (
-    [
-      "accessory",
-      "hat",
-      "cap",
-      "beanie",
-      "belt",
-      "watch",
-      "chain",
-      "bracelet",
-      "ring",
-      "bag",
-      "sunglasses",
-      "tie",
-      "socks",
-      "grill",
-      "scarf",
-      "wallet",
-      "jewelry",
-    ].includes(c)
-  )
-    return "accessories";
-  if (
-    ["fragrance", "scent", "perfume", "cologne"].includes(c) ||
+    ["fragrance", "scent", "perfume", "cologne", "edt", "edp", "parfum", "decant"].includes(c) ||
     /fragrance|perfume|cologne|scent/.test(c)
   )
     return "fragrance";
@@ -150,28 +117,7 @@ function primarySlot(
     ["shoes", "sneaker", "jordan", "vomero", "new_balance", "loafer", "boot", "runner"].includes(c)
   )
     return "shoes";
-  if (
-    [
-      "accessory",
-      "hat",
-      "cap",
-      "beanie",
-      "belt",
-      "watch",
-      "chain",
-      "bracelet",
-      "ring",
-      "bag",
-      "sunglasses",
-      "tie",
-      "socks",
-      "grill",
-      "scarf",
-      "wallet",
-      "jewelry",
-    ].includes(c)
-  )
-    return "accessory";
+  if (isAccessoryCategory(c)) return "accessory";
   return "other";
 }
 
@@ -220,7 +166,7 @@ function ShopPage() {
         supabase
           .from("shop_catalog")
           .select(
-            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo,created_at",
+            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,last_checked_at,external_id,is_demo,created_at",
           )
           .order("created_at", { ascending: false })
           .limit(200),
@@ -237,7 +183,7 @@ function ShopPage() {
               data: [] as { catalog_id: string; saved: boolean; dismissed: boolean }[],
             }),
       ]);
-      const nextCatalog = (cat ?? []) as CatalogItem[];
+      const nextCatalog = dedupeCatalog((cat ?? []) as CatalogItem[]);
       const nextCloset = ((ci.data ?? []) as unknown[]).filter(
         (i) => (i as ClosetItem).kind !== "fragrance",
       ) as ClosetItem[];
@@ -275,8 +221,10 @@ function ShopPage() {
     })();
   }, []);
 
+  const distinctCatalog = useMemo(() => dedupeCatalog(catalog), [catalog]);
+
   const scored: GapScore[] = useMemo(() => {
-    const filtered = catalog.filter((c) => {
+    const filtered = distinctCatalog.filter((c) => {
       if (dismissed.has(c.id)) return false;
       if (c.availability === "out_of_stock") return false;
       if (source !== "all" && c.condition !== source) return false;
@@ -303,7 +251,18 @@ function ShopPage() {
       });
     }
     return s;
-  }, [catalog, closet, source, tab, accSub, fragFam, sort, dismissed, recentlyShown, refreshSeed]);
+  }, [
+    distinctCatalog,
+    closet,
+    source,
+    tab,
+    accSub,
+    fragFam,
+    sort,
+    dismissed,
+    recentlyShown,
+    refreshSeed,
+  ]);
 
   const visibleScored = useMemo(() => scored.slice(0, visible), [scored, visible]);
 
@@ -385,7 +344,8 @@ function ShopPage() {
         <p className="mt-2 text-sm text-muted-foreground">Based on your closet · {closetSummary}</p>
         {anyDemo && (
           <p className="mt-2 rounded-md border border-border/70 bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
-            Demo catalog — live retailer feeds arrive with the marketplace integration.
+            DEMO catalog — sample products are not verified inventory and are not available for
+            purchase. Retailer links will only appear after verification.
           </p>
         )}
       </div>
@@ -420,20 +380,20 @@ function ShopPage() {
       {/* Secondary chip row */}
       {tab === "accessories" && (
         <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
-          {ACC_SUBS.map((s) => (
+          {ACCESSORY_SUBTYPE_FILTERS.map((s) => (
             <button
-              key={s.v}
+              key={s.value}
               onClick={() => {
-                setAccSub(s.v);
+                setAccSub(s.value);
                 setVisible(INITIAL);
               }}
               className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-widest ${
-                accSub === s.v
+                accSub === s.value
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border text-foreground/80"
               }`}
             >
-              {s.l}
+              {s.label}
             </button>
           ))}
         </div>
@@ -576,13 +536,14 @@ function ItemCard({
   onDismiss: () => void;
   eager?: boolean;
 }) {
-  const validBuy = hasValidBuyUrl(g.item);
+  const productAction = productActionFor(g.item);
   return (
     <li className="card-surface overflow-hidden flex flex-col">
       <CatalogImage
         src={g.item.image_url}
         alt={g.item.name}
         category={g.item.category}
+        isDemo={g.item.is_demo}
         className="aspect-square"
         eager={eager}
       />
@@ -591,7 +552,9 @@ function ItemCard({
           <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
             Demo
           </span>
-        ) : <span />}
+        ) : (
+          <span />
+        )}
         <span className="rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
           Fit {(g.score * 100).toFixed(0)}
         </span>
@@ -600,7 +563,9 @@ function ItemCard({
         <div>
           <p className="line-clamp-1 text-sm font-medium">{g.item.name}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-            {[g.item.brand, g.item.retailer, g.item.condition].filter(Boolean).join(" · ")}
+            {[g.item.brand, g.item.is_demo ? "Sample only" : g.item.retailer, g.item.condition]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
@@ -639,21 +604,22 @@ function ItemCard({
           </p>
         )}
         <div className="mt-auto flex flex-wrap gap-2 pt-2">
-          {validBuy ? (
+          {productAction.kind === "retailer" ? (
             <a
-              href={g.item.buy_url!}
+              href={productAction.href}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="btn-lime !px-3 !py-1.5 text-[10px] inline-flex items-center gap-1"
             >
-              <ExternalLink className="h-3 w-3" /> Shop now
+              <ExternalLink className="h-3 w-3" /> {productAction.label}
             </a>
           ) : (
             <span
-              title="No retailer link — demo catalog"
+              aria-disabled="true"
+              title="Sample product — retailer availability has not been verified"
               className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1"
             >
-              <Eye className="h-3 w-3" /> View sample
+              <Eye className="h-3 w-3" /> {productAction.label}
             </span>
           )}
           <Link
@@ -695,7 +661,7 @@ function OutfitCard({
   saved: boolean;
   onSave: () => void;
 }) {
-  const validBuy = hasValidBuyUrl(g.item);
+  const productAction = productActionFor(g.item);
   return (
     <li className="card-surface overflow-hidden">
       <div className="p-3">
@@ -710,11 +676,17 @@ function OutfitCard({
             src={g.item.image_url}
             alt={g.item.name}
             category={g.item.category}
+            isDemo={g.item.is_demo}
             className="aspect-square"
           />
           <span className="absolute bottom-1 left-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary-foreground">
             New
           </span>
+          {g.item.is_demo && (
+            <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-muted-foreground">
+              Demo
+            </span>
+          )}
         </div>
         <div className="col-span-3 grid grid-cols-2 gap-1">
           {owned.map((o) => (
@@ -745,7 +717,9 @@ function OutfitCard({
         <div>
           <p className="line-clamp-1 text-sm font-medium">{g.item.name}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-            {[g.item.brand, g.item.retailer, g.item.condition].filter(Boolean).join(" · ")}
+            {[g.item.brand, g.item.is_demo ? "Sample only" : g.item.retailer, g.item.condition]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
@@ -754,18 +728,22 @@ function OutfitCard({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {validBuy ? (
+          {productAction.kind === "retailer" ? (
             <a
-              href={g.item.buy_url!}
+              href={productAction.href}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="btn-lime !px-3 !py-1.5 text-[10px] inline-flex items-center gap-1"
             >
-              <ExternalLink className="h-3 w-3" /> Shop the new piece
+              <ExternalLink className="h-3 w-3" /> {productAction.label}
             </a>
           ) : (
-            <span className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
-              <Eye className="h-3 w-3" /> View sample
+            <span
+              aria-disabled="true"
+              title="Sample product — retailer availability has not been verified"
+              className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> {productAction.label}
             </span>
           )}
           <Link

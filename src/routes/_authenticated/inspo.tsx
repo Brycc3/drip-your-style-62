@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import type { ClosetItem, Fragrance } from "@/lib/outfit-generator";
 import { hasValidBuyUrl, type CatalogItem } from "@/lib/shop-gap";
+import { dedupeCatalog } from "@/lib/shop-catalog";
+import { CatalogImage } from "@/components/CatalogImage";
 import { toast } from "sonner";
 import {
   Lock,
@@ -148,7 +150,7 @@ function InspoPage() {
         supabase
           .from("shop_catalog")
           .select(
-            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,is_demo",
+            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,last_checked_at,external_id,is_demo",
           )
           .limit(120),
         supabase
@@ -158,7 +160,7 @@ function InspoPage() {
       ]);
       const list = (items ?? []).filter((i) => i.kind !== "fragrance") as ClosetItem[];
       setCloset(list);
-      setCatalog((cat ?? []) as CatalogItem[]);
+      setCatalog(dedupeCatalog((cat ?? []) as CatalogItem[]));
       setFragrances((frs ?? []) as Fragrance[]);
       setUrls(await getSignedUrlsByItem(list));
       setLoading(false);
@@ -180,9 +182,7 @@ function InspoPage() {
     setLocked((l) => new Set(l).add(inferred));
     if (inferred === "acc2") setVisibleAcc((n) => Math.max(n, 2));
     if (inferred === "acc3") setVisibleAcc((n) => Math.max(n, 3));
-    toast.success(
-      `Locked "${item.name}" — auto-filled owned pieces around it.`,
-    );
+    toast.success(`Locked "${item.name}" — auto-filled owned pieces around it.`);
     // Auto-complete outfit with owned pieces once locked item is set.
     setTimeout(() => completeOutfit(), 50);
   }, [loading, catalog, search.item, search.slot]);
@@ -869,21 +869,20 @@ function CatalogGrid({
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {items.slice(0, 16).map((c) => (
           <li key={c.id} className="card-surface overflow-hidden">
-            <div className="aspect-square bg-surface-2 relative">
-              {c.image_url ? (
-                <img
-                  src={c.image_url}
-                  alt={c.name}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center p-1 text-center text-[9px] text-muted-foreground">
-                  {c.name}
-                </div>
-              )}
+            <div className="relative">
+              <CatalogImage
+                src={c.image_url}
+                alt={c.name}
+                category={c.category}
+                isDemo={c.is_demo}
+                className="aspect-square"
+              />
               <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary">
-                Buy · ${c.current_price ?? c.price ?? "—"}
+                {c.is_demo
+                  ? "Demo sample"
+                  : hasValidBuyUrl(c)
+                    ? `Shop · $${c.current_price ?? c.price ?? "—"}`
+                    : "Sample"}
               </span>
             </div>
             <div className="space-y-1 p-2">
