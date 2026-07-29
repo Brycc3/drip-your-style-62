@@ -97,6 +97,7 @@ export type Database = {
       }
       content_reports: {
         Row: {
+          attachment_path: string | null
           created_at: string
           details: string | null
           id: string
@@ -111,6 +112,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachment_path?: string | null
           created_at?: string
           details?: string | null
           id?: string
@@ -125,6 +127,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachment_path?: string | null
           created_at?: string
           details?: string | null
           id?: string
@@ -571,6 +574,7 @@ export type Database = {
           accessory_subtype: string | null
           affiliate: boolean
           affiliate_disclosure: string | null
+          archived: boolean
           availability: string
           brand: string | null
           buy_url: string | null
@@ -610,6 +614,7 @@ export type Database = {
           accessory_subtype?: string | null
           affiliate?: boolean
           affiliate_disclosure?: string | null
+          archived?: boolean
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -649,6 +654,7 @@ export type Database = {
           accessory_subtype?: string | null
           affiliate?: boolean
           affiliate_disclosure?: string | null
+          archived?: boolean
           availability?: string
           brand?: string | null
           buy_url?: string | null

@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
-import { Shirt, Sparkles, ShoppingBag, TrendingUp } from "lucide-react";
+import { Shirt, Sparkles, ShoppingBag, TrendingUp, Bookmark } from "lucide-react";
+import { computeStarterProgress, type StarterCounts } from "@/lib/starter-progress";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -15,15 +16,7 @@ export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
 });
 
-type Counts = {
-  total: number;
-  tops: number;
-  bottoms: number;
-  shoes: number;
-  outer: number;
-  accessories: number;
-  fragrances: number;
-};
+type Counts = StarterCounts & { total: number; outer: number; fragrances: number };
 
 function HomePage() {
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -81,6 +74,7 @@ function HomePage() {
   }, []);
 
   const empty = counts && counts.total === 0;
+  const progress = counts ? computeStarterProgress(counts) : null;
 
   return (
     <div className="space-y-8">
@@ -93,18 +87,25 @@ function HomePage() {
         <EmptyState />
       ) : (
         <>
-          {counts && counts.total < 7 && <StarterProgress counts={counts} />}
-
-          <section className="card-surface p-5">
-            <p className="text-xs uppercase tracking-widest text-primary">Today's move</p>
-            <h2 className="mt-1 font-display text-2xl">Generate a fit</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Tell DRIP the vibe and weather — it builds an outfit from your closet.
-            </p>
-            <Link to="/generate" className="btn-lime mt-4 inline-flex">
-              Open generator
-            </Link>
-          </section>
+          {/* Show progress whenever ANY starter category is short — even if
+              total items >= 7. Otherwise show the honest generator CTA. */}
+          {progress && !progress.complete ? (
+            <>
+              <StarterProgress progress={progress} />
+              <IncompleteGeneratorCTA progress={progress} />
+            </>
+          ) : (
+            <section className="card-surface p-5">
+              <p className="text-xs uppercase tracking-widest text-primary">Today's move</p>
+              <h2 className="mt-1 font-display text-2xl">Generate a fit</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Tell DRIP the vibe and weather — it builds an outfit from your closet.
+              </p>
+              <Link to="/generate" className="btn-lime mt-4 inline-flex">
+                Open generator
+              </Link>
+            </section>
+          )}
 
           <section>
             <h3 className="font-display text-xl">Your closet at a glance</h3>
@@ -157,6 +158,7 @@ function HomePage() {
 
           <section className="grid grid-cols-2 gap-3">
             <QuickLink to="/closet" icon={Shirt} label="Closet" />
+            <QuickLink to="/saved" icon={Bookmark} label="Saved outfits" />
             <QuickLink to="/generate" icon={Sparkles} label="Generate" />
             <QuickLink to="/shop" icon={ShoppingBag} label="Shop gaps" />
             <QuickLink to="/swipe" icon={TrendingUp} label="Train taste" />
@@ -181,15 +183,9 @@ function EmptyState() {
   );
 }
 
-function StarterProgress({ counts }: { counts: Counts }) {
-  const targets = [
-    { label: "Tops", have: counts.tops, need: 3 },
-    { label: "Bottoms", have: counts.bottoms, need: 2 },
-    { label: "Shoes", have: counts.shoes, need: 2 },
-  ];
-  const total = targets.reduce((a, t) => a + Math.min(t.have, t.need), 0);
-  const goal = targets.reduce((a, t) => a + t.need, 0);
-  const pct = Math.round((total / goal) * 100);
+type ProgressData = ReturnType<typeof computeStarterProgress>;
+
+function StarterProgress({ progress }: { progress: ProgressData }) {
   return (
     <section className="card-surface p-5">
       <div className="flex items-center justify-between">
@@ -198,18 +194,18 @@ function StarterProgress({ counts }: { counts: Counts }) {
           <h2 className="mt-1 font-display text-2xl">3-2-2 to unlock outfits</h2>
         </div>
         <span className="font-display text-2xl text-primary">
-          {total}/{goal}
+          {progress.filled}/{progress.goal}
         </span>
       </div>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
         <div
           className="h-full bg-primary transition-all"
-          style={{ width: `${pct}%` }}
-          aria-label={`${pct}% complete`}
+          style={{ width: `${progress.percent}%` }}
+          aria-label={`${progress.percent}% complete`}
         />
       </div>
       <ul className="mt-3 space-y-1 text-xs">
-        {targets.map((t) => {
+        {progress.targets.map((t) => {
           const done = t.have >= t.need;
           return (
             <li key={t.label} className="flex items-center justify-between">
@@ -226,6 +222,25 @@ function StarterProgress({ counts }: { counts: Counts }) {
       </ul>
       <Link to="/closet/new" className="btn-lime mt-4 inline-flex !py-2 text-xs">
         Add a piece
+      </Link>
+    </section>
+  );
+}
+
+function IncompleteGeneratorCTA({ progress }: { progress: ProgressData }) {
+  const missing = progress.targets
+    .filter((t) => t.have < t.need)
+    .map((t) => `${t.need - t.have} ${t.label.toLowerCase()}`);
+  return (
+    <section className="card-surface p-5 border border-primary/20">
+      <p className="text-xs uppercase tracking-widest text-primary">Not yet</p>
+      <h2 className="mt-1 font-display text-2xl">Add {missing.join(" · ")}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Generate needs at least the 3-2-2 starter so outfits aren't just a repeat. Add what's
+        missing and we'll unlock it.
+      </p>
+      <Link to="/closet/new" className="btn-lime mt-4 inline-flex">
+        Add missing piece
       </Link>
     </section>
   );
