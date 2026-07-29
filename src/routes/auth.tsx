@@ -139,6 +139,7 @@ function AuthPage() {
             ) {
               setFormError("This email uses Google sign-in. Tap Continue with Google below.");
             } else if (info.exists && !info.confirmed) {
+              setNeedsConfirm(true);
               setFormError("Please confirm your email first — check your inbox.");
             } else {
               setFormError("Wrong email or password.");
