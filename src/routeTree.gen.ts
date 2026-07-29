@@ -27,6 +27,7 @@ import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-im
 import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
 import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
 import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
@@ -134,6 +135,11 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
   id: '/taste',
   path: '/taste',
@@ -215,7 +221,7 @@ const AuthenticatedClosetIdEditRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -249,7 +256,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -284,7 +292,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
@@ -297,6 +305,7 @@ export interface FileRoutesById {
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
   '/_authenticated/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shop'
     | '/_authenticated/swipe'
     | '/_authenticated/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -424,7 +436,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   LegalRoute: typeof LegalRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
   OSlugRoute: typeof OSlugRoute
@@ -558,6 +570,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/legal/acceptable-use'
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
+    }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/taste': {
       id: '/_authenticated/taste'
@@ -717,6 +736,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 interface LegalRouteChildren {
   LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
   LegalAccountDeletionRoute: typeof LegalAccountDeletionRoute
@@ -750,7 +779,7 @@ const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   LegalRoute: LegalRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
   OSlugRoute: OSlugRoute,
@@ -759,3 +788,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
