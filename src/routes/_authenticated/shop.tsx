@@ -371,6 +371,54 @@ function ShopPage() {
             purchase. Retailer links will only appear after verification.
           </p>
         )}
+        <button
+          onClick={() => setShowHow((v) => !v)}
+          className="mt-2 text-[11px] uppercase tracking-widest text-primary hover:underline"
+        >
+          {showHow ? "Hide" : "How DRIP Shop works"}
+        </button>
+        {showHow && (
+          <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-surface-2 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <p>
+              <span className="text-foreground">Verified</span> — real products a DRIP moderator has
+              cross-checked with the retailer in the last 30 days. Only these show a Shop now link.
+            </p>
+            <p>
+              <span className="text-foreground">Demo</span> — sample products used to preview the
+              gap engine. They never link to a retailer.
+            </p>
+            <p>
+              We never earn commission unless a product is marked with an affiliate disclosure on
+              its card. Ranking is rule-based — no ads, no paid placement.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Scope selector */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+        {(
+          [
+            { v: "all", l: "All" },
+            { v: "verified", l: "Verified only" },
+            { v: "demo", l: "Demo only" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.v}
+            onClick={() => {
+              setScope(s.v);
+              setVisible(INITIAL);
+            }}
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-widest ${
+              scope === s.v
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-foreground/80"
+            }`}
+          >
+            {s.l}
+          </button>
+        ))}
       </div>
 
       {/* Primary tabs */}
