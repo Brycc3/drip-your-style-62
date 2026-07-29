@@ -5,7 +5,9 @@ import {
   type VerifiableCatalogItem,
 } from "../src/lib/shop-catalog";
 
-const NOW = Date.parse("2026-08-01T12:00:00Z");
+// Pin NOW to real Date.now() so productActionFor (which does not accept an
+// override) sees a fresh verified_at/last_checked_at against the wall clock.
+const NOW = Date.now();
 
 function verifiedFixture(overrides: Partial<VerifiableCatalogItem> = {}): VerifiableCatalogItem {
   return {
