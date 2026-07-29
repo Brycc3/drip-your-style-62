@@ -32,7 +32,49 @@ function AuthPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
   const navigate = useNavigate();
+
+  async function sendReset() {
+    setFormError(null);
+    const emailR = emailSchema.safeParse(email);
+    if (!emailR.success) {
+      setFormError("Enter your email above first, then tap Forgot password.");
+      return;
+    }
+    setRecoveryBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(emailR.data, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    setRecoveryBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Reset link sent. Check your email.");
+  }
+
+  async function resendConfirmation() {
+    setFormError(null);
+    const emailR = emailSchema.safeParse(email);
+    if (!emailR.success) {
+      setFormError("Enter your email above first, then tap Resend.");
+      return;
+    }
+    setRecoveryBusy(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: emailR.data,
+      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+    });
+    setRecoveryBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Confirmation email re-sent.");
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -97,6 +139,7 @@ function AuthPage() {
             ) {
               setFormError("This email uses Google sign-in. Tap Continue with Google below.");
             } else if (info.exists && !info.confirmed) {
+              setNeedsConfirm(true);
               setFormError("Please confirm your email first — check your inbox.");
             } else {
               setFormError("Wrong email or password.");
@@ -197,6 +240,39 @@ function AuthPage() {
           <button type="submit" disabled={loading} className="btn-lime w-full disabled:opacity-50">
             {loading ? "…" : mode === "signup" ? "Create account" : "Sign in"}
           </button>
+
+          {mode === "signin" && (
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={sendReset}
+                disabled={recoveryBusy}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                Forgot password?
+              </button>
+              {needsConfirm && (
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  disabled={recoveryBusy}
+                  className="text-primary hover:underline disabled:opacity-50"
+                >
+                  Resend confirmation
+                </button>
+              )}
+            </div>
+          )}
+          {mode === "signup" && (
+            <button
+              type="button"
+              onClick={resendConfirmation}
+              disabled={recoveryBusy}
+              className="block w-full text-left text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Didn't get the confirmation email? Resend
+            </button>
+          )}
         </form>
 
         <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">

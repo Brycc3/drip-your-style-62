@@ -122,11 +122,12 @@ function Onboarding() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="container-app py-10">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Step {step} of 3</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-primary">Step {step} of 4</p>
         <h1 className="mt-2 font-display text-4xl">
           {step === 1 && "Who are you"}
           {step === 2 && "Your vibe"}
           {step === 3 && "Your sizes"}
+          {step === 4 && "Starter closet"}
         </h1>
 
         <div className="mt-8">
@@ -211,6 +212,33 @@ function Onboarding() {
               <SizeInput label="Shoe size (US)" value={shoeSize} onChange={setShoeSize} />
             </div>
           )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <p className="text-sm text-foreground/85">
+                DRIP builds outfits from what you own. To unlock the generator, aim for a{" "}
+                <span className="text-primary">3-2-2 starter</span>:
+              </p>
+              <ul className="card-surface space-y-2 p-4 text-sm">
+                <li className="flex items-center justify-between">
+                  <span>3 tops (tee, hoodie, button-up)</span>
+                  <span className="text-primary">3</span>
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>2 bottoms (denim + cargos or joggers)</span>
+                  <span className="text-primary">2</span>
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>2 pairs of shoes (one clean, one rugged)</span>
+                  <span className="text-primary">2</span>
+                </li>
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                That’s 7 pieces — enough to unlock ~15 real outfits and honest gap analysis. Add
+                more anytime.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-10 flex gap-3">
@@ -222,7 +250,7 @@ function Onboarding() {
               Back
             </button>
           )}
-          {step < 3 ? (
+          {step < 4 ? (
             <button onClick={handleContinue} className="btn-lime flex-1">
               Continue
             </button>

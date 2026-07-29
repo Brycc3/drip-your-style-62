@@ -27,6 +27,7 @@ import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-im
 import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
 import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
 import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
@@ -41,6 +42,7 @@ import { Route as AuthenticatedClosetIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
 import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
 import { Route as AuthenticatedAdminModerationRouteImport } from './routes/_authenticated/admin.moderation'
+import { Route as AuthenticatedAdminCatalogRouteImport } from './routes/_authenticated/admin.catalog'
 import { Route as AuthenticatedClosetIdEditRouteImport } from './routes/_authenticated/closet.$id.edit'
 
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -134,6 +136,11 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
   id: '/taste',
   path: '/taste',
@@ -206,6 +213,12 @@ const AuthenticatedAdminModerationRoute =
     path: '/admin/moderation',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminCatalogRoute =
+  AuthenticatedAdminCatalogRouteImport.update({
+    id: '/admin/catalog',
+    path: '/admin/catalog',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedClosetIdEditRoute =
   AuthenticatedClosetIdEditRouteImport.update({
     id: '/edit',
@@ -215,7 +228,7 @@ const AuthenticatedClosetIdEditRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
@@ -228,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -241,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal/': typeof LegalIndexRoute
+  '/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
@@ -249,7 +264,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
@@ -261,6 +276,7 @@ export interface FileRoutesByTo {
   '/shop': typeof AuthenticatedShopRoute
   '/swipe': typeof AuthenticatedSwipeRoute
   '/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -274,6 +290,7 @@ export interface FileRoutesByTo {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal': typeof LegalIndexRoute
+  '/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
@@ -284,7 +301,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
@@ -297,6 +314,7 @@ export interface FileRoutesById {
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
   '/_authenticated/taste': typeof AuthenticatedTasteRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -310,6 +328,7 @@ export interface FileRoutesById {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal/': typeof LegalIndexRoute
+  '/_authenticated/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/_authenticated/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
@@ -333,6 +352,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -346,6 +366,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal/'
+    | '/admin/catalog'
     | '/admin/moderation'
     | '/closet/$id'
     | '/closet/new'
@@ -366,6 +387,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/swipe'
     | '/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -379,6 +401,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal'
+    | '/admin/catalog'
     | '/admin/moderation'
     | '/closet/$id'
     | '/closet/new'
@@ -401,6 +424,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shop'
     | '/_authenticated/swipe'
     | '/_authenticated/taste'
+    | '/auth/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -414,6 +438,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal/'
+    | '/_authenticated/admin/catalog'
     | '/_authenticated/admin/moderation'
     | '/_authenticated/closet/$id'
     | '/_authenticated/closet/new'
@@ -424,7 +449,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   LegalRoute: typeof LegalRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
   OSlugRoute: typeof OSlugRoute
@@ -559,6 +584,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_authenticated/taste': {
       id: '/_authenticated/taste'
       path: '/taste'
@@ -657,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminModerationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/catalog': {
+      id: '/_authenticated/admin/catalog'
+      path: '/admin/catalog'
+      fullPath: '/admin/catalog'
+      preLoaderRoute: typeof AuthenticatedAdminCatalogRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/closet/$id/edit': {
       id: '/_authenticated/closet/$id/edit'
       path: '/edit'
@@ -691,6 +730,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
   AuthenticatedTasteRoute: typeof AuthenticatedTasteRoute
+  AuthenticatedAdminCatalogRoute: typeof AuthenticatedAdminCatalogRoute
   AuthenticatedAdminModerationRoute: typeof AuthenticatedAdminModerationRoute
   AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRouteWithChildren
   AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
@@ -708,6 +748,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
   AuthenticatedTasteRoute: AuthenticatedTasteRoute,
+  AuthenticatedAdminCatalogRoute: AuthenticatedAdminCatalogRoute,
   AuthenticatedAdminModerationRoute: AuthenticatedAdminModerationRoute,
   AuthenticatedClosetIdRoute: AuthenticatedClosetIdRouteWithChildren,
   AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
@@ -716,6 +757,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+interface AuthRouteChildren {
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface LegalRouteChildren {
   LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
@@ -750,7 +801,7 @@ const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   LegalRoute: LegalRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
   OSlugRoute: OSlugRoute,

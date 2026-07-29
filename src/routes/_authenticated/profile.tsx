@@ -2,9 +2,10 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Share2, Download, Trash2, Shield } from "lucide-react";
+import { Users, Share2, Download, Trash2, Shield, LifeBuoy, Wrench } from "lucide-react";
 import { exportMyData, deleteMyAccount } from "@/lib/account.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { ProblemReportDialog } from "@/components/ProblemReportDialog";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
@@ -28,6 +29,8 @@ function ProfilePage() {
   const [colors, setColors] = useState<string[]>([]);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showProblem, setShowProblem] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ function ProfilePage() {
       const [{ data: profile }, { data: prefs }, { count: fw }, { count: fg }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("display_name, handle, bio, is_public")
+          .select("display_name, handle, bio, is_public, is_admin")
           .eq("id", u)
           .maybeSingle(),
         supabase
@@ -55,6 +58,7 @@ function ProfilePage() {
       setHandle(profile?.handle ?? "");
       setBio(profile?.bio ?? "");
       setIsPublic(profile?.is_public ?? false);
+      setIsAdmin(profile?.is_admin ?? false);
       setVibes(prefs?.style_vibes ?? []);
       setColors(prefs?.favorite_colors ?? []);
       setFollowers(fw ?? 0);
@@ -213,11 +217,42 @@ function ProfilePage() {
       </div>
 
       <button
+        onClick={() => setShowProblem(true)}
+        className="w-full rounded-full border border-border py-3 text-sm uppercase tracking-widest text-foreground/85 hover:bg-surface-2 inline-flex items-center justify-center gap-2"
+      >
+        <LifeBuoy className="h-4 w-4" /> Report a problem
+      </button>
+
+      {isAdmin && (
+        <div className="card-surface p-5">
+          <p className="text-xs uppercase tracking-widest text-primary flex items-center gap-2">
+            <Wrench className="h-3.5 w-3.5" /> Admin
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <Link
+              to="/admin/catalog"
+              className="rounded-full border border-primary/60 px-3 py-2 text-center uppercase tracking-widest text-primary hover:bg-primary/10"
+            >
+              Catalog
+            </Link>
+            <Link
+              to="/admin/moderation"
+              className="rounded-full border border-primary/60 px-3 py-2 text-center uppercase tracking-widest text-primary hover:bg-primary/10"
+            >
+              Moderation
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <button
         onClick={signOut}
         className="w-full rounded-full border border-destructive/50 py-3 text-sm uppercase tracking-widest text-destructive"
       >
         Sign out
       </button>
+
+      <ProblemReportDialog open={showProblem} onClose={() => setShowProblem(false)} />
     </div>
   );
 }
