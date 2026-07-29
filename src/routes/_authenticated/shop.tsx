@@ -235,6 +235,8 @@ function ShopPage() {
     const filtered = distinctCatalog.filter((c) => {
       if (dismissed.has(c.id)) return false;
       if (c.availability === "out_of_stock") return false;
+      if (scope === "verified" && !isVerifiedPurchasable(c as VerifiableCatalogItem)) return false;
+      if (scope === "demo" && c.is_demo !== true) return false;
       if (source !== "all" && c.condition !== source) return false;
       const k = primaryKind(c.category);
       if (tab === "outfits") return k === "clothing" || k === "shoes" || k === "accessories";
