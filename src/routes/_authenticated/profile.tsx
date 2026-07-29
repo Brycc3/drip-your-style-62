@@ -58,6 +58,7 @@ function ProfilePage() {
       setHandle(profile?.handle ?? "");
       setBio(profile?.bio ?? "");
       setIsPublic(profile?.is_public ?? false);
+      setIsAdmin(profile?.is_admin ?? false);
       setVibes(prefs?.style_vibes ?? []);
       setColors(prefs?.favorite_colors ?? []);
       setFollowers(fw ?? 0);
