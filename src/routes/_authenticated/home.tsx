@@ -93,6 +93,8 @@ function HomePage() {
         <EmptyState />
       ) : (
         <>
+          {counts && counts.total < 7 && <StarterProgress counts={counts} />}
+
           <section className="card-surface p-5">
             <p className="text-xs uppercase tracking-widest text-primary">Today's move</p>
             <h2 className="mt-1 font-display text-2xl">Generate a fit</h2>
