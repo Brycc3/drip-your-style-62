@@ -71,7 +71,7 @@ const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "leather", l: "Leather" },
 ];
 
-const CACHE_KEY = "drip.shop.cache.v3";
+const CACHE_KEY = "drip.shop.cache.v4";
 const PAGE_SIZE = 12;
 const INITIAL = 12;
 
@@ -235,6 +235,8 @@ function ShopPage() {
     const filtered = distinctCatalog.filter((c) => {
       if (dismissed.has(c.id)) return false;
       if (c.availability === "out_of_stock") return false;
+      // Archived items are admin-hidden from Shop entirely, regardless of scope.
+      if ((c as CatalogItem & { archived?: boolean }).archived === true) return false;
       if (scope === "verified" && !isVerifiedPurchasable(c as VerifiableCatalogItem)) return false;
       if (scope === "demo" && c.is_demo !== true) return false;
       if (source !== "all" && c.condition !== source) return false;
@@ -253,8 +255,9 @@ function ShopPage() {
       return k === tab;
     });
     const s = scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed });
+    let ordered: GapScore[];
     if (sort === "new") {
-      return prioritizeUnseenCatalog(
+      ordered = prioritizeUnseenCatalog(
         [...s].sort((a, b) => {
           const at = (a.item as CatalogItem & { created_at?: string }).created_at ?? "";
           const bt = (b.item as CatalogItem & { created_at?: string }).created_at ?? "";
@@ -262,8 +265,21 @@ function ShopPage() {
         }),
         immediatelyShown,
       );
+    } else {
+      ordered = prioritizeUnseenCatalog(s, immediatelyShown);
     }
-    return prioritizeUnseenCatalog(s, immediatelyShown);
+    // In "All" scope, verified purchasable items always rank ahead of demo
+    // rows so users see real products first when both are available.
+    if (scope === "all") {
+      const verified: GapScore[] = [];
+      const rest: GapScore[] = [];
+      for (const g of ordered) {
+        if (isVerifiedPurchasable(g.item as VerifiableCatalogItem)) verified.push(g);
+        else rest.push(g);
+      }
+      ordered = [...verified, ...rest];
+    }
+    return ordered;
   }, [
     distinctCatalog,
     closet,

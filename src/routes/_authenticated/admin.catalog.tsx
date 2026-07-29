@@ -1,9 +1,27 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Save, Trash2, Plus, RefreshCw } from "lucide-react";
+import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore, PackageX } from "lucide-react";
 import { isVerifiedPurchasable, type VerifiableCatalogItem } from "@/lib/shop-catalog";
+import {
+  CATALOG_AVAILABILITY,
+  CATALOG_CATEGORIES,
+  CATALOG_CONDITIONS,
+  CATALOG_IMAGE_RIGHTS,
+  CATALOG_IMAGE_WARNING,
+  CATALOG_SOURCE_TYPES,
+  CATALOG_VERIFICATION_METHODS,
+  catalogAddSchema,
+  type CatalogAddInput,
+} from "@/lib/catalog-validation";
+import {
+  addCatalogItem,
+  setCatalogArchived,
+  setCatalogAvailability,
+  updateCatalogItem,
+} from "@/lib/catalog-admin.functions";
 import type { CatalogItem } from "@/lib/shop-gap";
 
 export const Route = createFileRoute("/_authenticated/admin/catalog")({
@@ -33,16 +51,24 @@ type Row = CatalogItem & {
   verification_method?: string | null;
   affiliate?: boolean | null;
   affiliate_disclosure?: string | null;
+  archived?: boolean | null;
 };
 
-const FILTERS = ["all", "verified", "needs_verification", "demo"] as const;
+// NB: is_demo is deliberately not editable anywhere in this UI.
+const FILTERS = ["verified", "needs_verification", "archived", "demo"] as const;
 
 function AdminCatalogPage() {
+  const addFn = useServerFn(addCatalogItem);
+  const updateFn = useServerFn(updateCatalogItem);
+  const archiveFn = useServerFn(setCatalogArchived);
+  const availabilityFn = useServerFn(setCatalogAvailability);
+
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("needs_verification");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [adding, setAdding] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -50,7 +76,7 @@ function AdminCatalogPage() {
       .from("shop_catalog")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(1000);
     setLoading(false);
     if (error) return toast.error(error.message);
     setRows((data ?? []) as Row[]);
@@ -64,12 +90,17 @@ function AdminCatalogPage() {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (filter === "demo" && !r.is_demo) return false;
-      if (filter === "verified" && !isVerifiedPurchasable(r as VerifiableCatalogItem)) return false;
-      if (
-        filter === "needs_verification" &&
-        (r.is_demo || isVerifiedPurchasable(r as VerifiableCatalogItem))
-      )
-        return false;
+      if (filter === "archived" && !(r.archived === true && !r.is_demo)) return false;
+      if (filter === "verified") {
+        if (r.is_demo) return false;
+        if (r.archived === true) return false;
+        if (!isVerifiedPurchasable(r as VerifiableCatalogItem)) return false;
+      }
+      if (filter === "needs_verification") {
+        if (r.is_demo) return false;
+        if (r.archived === true) return false;
+        if (isVerifiedPurchasable(r as VerifiableCatalogItem)) return false;
+      }
       if (needle) {
         const hay = `${r.name} ${r.brand ?? ""} ${r.retailer ?? ""} ${r.category}`.toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -78,45 +109,51 @@ function AdminCatalogPage() {
     });
   }, [rows, filter, q]);
 
-  async function remove(id: string) {
-    if (!confirm("Delete this catalog row? This cannot be undone.")) return;
-    const { error } = await supabase.from("shop_catalog").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    setRows((r) => r.filter((x) => x.id !== id));
-    toast.success("Deleted");
+  const demoIsReadOnly = filter === "demo";
+
+  async function saveEdit(id: string, data: CatalogAddInput) {
+    try {
+      await updateFn({ data: { id, data } });
+      toast.success("Saved");
+      setEditing(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    }
   }
 
-  async function save(row: Row) {
-    const payload = {
-      name: row.name,
-      brand: row.brand,
-      retailer: row.retailer,
-      buy_url: row.buy_url,
-      image_url: row.image_url,
-      current_price: row.current_price,
-      original_price: row.original_price,
-      availability: row.availability ?? "in_stock",
-      source_type: row.source_type,
-      source_name: row.source_name,
-      source_url: row.source_url,
-      image_rights_basis: row.image_rights_basis,
-      verification_method: row.verification_method,
-      verified_at: row.verified_at,
-      last_checked_at: new Date().toISOString(),
-      affiliate: row.affiliate ?? false,
-      affiliate_disclosure: row.affiliate_disclosure,
-      is_demo: row.is_demo,
-    };
-    const { data, error } = await supabase
-      .from("shop_catalog")
-      .update(payload)
-      .eq("id", row.id)
-      .select()
-      .single();
-    if (error) return toast.error(error.message);
-    setRows((r) => r.map((x) => (x.id === row.id ? (data as Row) : x)));
-    setEditing(null);
-    toast.success("Saved");
+  async function saveAdd(data: CatalogAddInput) {
+    try {
+      await addFn({ data });
+      toast.success("Product added");
+      setAdding(false);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add");
+    }
+  }
+
+  async function toggleArchive(row: Row) {
+    if (row.is_demo) return; // guard even though the button is hidden
+    const next = !(row.archived === true);
+    try {
+      await archiveFn({ data: { id: row.id, archived: next } });
+      toast.success(next ? "Archived" : "Restored");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    }
+  }
+
+  async function markUnavailable(row: Row) {
+    if (row.is_demo) return;
+    try {
+      await availabilityFn({ data: { id: row.id, availability: "out_of_stock" } });
+      toast.success("Marked out of stock");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    }
   }
 
   return (
@@ -128,10 +165,11 @@ function AdminCatalogPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Catalog</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Verify products so they can show a Shop now link. Demo rows stay as samples.
+            Add and manage verified products. Demo rows are read-only and cannot be edited,
+            archived, or converted.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             to="/admin/moderation"
             className="rounded-full border border-border px-3 py-1.5 text-[11px] uppercase tracking-widest hover:bg-surface-2"
@@ -143,6 +181,12 @@ function AdminCatalogPage() {
             className="rounded-full border border-border px-3 py-1.5 text-[11px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
+          </button>
+          <button
+            onClick={() => setAdding(true)}
+            className="btn-lime inline-flex items-center gap-1 !px-3 !py-1.5 text-[11px]"
+          >
+            <Plus className="h-3 w-3" /> Add verified product
           </button>
         </div>
       </div>
@@ -169,6 +213,14 @@ function AdminCatalogPage() {
         />
       </div>
 
+      {demoIsReadOnly && (
+        <p className="card-surface p-3 text-[11px] text-muted-foreground">
+          Demo products are protected. They exist to preview the gap engine using project-owned
+          placeholder art and never link to a retailer. To ship a real product, use{" "}
+          <span className="text-primary">Add verified product</span> above.
+        </p>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : filtered.length === 0 ? (
@@ -179,8 +231,12 @@ function AdminCatalogPage() {
         <ul className="space-y-2">
           {filtered.map((r) => {
             const verified = !r.is_demo && isVerifiedPurchasable(r as VerifiableCatalogItem);
+            const archived = r.archived === true;
             return (
-              <li key={r.id} className="card-surface p-3">
+              <li
+                key={r.id}
+                className={`card-surface p-3 ${archived ? "opacity-70" : ""}`}
+              >
                 <div className="flex items-start gap-3">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface-2">
                     {r.image_url && (
@@ -194,26 +250,45 @@ function AdminCatalogPage() {
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge tone={r.is_demo ? "muted" : verified ? "good" : "warn"}>
-                        {r.is_demo ? "Demo" : verified ? "Verified" : "Needs verification"}
+                        {r.is_demo ? "Demo (read-only)" : verified ? "Verified" : "Needs verification"}
                       </Badge>
+                      {archived && <Badge tone="warn">Archived</Badge>}
                       {r.affiliate ? <Badge tone="muted">Affiliate</Badge> : null}
                       {r.availability ? <Badge tone="muted">{r.availability}</Badge> : null}
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <button
-                      onClick={() => setEditing(r)}
-                      className="rounded-full border border-primary/60 px-3 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => remove(r.id)}
-                      className="rounded-full border border-destructive/60 px-3 py-1 text-[10px] uppercase tracking-widest text-destructive hover:bg-destructive/10 inline-flex items-center gap-1 justify-center"
-                    >
-                      <Trash2 className="h-3 w-3" /> Delete
-                    </button>
-                  </div>
+                  {!r.is_demo && (
+                    <div className="flex shrink-0 flex-col gap-1">
+                      <button
+                        onClick={() => setEditing(r)}
+                        className="rounded-full border border-primary/60 px-3 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => toggleArchive(r)}
+                        className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
+                      >
+                        {archived ? (
+                          <>
+                            <ArchiveRestore className="h-3 w-3" /> Restore
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-3 w-3" /> Archive
+                          </>
+                        )}
+                      </button>
+                      {!archived && r.availability !== "out_of_stock" && (
+                        <button
+                          onClick={() => markUnavailable(r)}
+                          className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
+                        >
+                          <PackageX className="h-3 w-3" /> Out of stock
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </li>
             );
@@ -221,15 +296,13 @@ function AdminCatalogPage() {
         </ul>
       )}
 
-      <p className="text-[11px] text-muted-foreground">
-        Need to add a product? Use{" "}
-        <span className="text-foreground">Edit</span> on an existing demo row to convert it, or add
-        via database (bulk import coming soon).{" "}
-        <Plus className="inline h-3 w-3" />
-      </p>
-
+      {adding && <EditorModal onClose={() => setAdding(false)} onSave={saveAdd} />}
       {editing && (
-        <EditModal row={editing} onClose={() => setEditing(null)} onSave={save} />
+        <EditorModal
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSave={(data) => saveEdit(editing.id, data)}
+        />
       )}
     </div>
   );
@@ -249,68 +322,187 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "good" | "
   );
 }
 
-function EditModal({
-  row,
+/**
+ * Editor for both add and edit flows. Uses the SAME Zod schema as the server
+ * so a client-side error surfaces immediately and a server-side error can
+ * only fire on things the client cannot check (admin gate, demo row, DB).
+ */
+function EditorModal({
+  initial,
   onClose,
   onSave,
 }: {
-  row: Row;
+  initial?: Row;
   onClose: () => void;
-  onSave: (r: Row) => void;
+  onSave: (data: CatalogAddInput) => void | Promise<void>;
 }) {
-  const [draft, setDraft] = useState<Row>(row);
-  const set = <K extends keyof Row>(k: K, v: Row[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const [draft, setDraft] = useState<Partial<CatalogAddInput>>(() => ({
+    name: initial?.name ?? "",
+    brand: initial?.brand ?? "",
+    category: (initial?.category as CatalogAddInput["category"]) ?? "top",
+    color: initial?.color ?? "",
+    material: initial?.material ?? "",
+    fit: initial?.fit ?? "",
+    formality: (initial?.formality as CatalogAddInput["formality"]) ?? "casual",
+    season: (initial?.season as CatalogAddInput["season"]) ?? "all",
+    condition: (initial?.condition as CatalogAddInput["condition"]) ?? "new",
+    retailer: initial?.retailer ?? "",
+    buy_url: initial?.buy_url ?? "",
+    image_url: initial?.image_url ?? "",
+    current_price: initial?.current_price ?? undefined,
+    original_price: initial?.original_price ?? undefined,
+    availability: (initial?.availability as CatalogAddInput["availability"]) ?? "in_stock",
+    source_type: (initial?.source_type as CatalogAddInput["source_type"]) ?? "manual",
+    source_name: initial?.source_name ?? "",
+    source_url: initial?.source_url ?? "",
+    image_rights_basis:
+      (initial?.image_rights_basis as CatalogAddInput["image_rights_basis"]) ?? "authorized",
+    verification_method:
+      (initial?.verification_method as CatalogAddInput["verification_method"]) ?? "manual",
+    affiliate: initial?.affiliate ?? false,
+    affiliate_disclosure: initial?.affiliate_disclosure ?? "",
+    description: initial?.description ?? "",
+  }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [ack, setAck] = useState(false);
+
+  function set<K extends keyof CatalogAddInput>(k: K, v: CatalogAddInput[K]) {
+    setDraft((d) => ({ ...d, [k]: v }));
+  }
+
+  function attempt() {
+    if (!ack) {
+      setErrors({ _ack: "You must acknowledge the image-rights warning" });
+      return;
+    }
+    const parsed = catalogAddSchema.safeParse(draft);
+    if (!parsed.success) {
+      const map: Record<string, string> = {};
+      for (const issue of parsed.error.issues) map[issue.path.join(".") || "_"] = issue.message;
+      setErrors(map);
+      return;
+    }
+    setErrors({});
+    void onSave(parsed.data);
+  }
+
+  const isEdit = Boolean(initial);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-surface p-5"
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Edit product</p>
-        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-          <Text label="Name" value={draft.name} onChange={(v) => set("name", v)} full />
-          <Text label="Brand" value={draft.brand ?? ""} onChange={(v) => set("brand", v)} />
-          <Text label="Retailer" value={draft.retailer ?? ""} onChange={(v) => set("retailer", v)} />
-          <Text label="Buy URL (https)" value={draft.buy_url ?? ""} onChange={(v) => set("buy_url", v)} full />
-          <Text label="Image URL" value={draft.image_url ?? ""} onChange={(v) => set("image_url", v)} full />
-          <Num label="Current price" value={draft.current_price} onChange={(v) => set("current_price", v)} />
-          <Num label="Original price" value={draft.original_price ?? null} onChange={(v) => set("original_price", v)} />
+        <p className="text-xs uppercase tracking-[0.3em] text-primary">
+          {isEdit ? "Edit verified product" : "Add verified product"}
+        </p>
+        <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
+          {CATALOG_IMAGE_WARNING}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <Text label="Name*" value={draft.name ?? ""} onChange={(v) => set("name", v)} full error={errors.name} />
+          <Text label="Brand*" value={draft.brand ?? ""} onChange={(v) => set("brand", v)} error={errors.brand} />
           <Select
-            label="Availability"
+            label="Category*"
+            value={draft.category ?? "top"}
+            onChange={(v) => set("category", v as CatalogAddInput["category"])}
+            options={[...CATALOG_CATEGORIES]}
+            error={errors.category}
+          />
+          <Text label="Color*" value={draft.color ?? ""} onChange={(v) => set("color", v)} error={errors.color} />
+          <Text label="Material" value={draft.material ?? ""} onChange={(v) => set("material", v)} />
+          <Text label="Fit" value={draft.fit ?? ""} onChange={(v) => set("fit", v)} />
+          <Select
+            label="Formality"
+            value={draft.formality ?? "casual"}
+            onChange={(v) => set("formality", v as CatalogAddInput["formality"])}
+            options={["loungewear", "casual", "smart_casual", "business", "formal"]}
+          />
+          <Select
+            label="Season"
+            value={draft.season ?? "all"}
+            onChange={(v) => set("season", v as CatalogAddInput["season"])}
+            options={["all", "spring", "summer", "fall", "winter"]}
+          />
+          <Select
+            label="Condition"
+            value={draft.condition ?? "new"}
+            onChange={(v) => set("condition", v as CatalogAddInput["condition"])}
+            options={[...CATALOG_CONDITIONS]}
+          />
+          <Text label="Retailer*" value={draft.retailer ?? ""} onChange={(v) => set("retailer", v)} error={errors.retailer} />
+          <Text
+            label="Product URL (https://…)*"
+            value={draft.buy_url ?? ""}
+            onChange={(v) => set("buy_url", v)}
+            full
+            error={errors.buy_url}
+          />
+          <Text
+            label="Image URL or /catalog/… path*"
+            value={draft.image_url ?? ""}
+            onChange={(v) => set("image_url", v)}
+            full
+            error={errors.image_url}
+          />
+          <Num
+            label="Current price*"
+            value={draft.current_price ?? null}
+            onChange={(v) => set("current_price", v as CatalogAddInput["current_price"])}
+            error={errors.current_price}
+          />
+          <Num
+            label="Original price"
+            value={draft.original_price ?? null}
+            onChange={(v) => set("original_price", v as CatalogAddInput["original_price"])}
+            error={errors.original_price}
+          />
+          <Select
+            label="Availability*"
             value={draft.availability ?? "in_stock"}
-            onChange={(v) => set("availability", v)}
-            options={["in_stock", "low_stock", "preorder", "out_of_stock", "discontinued"]}
+            onChange={(v) => set("availability", v as CatalogAddInput["availability"])}
+            options={[...CATALOG_AVAILABILITY]}
+            error={errors.availability}
           />
           <Select
-            label="Source type"
-            value={draft.source_type ?? ""}
-            onChange={(v) => set("source_type", v || null)}
-            options={["", "manual", "affiliate_feed", "partner_api", "verified"]}
+            label="Source type*"
+            value={draft.source_type ?? "manual"}
+            onChange={(v) => set("source_type", v as CatalogAddInput["source_type"])}
+            options={[...CATALOG_SOURCE_TYPES]}
+            error={errors.source_type}
           />
-          <Text label="Source name" value={draft.source_name ?? ""} onChange={(v) => set("source_name", v || null)} />
-          <Text label="Source URL" value={draft.source_url ?? ""} onChange={(v) => set("source_url", v || null)} full />
+          <Text
+            label="Source name*"
+            value={draft.source_name ?? ""}
+            onChange={(v) => set("source_name", v)}
+            error={errors.source_name}
+          />
+          <Text
+            label="Source URL"
+            value={draft.source_url ?? ""}
+            onChange={(v) => set("source_url", v)}
+            full
+            error={errors.source_url}
+          />
           <Select
-            label="Image rights"
-            value={draft.image_rights_basis ?? ""}
-            onChange={(v) => set("image_rights_basis", v || null)}
-            options={["", "authorized", "project_owned", "licensed"]}
+            label="Image rights basis*"
+            value={draft.image_rights_basis ?? "authorized"}
+            onChange={(v) => set("image_rights_basis", v as CatalogAddInput["image_rights_basis"])}
+            options={[...CATALOG_IMAGE_RIGHTS]}
+            error={errors.image_rights_basis}
           />
           <Select
-            label="Verification method"
-            value={draft.verification_method ?? ""}
-            onChange={(v) => set("verification_method", v || null)}
-            options={["", "manual", "feed", "partner_api"]}
+            label="Verification method*"
+            value={draft.verification_method ?? "manual"}
+            onChange={(v) => set("verification_method", v as CatalogAddInput["verification_method"])}
+            options={[...CATALOG_VERIFICATION_METHODS]}
+            error={errors.verification_method}
           />
-          <label className="col-span-2 flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={draft.is_demo ?? false}
-              onChange={(e) => set("is_demo", e.target.checked)}
-              className="h-4 w-4 accent-primary"
-            />
-            Demo product (never linked to a retailer)
-          </label>
           <label className="col-span-2 flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -322,29 +514,35 @@ function EditModal({
           </label>
           {draft.affiliate && (
             <Text
-              label="Affiliate disclosure"
+              label="Affiliate disclosure*"
               value={draft.affiliate_disclosure ?? ""}
-              onChange={(v) => set("affiliate_disclosure", v || null)}
+              onChange={(v) => set("affiliate_disclosure", v)}
               full
+              error={errors.affiliate_disclosure}
             />
           )}
+          <Text
+            label="Description"
+            value={draft.description ?? ""}
+            onChange={(v) => set("description", v)}
+            full
+          />
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() =>
-              set(
-                "verified_at",
-                (draft.verified_at ? null : new Date().toISOString()) as Row["verified_at"],
-              )
-            }
-            className="rounded-full border border-primary/60 px-3 py-1.5 text-[11px] uppercase tracking-widest text-primary"
-          >
-            {draft.verified_at ? "Clear verified stamp" : "Stamp verified now"}
-          </button>
-          <span className="text-[11px] text-muted-foreground">
-            {draft.verified_at ? `Verified: ${new Date(draft.verified_at).toLocaleString()}` : "Not verified"}
+
+        <label className="mt-4 flex items-start gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={ack}
+            onChange={(e) => setAck(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-primary"
+          />
+          <span className="text-muted-foreground">
+            I am authorized to display this product's image and information.
           </span>
-        </div>
+        </label>
+        {errors._ack && <p className="mt-1 text-[11px] text-destructive">{errors._ack}</p>}
+        {errors._ && <p className="mt-1 text-[11px] text-destructive">{errors._}</p>}
+
         <div className="mt-5 flex gap-2">
           <button
             onClick={onClose}
@@ -353,10 +551,10 @@ function EditModal({
             Cancel
           </button>
           <button
-            onClick={() => onSave(draft)}
+            onClick={attempt}
             className="btn-lime flex-1 !py-2 text-xs inline-flex items-center justify-center gap-1"
           >
-            <Save className="h-3 w-3" /> Save
+            <Save className="h-3 w-3" /> {isEdit ? "Save changes" : "Add product"}
           </button>
         </div>
       </div>
@@ -369,11 +567,13 @@ function Text({
   value,
   onChange,
   full,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   full?: boolean;
+  error?: string;
 }) {
   return (
     <label className={`block ${full ? "col-span-2" : ""}`}>
@@ -381,8 +581,11 @@ function Text({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+        className={`mt-1 w-full rounded-lg border bg-input px-3 py-2 text-sm outline-none focus:border-primary ${
+          error ? "border-destructive/60" : "border-border"
+        }`}
       />
+      {error && <span className="mt-1 block text-[10px] text-destructive">{error}</span>}
     </label>
   );
 }
@@ -391,10 +594,12 @@ function Num({
   label,
   value,
   onChange,
+  error,
 }: {
   label: string;
   value: number | null | undefined;
-  onChange: (v: number | null) => void;
+  onChange: (v: number | undefined) => void;
+  error?: string;
 }) {
   return (
     <label className="block">
@@ -403,9 +608,12 @@ function Num({
         type="number"
         step="0.01"
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-        className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+        onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+        className={`mt-1 w-full rounded-lg border bg-input px-3 py-2 text-sm outline-none focus:border-primary ${
+          error ? "border-destructive/60" : "border-border"
+        }`}
       />
+      {error && <span className="mt-1 block text-[10px] text-destructive">{error}</span>}
     </label>
   );
 }
@@ -415,11 +623,13 @@ function Select({
   value,
   onChange,
   options,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: string[];
+  error?: string;
 }) {
   return (
     <label className="block">
@@ -427,7 +637,9 @@ function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+        className={`mt-1 w-full rounded-lg border bg-input px-3 py-2 text-sm outline-none focus:border-primary ${
+          error ? "border-destructive/60" : "border-border"
+        }`}
       >
         {options.map((o) => (
           <option key={o} value={o}>
@@ -435,6 +647,7 @@ function Select({
           </option>
         ))}
       </select>
+      {error && <span className="mt-1 block text-[10px] text-destructive">{error}</span>}
     </label>
   );
 }

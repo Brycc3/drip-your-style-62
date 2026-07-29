@@ -55,17 +55,32 @@ const problemInput = z.object({
   user_agent: z.string().max(500).optional(),
   screen: z.string().max(80).optional(),
   app_version: z.string().max(80).optional(),
+  client_timestamp: z.string().max(40).optional(),
+  attachment_path: z
+    .string()
+    .max(500)
+    .regex(
+      /^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(png|jpe?g|webp|gif)$/i,
+      "Invalid attachment path",
+    )
+    .optional(),
 });
 
 export const reportProblem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => problemInput.parse(i))
   .handler(async ({ context, data }) => {
+    // If an attachment_path was supplied it MUST live under the caller's
+    // own folder — reject anything else even if the client claims otherwise.
+    if (data.attachment_path && !data.attachment_path.startsWith(`${context.userId}/`)) {
+      throw new Error("Attachment must belong to the caller");
+    }
     const details = [
       `AREA: ${data.area}`,
       data.path ? `PATH: ${data.path}` : null,
       data.screen ? `SCREEN: ${data.screen}` : null,
       data.app_version ? `VERSION: ${data.app_version}` : null,
+      data.client_timestamp ? `CLIENT_TS: ${data.client_timestamp}` : null,
       data.user_agent ? `UA: ${data.user_agent}` : null,
       "",
       data.details ?? "",
@@ -78,6 +93,7 @@ export const reportProblem = createServerFn({ method: "POST" })
       target_id: null,
       reason: `problem:${data.area}: ${data.summary}`.slice(0, 200),
       details: details.slice(0, 2000),
+      attachment_path: data.attachment_path ?? null,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

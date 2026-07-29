@@ -83,7 +83,7 @@ function Onboarding() {
     setStep(step + 1);
   }
 
-  async function finish() {
+  async function finish(destination: "closet" | "home") {
     if (!user) return;
     const err = validateCustomVibe();
     if (err) {
@@ -111,7 +111,7 @@ function Onboarding() {
         custom_vibes: otherSelected ? [customVibe.trim()] : [],
       });
       if (prefErr) throw prefErr;
-      navigate({ to: "/home", replace: true });
+      navigate({ to: destination === "closet" ? "/closet/new" : "/home", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save");
     } finally {
@@ -234,7 +234,7 @@ function Onboarding() {
                 </li>
               </ul>
               <p className="text-xs text-muted-foreground">
-                That’s 7 pieces — enough to unlock ~15 real outfits and honest gap analysis. Add
+                That's 7 pieces — enough to start generating honestly and get gap analysis. Add
                 more anytime.
               </p>
             </div>
@@ -255,13 +255,22 @@ function Onboarding() {
               Continue
             </button>
           ) : (
-            <button
-              onClick={finish}
-              disabled={saving}
-              className="btn-lime flex-1 disabled:opacity-50"
-            >
-              {saving ? "…" : "Enter DRIP"}
-            </button>
+            <>
+              <button
+                onClick={() => finish("home")}
+                disabled={saving}
+                className="flex-1 rounded-full border border-border py-3 text-sm uppercase tracking-widest text-foreground/80 disabled:opacity-50"
+              >
+                Go to Home
+              </button>
+              <button
+                onClick={() => finish("closet")}
+                disabled={saving}
+                className="btn-lime flex-1 disabled:opacity-50"
+              >
+                {saving ? "…" : "Add my first piece"}
+              </button>
+            </>
           )}
         </div>
       </div>

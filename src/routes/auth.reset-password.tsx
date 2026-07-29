@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isRecoveryUrl, validateNewPassword } from "@/lib/reset-password-guard";
 
 export const Route = createFileRoute("/auth/reset-password")({
   ssr: false,
@@ -16,8 +16,12 @@ export const Route = createFileRoute("/auth/reset-password")({
   component: ResetPasswordPage,
 });
 
-const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
-
+/**
+ * Password reset must not accept a plain signed-in session. Only a genuine
+ * PASSWORD_RECOVERY flow — recognized by Supabase firing the recovery event
+ * OR by the URL still carrying the `type=recovery` marker — unlocks the
+ * form. Any other case shows the invalid/expired state.
+ */
 function ResetPasswordPage() {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
@@ -29,31 +33,40 @@ function ResetPasswordPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // Supabase fires PASSWORD_RECOVERY when the link is opened.
+    let cancelled = false;
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
       if (event === "PASSWORD_RECOVERY") setHasRecovery(true);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setHasRecovery(true);
-      setReady(true);
+    // Recognize the recovery flow synchronously from the URL — Supabase's
+    // detectSessionInUrl will consume the hash almost immediately, so we
+    // must read it before that happens.
+    if (typeof window !== "undefined") {
+      if (isRecoveryUrl(window.location.hash, window.location.search)) {
+        setHasRecovery(true);
+      }
+    }
+    // getSession is used ONLY to know when Supabase finished parsing the URL,
+    // not as a substitute for the recovery signal.
+    supabase.auth.getSession().finally(() => {
+      if (!cancelled) setReady(true);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const p = passwordSchema.safeParse(password);
-    if (!p.success) {
-      setErr(p.error.issues[0].message);
-      return;
-    }
-    if (password !== confirm) {
-      setErr("Passwords do not match.");
+    const check = validateNewPassword(password, confirm);
+    if (!check.ok) {
+      setErr(check.error);
       return;
     }
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: p.data });
+    const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
     if (error) {
       setErr(error.message);
@@ -76,11 +89,15 @@ function ResetPasswordPage() {
         ) : !hasRecovery ? (
           <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-muted-foreground">
             <p>
-              This link is invalid or expired. Head back to{" "}
+              This reset link is invalid or expired. Head back to{" "}
               <a href="/auth" className="text-primary underline">
                 sign in
               </a>{" "}
               and tap “Forgot password” to get a new one.
+            </p>
+            <p className="mt-2 text-xs">
+              Already signed in? Change your password from Profile — this page only accepts a
+              password-recovery email link.
             </p>
           </div>
         ) : (
