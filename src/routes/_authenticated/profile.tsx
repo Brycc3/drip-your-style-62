@@ -2,9 +2,10 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Share2, Download, Trash2, Shield } from "lucide-react";
+import { Users, Share2, Download, Trash2, Shield, LifeBuoy, Wrench } from "lucide-react";
 import { exportMyData, deleteMyAccount } from "@/lib/account.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { ProblemReportDialog } from "@/components/ProblemReportDialog";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
