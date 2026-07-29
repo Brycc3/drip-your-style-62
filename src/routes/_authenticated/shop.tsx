@@ -17,6 +17,8 @@ import {
   dedupeCatalog,
   prioritizeUnseenCatalog,
   productActionFor,
+  isVerifiedPurchasable,
+  type VerifiableCatalogItem,
 } from "@/lib/shop-catalog";
 import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
