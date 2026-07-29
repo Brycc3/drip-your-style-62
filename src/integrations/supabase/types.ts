@@ -550,6 +550,7 @@ export type Database = {
       }
       shop_catalog: {
         Row: {
+          accessory_subtype: string | null
           availability: string
           brand: string | null
           buy_url: string | null
@@ -562,6 +563,7 @@ export type Database = {
           external_id: string | null
           fit: string | null
           formality: Database["public"]["Enums"]["formality"]
+          fragrance_family: string | null
           id: string
           image_url: string | null
           is_demo: boolean
@@ -571,12 +573,15 @@ export type Database = {
           name: string
           original_price: number | null
           price: number | null
+          price_tier: string | null
           retailer: string | null
           season: Database["public"]["Enums"]["season"]
           source: string | null
           tags: string[]
+          vibe: string | null
         }
         Insert: {
+          accessory_subtype?: string | null
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -589,6 +594,7 @@ export type Database = {
           external_id?: string | null
           fit?: string | null
           formality?: Database["public"]["Enums"]["formality"]
+          fragrance_family?: string | null
           id?: string
           image_url?: string | null
           is_demo?: boolean
@@ -598,12 +604,15 @@ export type Database = {
           name: string
           original_price?: number | null
           price?: number | null
+          price_tier?: string | null
           retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
           tags?: string[]
+          vibe?: string | null
         }
         Update: {
+          accessory_subtype?: string | null
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -616,6 +625,7 @@ export type Database = {
           external_id?: string | null
           fit?: string | null
           formality?: Database["public"]["Enums"]["formality"]
+          fragrance_family?: string | null
           id?: string
           image_url?: string | null
           is_demo?: boolean
@@ -625,10 +635,12 @@ export type Database = {
           name?: string
           original_price?: number | null
           price?: number | null
+          price_tier?: string | null
           retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
           tags?: string[]
+          vibe?: string | null
         }
         Relationships: []
       }
