@@ -35,3 +35,50 @@ export const blockUser = createServerFn({ method: "POST" })
     if (error && !error.message.includes("duplicate")) throw new Error(error.message);
     return { ok: true };
   });
+
+const problemInput = z.object({
+  area: z.enum([
+    "closet",
+    "generate",
+    "shop",
+    "feed",
+    "profile",
+    "auth",
+    "onboarding",
+    "swipe",
+    "inspo",
+    "other",
+  ]),
+  summary: z.string().min(4).max(200),
+  details: z.string().max(4000).optional(),
+  path: z.string().max(500).optional(),
+  user_agent: z.string().max(500).optional(),
+  screen: z.string().max(80).optional(),
+  app_version: z.string().max(80).optional(),
+});
+
+export const reportProblem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => problemInput.parse(i))
+  .handler(async ({ context, data }) => {
+    const details = [
+      `AREA: ${data.area}`,
+      data.path ? `PATH: ${data.path}` : null,
+      data.screen ? `SCREEN: ${data.screen}` : null,
+      data.app_version ? `VERSION: ${data.app_version}` : null,
+      data.user_agent ? `UA: ${data.user_agent}` : null,
+      "",
+      data.details ?? "",
+    ]
+      .filter((x) => x !== null)
+      .join("\n");
+    const { error } = await context.supabase.from("content_reports").insert({
+      reporter_id: context.userId,
+      target_type: "other",
+      target_id: null,
+      reason: `problem:${data.area}: ${data.summary}`.slice(0, 200),
+      details: details.slice(0, 2000),
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
