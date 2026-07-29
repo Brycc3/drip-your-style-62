@@ -10,23 +10,39 @@
  * flow). Any other URL — including one for a normal signed-in session — is
  * NOT a recovery URL and must not unlock the password form.
  */
-export function isRecoveryUrl(hash: string, search: string): boolean {
-  const strip = (s: string): string =>
-    s.startsWith("#") || s.startsWith("?") ? s.slice(1) : s;
+export type RecoveryCallbackState =
+  | { authorized: true; error: null }
+  | { authorized: false; error: string | null };
+
+export function parseRecoveryCallback(hash: string, search: string): RecoveryCallbackState {
+  const strip = (s: string): string => (s.startsWith("#") || s.startsWith("?") ? s.slice(1) : s);
   const h = new URLSearchParams(strip(hash));
   const q = new URLSearchParams(strip(search));
 
-  // Supabase implicit flow: #type=recovery&access_token=...
-  if (h.get("type") === "recovery") return true;
+  const errorCode = h.get("error_code") ?? q.get("error_code");
+  const errorDescription = h.get("error_description") ?? q.get("error_description");
+  if (errorCode || errorDescription) {
+    const expired = `${errorCode ?? ""} ${errorDescription ?? ""}`
+      .toLowerCase()
+      .includes("expired");
+    return {
+      authorized: false,
+      error: expired
+        ? "This reset link has expired. Request a new password-reset email."
+        : "This reset link is invalid. Request a new password-reset email.",
+    };
+  }
 
-  // Supabase PKCE flow: ?code=...&type=recovery (or just type=recovery)
-  if (q.get("type") === "recovery") return true;
+  const implicit =
+    h.get("type") === "recovery" &&
+    Boolean(h.get("access_token")) &&
+    Boolean(h.get("refresh_token"));
+  const pkce = q.get("type") === "recovery" && Boolean(q.get("code"));
+  return { authorized: implicit || pkce, error: null };
+}
 
-  // Explicit recovery error surfaces still count so we can render the
-  // invalid-state UI instead of dropping the user on the sign-in page.
-  if (h.get("error_code")?.includes("otp_expired")) return true;
-
-  return false;
+export function isRecoveryUrl(hash: string, search: string): boolean {
+  return parseRecoveryCallback(hash, search).authorized;
 }
 
 /**

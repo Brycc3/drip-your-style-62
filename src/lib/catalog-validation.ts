@@ -93,7 +93,10 @@ const httpsUrl = z
 const projectOwnedPath = z
   .string()
   .trim()
-  .regex(/^\/catalog\/[a-z0-9._-]+\.(jpg|jpeg|png|webp|avif|svg)$/i, "Use https:// or /catalog/… path");
+  .regex(
+    /^\/catalog\/(?:[a-z0-9._-]+\/)*[a-z0-9._-]+\.(jpg|jpeg|png|webp|avif|svg)$/i,
+    "Use https:// or /catalog/… path",
+  );
 
 /**
  * Image reference: either an https URL to an authorized/licensed remote asset
@@ -116,7 +119,7 @@ export const catalogAddSchema = z
     name: z.string().trim().min(2, "Name is required").max(160),
     brand: z.string().trim().min(1, "Brand is required").max(80),
     category: z.enum(CATALOG_CATEGORIES),
-    kind: z.enum(CATALOG_KINDS).optional(),
+    kind: z.enum(CATALOG_KINDS),
     color: z.string().trim().min(1, "Color is required").max(60),
     material: z.string().trim().max(80).optional().or(z.literal("")),
     fit: z.string().trim().max(40).optional().or(z.literal("")),
@@ -191,6 +194,54 @@ export type CatalogAddInput = z.infer<typeof catalogAddSchema>;
  */
 export const catalogUpdateSchema = catalogAddSchema;
 export type CatalogUpdateInput = z.infer<typeof catalogUpdateSchema>;
+
+export function buildVerifiedCatalogPayload(
+  input: CatalogAddInput,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const checkedAt = now.toISOString();
+  const payload: Record<string, unknown> = {
+    name: input.name,
+    brand: input.brand,
+    category: input.category,
+    color: input.color,
+    material: input.material || null,
+    fit: input.fit || null,
+    formality: input.formality,
+    season: input.season,
+    condition: input.condition,
+    retailer: input.retailer,
+    buy_url: input.buy_url,
+    image_url: input.image_url,
+    current_price: input.current_price,
+    price: input.current_price,
+    original_price: input.original_price ?? null,
+    availability: input.availability,
+    source_type: input.source_type,
+    source_name: input.source_name,
+    source_url: input.source_url ?? null,
+    image_rights_basis: input.image_rights_basis,
+    verification_method: input.verification_method,
+    affiliate: input.affiliate,
+    affiliate_disclosure: input.affiliate_disclosure || null,
+    description: input.description || null,
+    verified_at: checkedAt,
+    last_checked_at: checkedAt,
+    is_demo: false,
+    archived: false,
+  };
+  payload.kind = input.kind;
+  return payload;
+}
+
+export function assertCatalogRowWritable(row: {
+  is_demo?: boolean | null;
+  source?: string | null;
+}): void {
+  if (row.is_demo === true || row.source === "phase_2_curated_demo") {
+    throw new Error("Demo products are read-only. Add a new verified product instead.");
+  }
+}
 
 export const CATALOG_IMAGE_WARNING =
   "Only add product images and information you are authorized to display. Do not copy retailer photography without permission.";

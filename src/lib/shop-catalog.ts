@@ -17,6 +17,7 @@ export type CatalogProvenance = {
 };
 
 export type VerifiableCatalogItem = CatalogItem & CatalogProvenance;
+export type ShopScope = "verified" | "demo" | "all";
 
 export type ProductAction =
   | { kind: "retailer"; label: "Shop now"; href: string }
@@ -119,6 +120,33 @@ export function dedupeCatalog(items: CatalogItem[]): CatalogItem[] {
     seen.add(key);
     return true;
   });
+}
+
+export function catalogMatchesScope(
+  item: VerifiableCatalogItem,
+  scope: ShopScope,
+  now: number = Date.now(),
+): boolean {
+  if (scope === "verified") return isVerifiedPurchasable(item, now);
+  if (scope === "demo") return item.is_demo === true;
+  return true;
+}
+
+/**
+ * Keep the score/order produced by the gap engine within each partition.
+ * In All, verified purchasable products precede demo and incomplete rows.
+ */
+export function rankCatalogForScope<T extends { item: VerifiableCatalogItem }>(
+  items: T[],
+  scope: ShopScope,
+  now: number = Date.now(),
+): T[] {
+  const matching = items.filter(({ item }) => catalogMatchesScope(item, scope, now));
+  if (scope !== "all") return matching;
+  return [
+    ...matching.filter(({ item }) => isVerifiedPurchasable(item, now)),
+    ...matching.filter(({ item }) => !isVerifiedPurchasable(item, now)),
+  ];
 }
 
 export function catalogWindowSize(total: number, maximum = 12): number {

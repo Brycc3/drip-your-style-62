@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { LifeBuoy, X, ImagePlus, Trash2 } from "lucide-react";
@@ -9,45 +9,43 @@ import {
   REPORT_MAX_BYTES,
   attachmentPath,
   buildSafeReportMeta,
+  screenshotIsApproved,
   validateAttachment,
 } from "@/lib/report-attachment";
 
-const AREAS = [
-  { v: "closet", l: "Closet" },
-  { v: "generate", l: "Generate" },
-  { v: "shop", l: "Shop" },
-  { v: "feed", l: "Feed" },
-  { v: "swipe", l: "Swipe / Taste" },
-  { v: "inspo", l: "Inspo Builder" },
-  { v: "profile", l: "Profile" },
-  { v: "onboarding", l: "Onboarding" },
-  { v: "auth", l: "Sign in / Sign up" },
-  { v: "other", l: "Something else" },
-] as const;
-
-type Area = (typeof AREAS)[number]["v"];
-
-export function ProblemReportDialog({
-  open,
-  onClose,
-  defaultArea = "other",
-}: {
-  open: boolean;
-  onClose: () => void;
-  defaultArea?: Area;
-}) {
+export function ProblemReportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const submit = useServerFn(reportProblem);
-  const [area, setArea] = useState<Area>(defaultArea);
-  const [summary, setSummary] = useState("");
-  const [details, setDetails] = useState("");
+  const [reportType, setReportType] = useState<"bug" | "other">("bug");
+  const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [screenshotApproved, setScreenshotApproved] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   if (!open) return null;
 
-  async function uploadAttachment(): Promise<string | undefined> {
-    if (!file) return undefined;
+  function closeAndReset() {
+    setDescription("");
+    setFile(null);
+    setScreenshotApproved(false);
+    if (fileRef.current) fileRef.current.value = "";
+    onClose();
+  }
+
+  async function uploadAttachment(reportId: string): Promise<string | undefined> {
+    if (!file || !screenshotIsApproved(Boolean(file), screenshotApproved)) return undefined;
     const v = validateAttachment({ type: file.type, size: file.size, name: file.name });
     if (!v.ok) {
       toast.error(v.error);
@@ -58,18 +56,16 @@ export function ProblemReportDialog({
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
       if (!uid) {
-        toast.error("Sign in to attach a screenshot.");
-        return undefined;
+        throw new Error("Sign in to attach a screenshot.");
       }
-      const uuid = crypto.randomUUID();
-      const path = attachmentPath(uid, v.extension, uuid);
+      const attachmentId = crypto.randomUUID();
+      const path = attachmentPath(uid, reportId, v.extension, attachmentId);
       const { error } = await supabase.storage.from("reports").upload(path, file, {
         contentType: file.type,
         upsert: false,
       });
       if (error) {
-        toast.error(error.message);
-        return undefined;
+        throw new Error(error.message);
       }
       return path;
     } finally {
@@ -78,39 +74,45 @@ export function ProblemReportDialog({
   }
 
   async function go() {
-    if (summary.trim().length < 4) return toast.error("Give a short summary (4+ chars).");
+    if (description.trim().length < 4) {
+      return toast.error("Describe the problem in at least 4 characters.");
+    }
+    if (file && !screenshotApproved) {
+      return toast.error("Approve the selected screenshot or remove it before sending.");
+    }
     setBusy(true);
     try {
-      const attachment_path = await uploadAttachment();
+      const report_id = crypto.randomUUID();
+      const attachment_path = await uploadAttachment(report_id);
       const meta = buildSafeReportMeta({
-        area,
-        summary: summary.trim(),
-        details: details.trim() || undefined,
-        path: typeof window !== "undefined" ? window.location.pathname : undefined,
+        report_type: reportType,
+        description: description.trim(),
+        route: typeof window !== "undefined" ? window.location.pathname : undefined,
         user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-        screen:
+        device:
           typeof window !== "undefined"
-            ? `${window.innerWidth}x${window.innerHeight}`
+            ? `${window.innerWidth}x${window.innerHeight}; ${navigator.platform || "unknown platform"}`
             : undefined,
         client_timestamp: new Date().toISOString(),
         attachment_path,
       });
       await submit({
         data: {
-          area: meta.area as Area,
-          summary: meta.summary,
-          details: meta.details,
-          path: meta.path,
+          report_id,
+          report_type: meta.report_type,
+          description: meta.description,
+          route: meta.route,
           user_agent: meta.user_agent,
-          screen: meta.screen,
+          device: meta.device,
           client_timestamp: meta.client_timestamp,
           attachment_path: meta.attachment_path,
         },
       });
       toast.success("Thanks — problem logged.");
-      setSummary("");
-      setDetails("");
+      setDescription("");
       setFile(null);
+      setScreenshotApproved(false);
+      if (fileRef.current) fileRef.current.value = "";
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send");
@@ -122,7 +124,7 @@ export function ProblemReportDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
-      onClick={onClose}
+      onClick={closeAndReset}
     >
       <div
         className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-5"
@@ -132,49 +134,38 @@ export function ProblemReportDialog({
           <p className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-primary">
             <LifeBuoy className="h-3.5 w-3.5" /> Report a problem
           </p>
-          <button onClick={onClose} aria-label="Close">
+          <button onClick={closeAndReset} aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Only what you type here plus the current path, screen size, browser string, and
-          timestamp is sent. We never auto-capture the screen or read your form fields.
+          Only your description, report type, current route, timestamp, and basic browser/device
+          metadata are sent. We never collect closet images, form contents, tokens, auth data, or
+          console logs. A screenshot is included only if you select and approve one.
         </p>
         <label className="mt-4 block">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Area</span>
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Report type
+          </span>
           <select
-            value={area}
-            onChange={(e) => setArea(e.target.value as Area)}
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value as "bug" | "other")}
             className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
           >
-            {AREAS.map((a) => (
-              <option key={a.v} value={a.v}>
-                {a.l}
-              </option>
-            ))}
+            <option value="bug">Bug</option>
+            <option value="other">Other</option>
           </select>
         </label>
         <label className="mt-3 block">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Summary
-          </span>
-          <input
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            maxLength={200}
-            placeholder="e.g. Shop images not loading on iPhone"
-            className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
-          />
-        </label>
-        <label className="mt-3 block">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            What happened (optional)
+            Description
           </span>
           <textarea
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             maxLength={4000}
             rows={4}
+            placeholder="What happened, and what did you expect?"
             className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
           />
         </label>
@@ -198,23 +189,43 @@ export function ProblemReportDialog({
                 return;
               }
               setFile(f);
+              setScreenshotApproved(false);
             }}
           />
           {file ? (
-            <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs">
-              <span className="truncate">
-                {file.name} · {(file.size / 1024).toFixed(0)} KB
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setFile(null);
-                  if (fileRef.current) fileRef.current.value = "";
-                }}
-                className="inline-flex items-center gap-1 text-destructive"
-              >
-                <Trash2 className="h-3 w-3" /> Remove
-              </button>
+            <div className="mt-2 rounded-lg border border-border bg-surface-2 p-3 text-xs">
+              <div className="flex items-center gap-3">
+                {previewUrl && (
+                  <img
+                    src={previewUrl}
+                    alt="Selected screenshot preview"
+                    className="h-16 w-16 rounded-md object-cover"
+                  />
+                )}
+                <span className="min-w-0 flex-1 truncate">
+                  {file.name} · {(file.size / 1024).toFixed(0)} KB
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null);
+                    setScreenshotApproved(false);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                  className="inline-flex items-center gap-1 text-destructive"
+                >
+                  <Trash2 className="h-3 w-3" /> Remove
+                </button>
+              </div>
+              <label className="mt-3 flex items-start gap-2 text-xs text-foreground/85">
+                <input
+                  type="checkbox"
+                  checked={screenshotApproved}
+                  onChange={(event) => setScreenshotApproved(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                I approve uploading this screenshot with this report.
+              </label>
             </div>
           ) : (
             <button
@@ -226,24 +237,28 @@ export function ProblemReportDialog({
             </button>
           )}
           <p className="mt-1 text-[10px] text-muted-foreground">
-            PNG · JPG · WebP · GIF up to {Math.round(REPORT_MAX_BYTES / (1024 * 1024))} MB.
-            Uploaded to your private report folder.
+            PNG · JPG · WebP · GIF up to {Math.round(REPORT_MAX_BYTES / (1024 * 1024))} MB. Uploaded
+            privately under this report only after you approve it.
           </p>
         </div>
 
         <div className="mt-4 flex gap-2">
           <button
-            onClick={onClose}
+            onClick={closeAndReset}
             className="flex-1 rounded-full border border-border py-2 text-xs uppercase tracking-widest"
           >
             Cancel
           </button>
           <button
             onClick={go}
-            disabled={busy || uploading}
+            disabled={busy || uploading || Boolean(file && !screenshotApproved)}
             className="btn-lime flex-1 !py-2 text-xs disabled:opacity-50"
           >
-            {busy || uploading ? "Sending…" : "Send report"}
+            {busy || uploading
+              ? "Sending…"
+              : file && !screenshotApproved
+                ? "Approve screenshot"
+                : "Send report"}
           </button>
         </div>
       </div>

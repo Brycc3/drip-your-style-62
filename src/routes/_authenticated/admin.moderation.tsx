@@ -9,6 +9,7 @@ import {
   adminSetSuspension,
   adminUpdateReport,
 } from "@/lib/moderation.functions";
+import { problemReportType } from "@/lib/report-attachment";
 import { toast } from "sonner";
 import { Shield, EyeOff, Trash2, UserX, Check, X } from "lucide-react";
 
@@ -37,6 +38,7 @@ type Report = {
   target_id: string | null;
   reason: string;
   details: string | null;
+  attachment_path: string | null;
   status: string;
   created_at: string;
   reviewed_at: string | null;
@@ -125,14 +127,23 @@ function AdminModerationPage() {
                       {new Date(r.created_at).toLocaleString()} · {r.status}
                     </p>
                     <p className="mt-1 text-sm">
-                      <span className="text-primary">{r.target_type}</span>{" "}
+                      <span className="text-primary">
+                        {problemReportType(r.target_type, r.reason)}
+                      </span>{" "}
                       <span className="text-muted-foreground">{r.target_id ?? "—"}</span>
                     </p>
                     <p className="mt-1 text-xs uppercase tracking-widest text-foreground/80">
                       {r.reason}
                     </p>
                     {r.details && (
-                      <p className="mt-2 text-sm text-foreground/90">{r.details}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
+                        {r.details}
+                      </p>
+                    )}
+                    {r.attachment_path && (
+                      <p className="mt-2 break-all text-xs text-muted-foreground">
+                        Private screenshot: {r.attachment_path}
+                      </p>
                     )}
                     {r.resolution_note && (
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -171,7 +182,11 @@ function AdminModerationPage() {
                           async () => {
                             await delCommentFn({ data: { comment_id: r.target_id! } });
                             await updateFn({
-                              data: { report_id: r.id, status: "actioned", note: "Comment deleted" },
+                              data: {
+                                report_id: r.id,
+                                status: "actioned",
+                                note: "Comment deleted",
+                              },
                             });
                           },
                           "Comment deleted",

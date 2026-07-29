@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore, PackageX } from "lucide-react";
+import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore } from "lucide-react";
 import { isVerifiedPurchasable, type VerifiableCatalogItem } from "@/lib/shop-catalog";
 import {
   CATALOG_AVAILABILITY,
@@ -11,6 +11,7 @@ import {
   CATALOG_CONDITIONS,
   CATALOG_IMAGE_RIGHTS,
   CATALOG_IMAGE_WARNING,
+  CATALOG_KINDS,
   CATALOG_SOURCE_TYPES,
   CATALOG_VERIFICATION_METHODS,
   catalogAddSchema,
@@ -145,11 +146,11 @@ function AdminCatalogPage() {
     }
   }
 
-  async function markUnavailable(row: Row) {
+  async function updateAvailability(row: Row, availability: CatalogAddInput["availability"]) {
     if (row.is_demo) return;
     try {
-      await availabilityFn({ data: { id: row.id, availability: "out_of_stock" } });
-      toast.success("Marked out of stock");
+      await availabilityFn({ data: { id: row.id, availability } });
+      toast.success(`Availability set to ${availability.replaceAll("_", " ")}`);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -189,6 +190,10 @@ function AdminCatalogPage() {
             <Plus className="h-3 w-3" /> Add verified product
           </button>
         </div>
+      </div>
+
+      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
+        {CATALOG_IMAGE_WARNING}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -233,10 +238,7 @@ function AdminCatalogPage() {
             const verified = !r.is_demo && isVerifiedPurchasable(r as VerifiableCatalogItem);
             const archived = r.archived === true;
             return (
-              <li
-                key={r.id}
-                className={`card-surface p-3 ${archived ? "opacity-70" : ""}`}
-              >
+              <li key={r.id} className={`card-surface p-3 ${archived ? "opacity-70" : ""}`}>
                 <div className="flex items-start gap-3">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface-2">
                     {r.image_url && (
@@ -250,7 +252,11 @@ function AdminCatalogPage() {
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge tone={r.is_demo ? "muted" : verified ? "good" : "warn"}>
-                        {r.is_demo ? "Demo (read-only)" : verified ? "Verified" : "Needs verification"}
+                        {r.is_demo
+                          ? "Demo (read-only)"
+                          : verified
+                            ? "Verified"
+                            : "Needs verification"}
                       </Badge>
                       {archived && <Badge tone="warn">Archived</Badge>}
                       {r.affiliate ? <Badge tone="muted">Affiliate</Badge> : null}
@@ -279,14 +285,26 @@ function AdminCatalogPage() {
                           </>
                         )}
                       </button>
-                      {!archived && r.availability !== "out_of_stock" && (
-                        <button
-                          onClick={() => markUnavailable(r)}
-                          className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
+                      <label className="text-[9px] uppercase tracking-widest text-muted-foreground">
+                        Stock status
+                        <select
+                          aria-label={`Availability for ${r.name}`}
+                          value={r.availability ?? "out_of_stock"}
+                          onChange={(event) =>
+                            void updateAvailability(
+                              r,
+                              event.target.value as CatalogAddInput["availability"],
+                            )
+                          }
+                          className="mt-1 block max-w-36 rounded-full border border-border bg-background px-2 py-1 text-[10px] normal-case tracking-normal text-foreground"
                         >
-                          <PackageX className="h-3 w-3" /> Out of stock
-                        </button>
-                      )}
+                          {CATALOG_AVAILABILITY.map((status) => (
+                            <option key={status} value={status}>
+                              {status.replaceAll("_", " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -316,7 +334,9 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "good" | "
         ? "border-destructive/60 text-destructive"
         : "border-border text-muted-foreground";
   return (
-    <span className={`rounded-full border ${cls} px-2 py-0.5 text-[10px] uppercase tracking-widest`}>
+    <span
+      className={`rounded-full border ${cls} px-2 py-0.5 text-[10px] uppercase tracking-widest`}
+    >
       {children}
     </span>
   );
@@ -340,6 +360,7 @@ function EditorModal({
     name: initial?.name ?? "",
     brand: initial?.brand ?? "",
     category: (initial?.category as CatalogAddInput["category"]) ?? "top",
+    kind: (initial?.kind as CatalogAddInput["kind"]) ?? "clothing",
     color: initial?.color ?? "",
     material: initial?.material ?? "",
     fit: initial?.fit ?? "",
@@ -405,8 +426,19 @@ function EditorModal({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <Text label="Name*" value={draft.name ?? ""} onChange={(v) => set("name", v)} full error={errors.name} />
-          <Text label="Brand*" value={draft.brand ?? ""} onChange={(v) => set("brand", v)} error={errors.brand} />
+          <Text
+            label="Name*"
+            value={draft.name ?? ""}
+            onChange={(v) => set("name", v)}
+            full
+            error={errors.name}
+          />
+          <Text
+            label="Brand*"
+            value={draft.brand ?? ""}
+            onChange={(v) => set("brand", v)}
+            error={errors.brand}
+          />
           <Select
             label="Category*"
             value={draft.category ?? "top"}
@@ -414,8 +446,24 @@ function EditorModal({
             options={[...CATALOG_CATEGORIES]}
             error={errors.category}
           />
-          <Text label="Color*" value={draft.color ?? ""} onChange={(v) => set("color", v)} error={errors.color} />
-          <Text label="Material" value={draft.material ?? ""} onChange={(v) => set("material", v)} />
+          <Select
+            label="Kind*"
+            value={draft.kind ?? "clothing"}
+            onChange={(v) => set("kind", v as CatalogAddInput["kind"])}
+            options={[...CATALOG_KINDS]}
+            error={errors.kind}
+          />
+          <Text
+            label="Color*"
+            value={draft.color ?? ""}
+            onChange={(v) => set("color", v)}
+            error={errors.color}
+          />
+          <Text
+            label="Material"
+            value={draft.material ?? ""}
+            onChange={(v) => set("material", v)}
+          />
           <Text label="Fit" value={draft.fit ?? ""} onChange={(v) => set("fit", v)} />
           <Select
             label="Formality"
@@ -435,7 +483,12 @@ function EditorModal({
             onChange={(v) => set("condition", v as CatalogAddInput["condition"])}
             options={[...CATALOG_CONDITIONS]}
           />
-          <Text label="Retailer*" value={draft.retailer ?? ""} onChange={(v) => set("retailer", v)} error={errors.retailer} />
+          <Text
+            label="Retailer*"
+            value={draft.retailer ?? ""}
+            onChange={(v) => set("retailer", v)}
+            error={errors.retailer}
+          />
           <Text
             label="Product URL (https://…)*"
             value={draft.buy_url ?? ""}
@@ -499,7 +552,9 @@ function EditorModal({
           <Select
             label="Verification method*"
             value={draft.verification_method ?? "manual"}
-            onChange={(v) => set("verification_method", v as CatalogAddInput["verification_method"])}
+            onChange={(v) =>
+              set("verification_method", v as CatalogAddInput["verification_method"])
+            }
             options={[...CATALOG_VERIFICATION_METHODS]}
             error={errors.verification_method}
           />

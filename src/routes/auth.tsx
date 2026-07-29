@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { checkEmailProviders } from "@/lib/auth-check.functions";
 import { toast } from "sonner";
 
 const searchSchema = z.object({ mode: z.enum(["signin", "signup"]).optional() });
@@ -33,7 +32,6 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
-  const [needsConfirm, setNeedsConfirm] = useState(false);
   const navigate = useNavigate();
 
   async function sendReset() {
@@ -44,15 +42,11 @@ function AuthPage() {
       return;
     }
     setRecoveryBusy(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(emailR.data, {
+    await supabase.auth.resetPasswordForEmail(emailR.data, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
     setRecoveryBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Reset link sent. Check your email.");
+    toast.success("If that account exists, a reset link is on its way.");
   }
 
   async function resendConfirmation() {
@@ -63,17 +57,13 @@ function AuthPage() {
       return;
     }
     setRecoveryBusy(true);
-    const { error } = await supabase.auth.resend({
+    await supabase.auth.resend({
       type: "signup",
       email: emailR.data,
       options: { emailRedirectTo: `${window.location.origin}/onboarding` },
     });
     setRecoveryBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Confirmation email re-sent.");
+    toast.success("If confirmation is pending, a new email is on its way.");
   }
 
   useEffect(() => {
@@ -130,23 +120,9 @@ function AuthPage() {
           password: passR.data,
         });
         if (error) {
-          try {
-            const info = await checkEmailProviders({ data: { email: emailR.data } });
-            if (
-              info.exists &&
-              info.providers.includes("google") &&
-              !info.providers.includes("email")
-            ) {
-              setFormError("This email uses Google sign-in. Tap Continue with Google below.");
-            } else if (info.exists && !info.confirmed) {
-              setNeedsConfirm(true);
-              setFormError("Please confirm your email first — check your inbox.");
-            } else {
-              setFormError("Wrong email or password.");
-            }
-          } catch {
-            setFormError(error.message);
-          }
+          setFormError(
+            "Unable to sign in with those details. Check your password, confirm your email if needed, or use Google.",
+          );
           return;
         }
         navigate({ to: "/home", replace: true });
@@ -242,7 +218,7 @@ function AuthPage() {
           </button>
 
           {mode === "signin" && (
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between gap-4 text-xs">
               <button
                 type="button"
                 onClick={sendReset}
@@ -251,16 +227,14 @@ function AuthPage() {
               >
                 Forgot password?
               </button>
-              {needsConfirm && (
-                <button
-                  type="button"
-                  onClick={resendConfirmation}
-                  disabled={recoveryBusy}
-                  className="text-primary hover:underline disabled:opacity-50"
-                >
-                  Resend confirmation
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={resendConfirmation}
+                disabled={recoveryBusy}
+                className="text-primary hover:underline disabled:opacity-50"
+              >
+                Resend confirmation
+              </button>
             </div>
           )}
           {mode === "signup" && (

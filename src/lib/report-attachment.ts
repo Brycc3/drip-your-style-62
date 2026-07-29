@@ -1,8 +1,8 @@
 /**
  * Pure helpers for the optional problem-report screenshot attachment.
  * The Storage bucket is `reports` (private) and objects are namespaced
- * under `reports/<user_id>/<uuid>.<ext>` so the RLS policies can gate on
- * the first path segment.
+ * under `<user_id>/<report_id>/<attachment_id>.<ext>` so the RLS policies can
+ * gate ownership and each object is tied to exactly one report.
  */
 
 export const REPORT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -45,8 +45,31 @@ export function validateAttachment(file: {
   return { ok: true, extension: ext };
 }
 
-export function attachmentPath(userId: string, extension: string, uuid: string): string {
-  return `${userId}/${uuid}.${extension.replace(/[^a-z0-9]/gi, "")}`;
+const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+
+export function attachmentPath(
+  userId: string,
+  reportId: string,
+  extension: string,
+  attachmentId: string,
+): string {
+  if (![userId, reportId, attachmentId].every((value) => UUID_PATTERN.test(value))) {
+    throw new Error("Report attachment identifiers must be UUIDs");
+  }
+  const safeExtension = extension.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  if (!["png", "jpg", "webp", "gif"].includes(safeExtension)) {
+    throw new Error("Unsupported report attachment extension");
+  }
+  return `${userId}/${reportId}/${attachmentId}.${safeExtension}`;
+}
+
+export function screenshotIsApproved(fileSelected: boolean, approved: boolean): boolean {
+  return fileSelected && approved;
+}
+
+export function problemReportType(targetType: string, reason: string): string {
+  const match = /^problem:(bug|other):/i.exec(reason);
+  return targetType === "other" && match ? match[1].toLowerCase() : targetType;
 }
 
 /**
@@ -55,20 +78,17 @@ export function attachmentPath(userId: string, extension: string, uuid: string):
  * ambient app state — only what was explicitly provided by the caller.
  */
 export type ProblemReportMeta = {
-  area: string;
-  summary: string;
-  details?: string;
-  path?: string;
+  report_type: "bug" | "other";
+  description: string;
+  route?: string;
   user_agent?: string;
-  screen?: string;
-  app_version?: string;
+  device?: string;
   client_timestamp?: string;
   attachment_path?: string;
 };
 
 export function buildSafeReportMeta(input: ProblemReportMeta): ProblemReportMeta {
-  const clip = (s: string | undefined, n: number) =>
-    s === undefined ? undefined : s.slice(0, n);
+  const clip = (s: string | undefined, n: number) => (s === undefined ? undefined : s.slice(0, n));
   const asHttpPath = (s: string | undefined) => {
     if (!s) return undefined;
     // Only same-origin paths — never full URLs with query strings that could
@@ -77,13 +97,11 @@ export function buildSafeReportMeta(input: ProblemReportMeta): ProblemReportMeta
     return s.split("#")[0].split("?")[0].slice(0, 500);
   };
   return {
-    area: clip(input.area, 40) ?? "other",
-    summary: clip(input.summary, 200) ?? "",
-    details: clip(input.details, 4000),
-    path: asHttpPath(input.path),
+    report_type: input.report_type === "bug" ? "bug" : "other",
+    description: clip(input.description, 4000) ?? "",
+    route: asHttpPath(input.route),
     user_agent: clip(input.user_agent, 500),
-    screen: clip(input.screen, 80),
-    app_version: clip(input.app_version, 80),
+    device: clip(input.device, 120),
     client_timestamp: clip(input.client_timestamp, 40),
     attachment_path: clip(input.attachment_path, 500),
   };

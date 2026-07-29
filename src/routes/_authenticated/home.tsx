@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { Shirt, Sparkles, ShoppingBag, TrendingUp, Bookmark } from "lucide-react";
-import { computeStarterProgress, type StarterCounts } from "@/lib/starter-progress";
+import {
+  computeStarterProgress,
+  starterCountsFromItems,
+  type StarterCounts,
+} from "@/lib/starter-progress";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -49,21 +53,18 @@ function HomePage() {
         ]);
       setDisplayName(profile?.display_name ?? "");
       if (items) {
+        const starter = starterCountsFromItems(items);
         const c: Counts = {
           total: items.length,
-          tops: 0,
-          bottoms: 0,
-          shoes: 0,
+          tops: starter.tops,
+          bottoms: starter.bottoms,
+          shoes: starter.shoes,
           outer: 0,
-          accessories: 0,
+          accessories: starter.accessories,
           fragrances: fragCount ?? 0,
         };
         for (const i of items) {
-          if (i.kind === "shoes") c.shoes++;
-          else if (i.kind === "accessory") c.accessories++;
-          else if (i.category === "top") c.tops++;
-          else if (i.category === "bottom") c.bottoms++;
-          else if (i.category === "outerwear") c.outer++;
+          if (["outerwear", "bomber", "chore", "jacket", "coat"].includes(i.category)) c.outer++;
         }
         setCounts(c);
       }
@@ -89,23 +90,12 @@ function HomePage() {
         <>
           {/* Show progress whenever ANY starter category is short — even if
               total items >= 7. Otherwise show the honest generator CTA. */}
-          {progress && !progress.complete ? (
-            <>
-              <StarterProgress progress={progress} />
-              <IncompleteGeneratorCTA progress={progress} />
-            </>
-          ) : (
-            <section className="card-surface p-5">
-              <p className="text-xs uppercase tracking-widest text-primary">Today's move</p>
-              <h2 className="mt-1 font-display text-2xl">Generate a fit</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Tell DRIP the vibe and weather — it builds an outfit from your closet.
-              </p>
-              <Link to="/generate" className="btn-lime mt-4 inline-flex">
-                Open generator
-              </Link>
-            </section>
-          )}
+          {progress && !progress.complete && <StarterProgress progress={progress} />}
+          {progress?.generatorReady ? (
+            <GeneratorCTA starterComplete={progress.complete} />
+          ) : progress ? (
+            <IncompleteGeneratorCTA progress={progress} />
+          ) : null}
 
           <section>
             <h3 className="font-display text-xl">Your closet at a glance</h3>
@@ -179,6 +169,12 @@ function EmptyState() {
       <Link to="/closet/new" className="btn-lime mt-5 inline-flex">
         Add your first piece
       </Link>
+      <Link
+        to="/saved"
+        className="mt-3 inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs uppercase tracking-widest"
+      >
+        <Bookmark className="h-3.5 w-3.5" /> Saved outfits
+      </Link>
     </div>
   );
 }
@@ -228,19 +224,36 @@ function StarterProgress({ progress }: { progress: ProgressData }) {
 }
 
 function IncompleteGeneratorCTA({ progress }: { progress: ProgressData }) {
-  const missing = progress.targets
-    .filter((t) => t.have < t.need)
-    .map((t) => `${t.need - t.have} ${t.label.toLowerCase()}`);
+  const missing = progress.missingCoreCategories.map((target) => target.label.toLowerCase());
   return (
     <section className="card-surface p-5 border border-primary/20">
-      <p className="text-xs uppercase tracking-widest text-primary">Not yet</p>
-      <h2 className="mt-1 font-display text-2xl">Add {missing.join(" · ")}</h2>
+      <p className="text-xs uppercase tracking-widest text-primary">Core outfit missing</p>
+      <h2 className="mt-1 font-display text-2xl">
+        Add {new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(missing)}
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Generate needs at least the 3-2-2 starter so outfits aren't just a repeat. Add what's
-        missing and we'll unlock it.
+        A usable outfit needs at least one top, one bottom, and one pair of shoes. Add the missing
+        categories before generating.
       </p>
       <Link to="/closet/new" className="btn-lime mt-4 inline-flex">
         Add missing piece
+      </Link>
+    </section>
+  );
+}
+
+function GeneratorCTA({ starterComplete }: { starterComplete: boolean }) {
+  return (
+    <section className="card-surface p-5">
+      <p className="text-xs uppercase tracking-widest text-primary">Today&apos;s move</p>
+      <h2 className="mt-1 font-display text-2xl">Generate a fit</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {starterComplete
+          ? "Tell DRIP the vibe and weather — it builds an outfit from your closet."
+          : "Your closet has the core categories needed to build an outfit. Keep working toward 3-2-2 for more variety."}
+      </p>
+      <Link to="/generate" className="btn-lime mt-4 inline-flex">
+        Open generator
       </Link>
     </section>
   );
