@@ -240,6 +240,39 @@ function AuthPage() {
           <button type="submit" disabled={loading} className="btn-lime w-full disabled:opacity-50">
             {loading ? "…" : mode === "signup" ? "Create account" : "Sign in"}
           </button>
+
+          {mode === "signin" && (
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={sendReset}
+                disabled={recoveryBusy}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                Forgot password?
+              </button>
+              {needsConfirm && (
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  disabled={recoveryBusy}
+                  className="text-primary hover:underline disabled:opacity-50"
+                >
+                  Resend confirmation
+                </button>
+              )}
+            </div>
+          )}
+          {mode === "signup" && (
+            <button
+              type="button"
+              onClick={resendConfirmation}
+              disabled={recoveryBusy}
+              className="block w-full text-left text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Didn't get the confirmation email? Resend
+            </button>
+          )}
         </form>
 
         <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
