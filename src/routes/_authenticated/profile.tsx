@@ -29,6 +29,8 @@ function ProfilePage() {
   const [colors, setColors] = useState<string[]>([]);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showProblem, setShowProblem] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
