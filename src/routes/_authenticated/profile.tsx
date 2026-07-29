@@ -43,7 +43,7 @@ function ProfilePage() {
       const [{ data: profile }, { data: prefs }, { count: fw }, { count: fg }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("display_name, handle, bio, is_public")
+          .select("display_name, handle, bio, is_public, is_admin")
           .eq("id", u)
           .maybeSingle(),
         supabase
