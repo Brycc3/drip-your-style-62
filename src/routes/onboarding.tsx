@@ -122,11 +122,12 @@ function Onboarding() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="container-app py-10">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Step {step} of 3</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-primary">Step {step} of 4</p>
         <h1 className="mt-2 font-display text-4xl">
           {step === 1 && "Who are you"}
           {step === 2 && "Your vibe"}
           {step === 3 && "Your sizes"}
+          {step === 4 && "Starter closet"}
         </h1>
 
         <div className="mt-8">

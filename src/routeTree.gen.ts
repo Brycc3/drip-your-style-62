@@ -42,6 +42,7 @@ import { Route as AuthenticatedClosetIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
 import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
 import { Route as AuthenticatedAdminModerationRouteImport } from './routes/_authenticated/admin.moderation'
+import { Route as AuthenticatedAdminCatalogRouteImport } from './routes/_authenticated/admin.catalog'
 import { Route as AuthenticatedClosetIdEditRouteImport } from './routes/_authenticated/closet.$id.edit'
 
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -212,6 +213,12 @@ const AuthenticatedAdminModerationRoute =
     path: '/admin/moderation',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminCatalogRoute =
+  AuthenticatedAdminCatalogRouteImport.update({
+    id: '/admin/catalog',
+    path: '/admin/catalog',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedClosetIdEditRoute =
   AuthenticatedClosetIdEditRouteImport.update({
     id: '/edit',
@@ -248,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal/': typeof LegalIndexRoute
+  '/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
@@ -282,6 +290,7 @@ export interface FileRoutesByTo {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal': typeof LegalIndexRoute
+  '/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/closet/new': typeof AuthenticatedClosetNewRoute
@@ -319,6 +328,7 @@ export interface FileRoutesById {
   '/o/$slug': typeof OSlugRoute
   '/u/$handle': typeof UHandleRoute
   '/legal/': typeof LegalIndexRoute
+  '/_authenticated/admin/catalog': typeof AuthenticatedAdminCatalogRoute
   '/_authenticated/admin/moderation': typeof AuthenticatedAdminModerationRoute
   '/_authenticated/closet/$id': typeof AuthenticatedClosetIdRouteWithChildren
   '/_authenticated/closet/new': typeof AuthenticatedClosetNewRoute
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal/'
+    | '/admin/catalog'
     | '/admin/moderation'
     | '/closet/$id'
     | '/closet/new'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal'
+    | '/admin/catalog'
     | '/admin/moderation'
     | '/closet/$id'
     | '/closet/new'
@@ -426,6 +438,7 @@ export interface FileRouteTypes {
     | '/o/$slug'
     | '/u/$handle'
     | '/legal/'
+    | '/_authenticated/admin/catalog'
     | '/_authenticated/admin/moderation'
     | '/_authenticated/closet/$id'
     | '/_authenticated/closet/new'
@@ -676,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminModerationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/catalog': {
+      id: '/_authenticated/admin/catalog'
+      path: '/admin/catalog'
+      fullPath: '/admin/catalog'
+      preLoaderRoute: typeof AuthenticatedAdminCatalogRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/closet/$id/edit': {
       id: '/_authenticated/closet/$id/edit'
       path: '/edit'
@@ -710,6 +730,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedSwipeRoute: typeof AuthenticatedSwipeRoute
   AuthenticatedTasteRoute: typeof AuthenticatedTasteRoute
+  AuthenticatedAdminCatalogRoute: typeof AuthenticatedAdminCatalogRoute
   AuthenticatedAdminModerationRoute: typeof AuthenticatedAdminModerationRoute
   AuthenticatedClosetIdRoute: typeof AuthenticatedClosetIdRouteWithChildren
   AuthenticatedClosetNewRoute: typeof AuthenticatedClosetNewRoute
@@ -727,6 +748,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedSwipeRoute: AuthenticatedSwipeRoute,
   AuthenticatedTasteRoute: AuthenticatedTasteRoute,
+  AuthenticatedAdminCatalogRoute: AuthenticatedAdminCatalogRoute,
   AuthenticatedAdminModerationRoute: AuthenticatedAdminModerationRoute,
   AuthenticatedClosetIdRoute: AuthenticatedClosetIdRouteWithChildren,
   AuthenticatedClosetNewRoute: AuthenticatedClosetNewRoute,
