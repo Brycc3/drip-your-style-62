@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Bookmark, Pin, Trash2, Copy, Globe, Lock, CheckCircle2, Shirt } from "lucide-react";
 import { StyleTabs } from "@/components/StyleTabs";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
+import { PublishDialog } from "@/components/PublishDialog";
+
 
 export const Route = createFileRoute("/_authenticated/saved")({
   head: () => ({
@@ -23,8 +25,10 @@ type Outfit = {
   worn_at: string | null;
   pinned: boolean;
   share_slug: string | null;
+  comments_enabled: boolean;
   created_at: string;
 };
+
 
 type OutfitPieceRef = {
   outfit_id: string;
@@ -52,6 +56,8 @@ function SavedPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  const [publishing, setPublishing] = useState<Outfit | null>(null);
+
 
   async function load() {
     setLoading(true);
@@ -64,7 +70,8 @@ function SavedPage() {
     }
     const { data: outfits } = await supabase
       .from("saved_outfits")
-      .select("id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,created_at")
+      .select("id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,comments_enabled,created_at")
+
       .eq("user_id", u)
       .eq("is_shopping_idea", false)
       .order("pinned", { ascending: false })
@@ -131,18 +138,46 @@ function SavedPage() {
     setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, pinned: !r.pinned } : r)));
   }
 
-  async function toggleVisibility(o: Outfit) {
-    const next = o.visibility === "private" ? "public" : "private";
+  function startPublish(o: Outfit) {
+    setPublishing(o);
+  }
+
+  async function unpublish(o: Outfit) {
+    if (!confirm("Unpublish this outfit? It stays saved privately.")) return;
     const { error } = await supabase
       .from("saved_outfits")
-      .update({ visibility: next })
+      .update({ visibility: "private" })
       .eq("id", o.id);
     if (error) return toast.error(error.message);
-    setRows((rs) =>
-      rs.map((r) => (r.id === o.id ? { ...r, visibility: next as Outfit["visibility"] } : r)),
-    );
-    toast.success(next === "public" ? "Now public" : "Now private");
+    setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, visibility: "private" as const } : r)));
+    toast.success("Now private");
   }
+
+  async function doPublish(v: { caption: string; vibe: string; occasion: string; comments_enabled: boolean }) {
+    if (!publishing) return;
+    const { error } = await supabase
+      .from("saved_outfits")
+      .update({
+        name: v.caption.trim() || null,
+        vibe: v.vibe.trim() || null,
+        occasion: v.occasion.trim() || null,
+        comments_enabled: v.comments_enabled,
+        visibility: "public",
+      })
+      .eq("id", publishing.id);
+    if (error) { toast.error(error.message); return; }
+
+    setRows((rs) =>
+      rs.map((r) =>
+        r.id === publishing.id
+          ? { ...r, name: v.caption.trim() || null, vibe: v.vibe.trim() || null, occasion: v.occasion.trim() || null, comments_enabled: v.comments_enabled, visibility: "public" as const }
+          : r,
+      ),
+    );
+    setPublishing(null);
+    toast.success("Published — only this outfit is public");
+  }
+
 
   async function markWorn(o: Outfit) {
     const { error } = await supabase.rpc("record_outfit_wear", { _outfit_id: o.id });
@@ -326,20 +361,22 @@ function SavedPage() {
                     >
                       <Pin className="h-3 w-3" /> {o.pinned ? "Unpin" : "Pin"}
                     </button>
-                    <button
-                      onClick={() => toggleVisibility(o)}
-                      className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2"
-                    >
-                      {o.visibility === "private" ? (
-                        <>
-                          <Lock className="h-3 w-3" /> Private
-                        </>
-                      ) : (
-                        <>
-                          <Globe className="h-3 w-3" /> Public
-                        </>
-                      )}
-                    </button>
+                    {o.visibility === "private" ? (
+                      <button
+                        onClick={() => startPublish(o)}
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10"
+                      >
+                        <Globe className="h-3 w-3" /> Publish
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => unpublish(o)}
+                        className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2"
+                      >
+                        <Lock className="h-3 w-3" /> Unpublish
+                      </button>
+                    )}
+
                     {o.visibility !== "private" && o.share_slug && (
                       <button
                         onClick={() => copyLink(o)}
@@ -373,6 +410,18 @@ function SavedPage() {
           })}
         </ul>
       )}
+      <PublishDialog
+        open={!!publishing}
+        initial={{
+          caption: publishing?.name ?? "",
+          vibe: publishing?.vibe ?? "",
+          occasion: publishing?.occasion ?? "",
+          comments_enabled: publishing?.comments_enabled ?? true,
+        }}
+        onCancel={() => setPublishing(null)}
+        onConfirm={doPublish}
+      />
     </div>
   );
+
 }

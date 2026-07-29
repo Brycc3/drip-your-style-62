@@ -1,8 +1,13 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { getSignedUrl } from "@/lib/closet-storage";
+import { blockAndUnfollow, unblockUser } from "@/lib/moderation.functions";
+import { ReportDialog } from "@/components/ReportDialog";
 import { toast } from "sonner";
+import { Flag, Ban } from "lucide-react";
+
 
 export const Route = createFileRoute("/u/$handle")({
   ssr: false,
@@ -34,6 +39,8 @@ type Outfit = {
 
 function PublicProfile() {
   const { handle } = Route.useParams();
+  const blockFn = useServerFn(blockAndUnfollow);
+  const unblockFn = useServerFn(unblockUser);
   const [profile, setProfile] = useState<{
     id: string;
     display_name: string | null;
@@ -47,20 +54,23 @@ function PublicProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notExists, setNotExists] = useState(false);
+  const [blockedByMe, setBlockedByMe] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data: p } = await supabase
         .from("profiles")
-        .select("id, display_name, bio, avatar_url, is_public")
+        .select("id, display_name, bio, avatar_url, is_public, public_suspended")
         .eq("handle", handle)
         .maybeSingle();
-      if (!p || !p.is_public) {
+      if (!p || !p.is_public || p.public_suspended) {
         setNotExists(true);
         setLoading(false);
         return;
       }
       setProfile(p);
+
 
       const [{ data: outs }, { count }, { data: userData }] = await Promise.all([
         supabase
@@ -81,14 +91,24 @@ function PublicProfile() {
       const uid = userData.user?.id ?? null;
       setMeId(uid);
       if (uid && uid !== p.id) {
-        const { data: f } = await supabase
-          .from("follows")
-          .select("follower_id")
-          .eq("follower_id", uid)
-          .eq("followee_id", p.id)
-          .maybeSingle();
+        const [{ data: f }, { data: b }] = await Promise.all([
+          supabase
+            .from("follows")
+            .select("follower_id")
+            .eq("follower_id", uid)
+            .eq("followee_id", p.id)
+            .maybeSingle(),
+          supabase
+            .from("user_blocks")
+            .select("blocker_id")
+            .eq("blocker_id", uid)
+            .eq("blocked_id", p.id)
+            .maybeSingle(),
+        ]);
         setIsFollowing(Boolean(f));
+        setBlockedByMe(Boolean(b));
       }
+
 
       const list = outs ?? [];
       const entries = await Promise.all(

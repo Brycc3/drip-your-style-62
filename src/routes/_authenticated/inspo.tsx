@@ -26,7 +26,16 @@ import { z } from "zod";
 const searchSchema = z.object({
   item: z.string().optional(),
   slot: z.string().optional(),
+  // Recreate-with-my-closet seed (safe public fields only, no private ids).
+  seed: z.string().optional(),
+  vibe: z.string().optional(),
+  occasion: z.string().optional(),
+  dress_code: z.string().optional(),
+  weather: z.string().optional(),
+  temp: z.string().optional(),
+  cats: z.string().optional(),
 });
+
 
 export const Route = createFileRoute("/_authenticated/inspo")({
   validateSearch: (s) => searchSchema.parse(s),

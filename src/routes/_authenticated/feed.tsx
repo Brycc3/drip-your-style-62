@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getPublicOutfitCovers } from "@/lib/public-outfit.functions";
-import { Flame, Clock, Trophy, MessageCircle, Heart } from "lucide-react";
+import { getBlockedUserIds, excludeBlocked } from "@/lib/blocks";
+import { Flame, Clock, Trophy, MessageCircle, Heart, Flag, ShieldCheck } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/feed")({
   head: () => ({
@@ -37,21 +39,34 @@ function FeedPage() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [handles, setHandles] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setError(null);
       const col =
         tab === "trending" ? "trending_score" : tab === "top" ? "like_count" : "created_at";
-      const { data } = await supabase
-        .from("outfit_leaderboard")
-        .select("*")
-        .order(col, { ascending: false })
-        .limit(30);
-      const list = (data ?? []) as Row[];
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      const [{ data, error: qErr }, blocked] = await Promise.all([
+        supabase
+          .from("outfit_leaderboard")
+          .select("*")
+          .order(col, { ascending: false })
+          .limit(60),
+        getBlockedUserIds(uid),
+      ]);
+      if (qErr) {
+        setError(qErr.message);
+        setLoading(false);
+        return;
+      }
+      const list = excludeBlocked((data ?? []) as Row[], blocked).slice(0, 30);
       setRows(list);
       setLoading(false);
 
+      if (list.length === 0) return;
       const [coversBySlug, profs] = await Promise.all([
         getPublicOutfitCovers({
           data: { slugs: list.map((r) => r.share_slug ?? "").filter(Boolean) },
@@ -71,6 +86,7 @@ function FeedPage() {
       setHandles(Object.fromEntries((profs.data ?? []).map((p) => [p.id, p.handle])));
     })();
   }, [tab]);
+
 
   return (
     <div className="space-y-5">
@@ -102,7 +118,11 @@ function FeedPage() {
         </TabBtn>
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="card-surface p-6 text-center text-sm text-destructive">
+          Couldn't load the feed. {error}
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-2 gap-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="aspect-[3/4] animate-pulse rounded-lg bg-surface" />
@@ -110,8 +130,10 @@ function FeedPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
-          Nothing public yet. Be first — generate an outfit and share it to the feed.
+          Nothing public yet. Be first — publish an outfit from{" "}
+          <Link to="/saved" className="text-primary underline">Saved</Link>.
         </div>
+
       ) : (
         <ul className="grid grid-cols-2 gap-3">
           {rows.map((r) => (
@@ -150,8 +172,19 @@ function FeedPage() {
           ))}
         </ul>
       )}
+
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface-2 p-3 text-[10px] uppercase tracking-widest text-muted-foreground">
+        <Link to="/legal/community-guidelines" className="flex items-center gap-1 hover:text-foreground">
+          <ShieldCheck className="h-3 w-3" /> Community Guidelines
+        </Link>
+        <Link to="/legal/acceptable-use" className="flex items-center gap-1 hover:text-foreground">
+          <Flag className="h-3 w-3" /> Report content
+        </Link>
+
+      </div>
     </div>
   );
+
 }
 
 function TabBtn({

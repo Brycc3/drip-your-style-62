@@ -836,36 +836,27 @@ export type Database = {
           user_id: string | null
           vibe: string | null
         }
-        Insert: {
-          comment_count?: never
-          cover_image_url?: string | null
-          created_at?: string | null
-          id?: string | null
-          like_count?: never
-          name?: string | null
-          occasion?: string | null
-          share_slug?: string | null
-          trending_score?: never
-          user_id?: string | null
-          vibe?: string | null
-        }
-        Update: {
-          comment_count?: never
-          cover_image_url?: string | null
-          created_at?: string | null
-          id?: string | null
-          like_count?: never
-          name?: string | null
-          occasion?: string | null
-          share_slug?: string | null
-          trending_score?: never
-          user_id?: string | null
-          vibe?: string | null
-        }
         Relationships: []
       }
     }
     Functions: {
+      admin_delete_comment: {
+        Args: { _comment: string; _note?: string }
+        Returns: undefined
+      }
+      admin_hide_outfit: {
+        Args: { _note?: string; _outfit: string }
+        Returns: undefined
+      }
+      admin_set_suspension: {
+        Args: { _note?: string; _suspend: boolean; _target: string }
+        Returns: undefined
+      }
+      admin_update_report: {
+        Args: { _note?: string; _report: string; _status: string }
+        Returns: undefined
+      }
+      block_and_unfollow: { Args: { _blocked: string }; Returns: undefined }
       blocks_between: { Args: { _a: string; _b: string }; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_following: {
