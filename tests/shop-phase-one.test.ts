@@ -88,7 +88,18 @@ describe("product button behavior", () => {
     retailer: "Verified Retailer",
     buy_url: "https://retailer.example/products/123",
     availability: "in_stock",
-    last_checked_at: "2026-07-27T12:00:00Z",
+    last_checked_at: new Date().toISOString(),
+  };
+
+  // Pass 1 raises the bar: real provenance is required, not just a buy_url.
+  const completeProvenance = {
+    image_url: "https://cdn.retailer.example/products/123.jpg",
+    image_rights_basis: "authorized",
+    source_type: "manual",
+    source_name: "Verified Retailer",
+    verification_method: "manual",
+    verified_at: new Date().toISOString(),
+    current_price: 40,
   };
 
   it("uses View Sample for demos even when they contain a product-looking URL", () => {
@@ -99,20 +110,16 @@ describe("product button behavior", () => {
     });
   });
 
-  it("uses View Sample when retailer verification metadata is incomplete", () => {
-    expect(
-      productActionFor(
-        catalogItem({
-          ...completeRetailMetadata,
-          is_demo: false,
-          last_checked_at: null,
-        }),
-      ),
-    ).toEqual({
-      kind: "sample",
-      label: "View Sample",
-      href: null,
-    });
+  it("shows Needs verification when retailer provenance metadata is incomplete", () => {
+    const action = productActionFor(
+      catalogItem({
+        ...completeRetailMetadata,
+        is_demo: false,
+        last_checked_at: null,
+      }),
+    );
+    expect(action.kind).toBe("needs_verification");
+    expect(action.href).toBeNull();
   });
 
   it("only enables Shop now for a fully verified non-demo product", () => {
@@ -120,6 +127,7 @@ describe("product button behavior", () => {
       productActionFor(
         catalogItem({
           ...completeRetailMetadata,
+          ...completeProvenance,
           is_demo: false,
         }),
       ),
