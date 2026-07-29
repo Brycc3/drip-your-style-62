@@ -181,6 +181,56 @@ function EmptyState() {
   );
 }
 
+function StarterProgress({ counts }: { counts: Counts }) {
+  const targets = [
+    { label: "Tops", have: counts.tops, need: 3 },
+    { label: "Bottoms", have: counts.bottoms, need: 2 },
+    { label: "Shoes", have: counts.shoes, need: 2 },
+  ];
+  const total = targets.reduce((a, t) => a + Math.min(t.have, t.need), 0);
+  const goal = targets.reduce((a, t) => a + t.need, 0);
+  const pct = Math.round((total / goal) * 100);
+  return (
+    <section className="card-surface p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-primary">Starter closet</p>
+          <h2 className="mt-1 font-display text-2xl">3-2-2 to unlock outfits</h2>
+        </div>
+        <span className="font-display text-2xl text-primary">
+          {total}/{goal}
+        </span>
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full bg-primary transition-all"
+          style={{ width: `${pct}%` }}
+          aria-label={`${pct}% complete`}
+        />
+      </div>
+      <ul className="mt-3 space-y-1 text-xs">
+        {targets.map((t) => {
+          const done = t.have >= t.need;
+          return (
+            <li key={t.label} className="flex items-center justify-between">
+              <span className={done ? "text-foreground/90" : "text-muted-foreground"}>
+                {t.label}
+              </span>
+              <span className={done ? "text-primary" : "text-muted-foreground"}>
+                {Math.min(t.have, t.need)}/{t.need}
+                {t.have > t.need ? ` (+${t.have - t.need})` : ""}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <Link to="/closet/new" className="btn-lime mt-4 inline-flex !py-2 text-xs">
+        Add a piece
+      </Link>
+    </section>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="card-surface p-3 text-center">
