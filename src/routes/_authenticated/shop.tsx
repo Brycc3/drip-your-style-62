@@ -268,6 +268,7 @@ function ShopPage() {
     distinctCatalog,
     closet,
     source,
+    scope,
     tab,
     accSub,
     fragFam,
