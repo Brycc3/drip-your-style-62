@@ -1,8 +1,13 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { getSignedUrl } from "@/lib/closet-storage";
+import { blockAndUnfollow, unblockUser } from "@/lib/moderation.functions";
+import { ReportDialog } from "@/components/ReportDialog";
 import { toast } from "sonner";
+import { Flag, Ban } from "lucide-react";
+
 
 export const Route = createFileRoute("/u/$handle")({
   ssr: false,
@@ -34,6 +39,8 @@ type Outfit = {
 
 function PublicProfile() {
   const { handle } = Route.useParams();
+  const blockFn = useServerFn(blockAndUnfollow);
+  const unblockFn = useServerFn(unblockUser);
   const [profile, setProfile] = useState<{
     id: string;
     display_name: string | null;
@@ -47,20 +54,23 @@ function PublicProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notExists, setNotExists] = useState(false);
+  const [blockedByMe, setBlockedByMe] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data: p } = await supabase
         .from("profiles")
-        .select("id, display_name, bio, avatar_url, is_public")
+        .select("id, display_name, bio, avatar_url, is_public, public_suspended")
         .eq("handle", handle)
         .maybeSingle();
-      if (!p || !p.is_public) {
+      if (!p || !p.is_public || p.public_suspended) {
         setNotExists(true);
         setLoading(false);
         return;
       }
       setProfile(p);
+
 
       const [{ data: outs }, { count }, { data: userData }] = await Promise.all([
         supabase
@@ -81,14 +91,24 @@ function PublicProfile() {
       const uid = userData.user?.id ?? null;
       setMeId(uid);
       if (uid && uid !== p.id) {
-        const { data: f } = await supabase
-          .from("follows")
-          .select("follower_id")
-          .eq("follower_id", uid)
-          .eq("followee_id", p.id)
-          .maybeSingle();
+        const [{ data: f }, { data: b }] = await Promise.all([
+          supabase
+            .from("follows")
+            .select("follower_id")
+            .eq("follower_id", uid)
+            .eq("followee_id", p.id)
+            .maybeSingle(),
+          supabase
+            .from("user_blocks")
+            .select("blocker_id")
+            .eq("blocker_id", uid)
+            .eq("blocked_id", p.id)
+            .maybeSingle(),
+        ]);
         setIsFollowing(Boolean(f));
+        setBlockedByMe(Boolean(b));
       }
+
 
       const list = outs ?? [];
       const entries = await Promise.all(
@@ -141,18 +161,55 @@ function PublicProfile() {
             <h1 className="mt-1 font-display text-3xl">{profile.display_name ?? handle}</h1>
             {profile.bio && <p className="mt-2 text-sm text-muted-foreground">{profile.bio}</p>}
             <p className="mt-2 text-xs uppercase tracking-widest text-muted-foreground">
-              {followers} follower{followers === 1 ? "" : "s"} · {outfits.length} outfits
+              {meId ? `${followers} follower${followers === 1 ? "" : "s"} · ` : ""}
+              {outfits.length} outfits
             </p>
           </div>
         </div>
         {meId && meId !== profile.id && (
-          <button
-            onClick={toggleFollow}
-            className={`mt-5 w-full rounded-full py-3 text-xs uppercase tracking-widest ${isFollowing ? "border border-border" : "btn-lime"}`}
-          >
-            {isFollowing ? "Following" : "Follow"}
-          </button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={toggleFollow}
+              disabled={blockedByMe}
+              className={`flex-1 rounded-full py-3 text-xs uppercase tracking-widest disabled:opacity-40 ${isFollowing ? "border border-border" : "btn-lime"}`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+            <button
+              onClick={() => setReportOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 text-xs uppercase tracking-widest hover:bg-surface-2"
+            >
+              <Flag className="h-3.5 w-3.5" /> Report
+            </button>
+            <button
+              onClick={async () => {
+                if (blockedByMe) {
+                  try {
+                    await unblockFn({ data: { blocked_id: profile.id } });
+                    setBlockedByMe(false);
+                    toast.success("Unblocked");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Failed");
+                  }
+                } else {
+                  if (!confirm("Block this user? They won't see your content and you won't see theirs.")) return;
+                  try {
+                    await blockFn({ data: { blocked_id: profile.id } });
+                    setBlockedByMe(true);
+                    setIsFollowing(false);
+                    toast.success("Blocked");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Failed");
+                  }
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-4 text-xs uppercase tracking-widest ${blockedByMe ? "border-primary text-primary" : "border-destructive/50 text-destructive hover:bg-destructive/10"}`}
+            >
+              <Ban className="h-3.5 w-3.5" /> {blockedByMe ? "Unblock" : "Block"}
+            </button>
+          </div>
         )}
+
 
         <ul className="mt-8 grid grid-cols-2 gap-3">
           {outfits.map((o) => (
@@ -183,9 +240,16 @@ function PublicProfile() {
           <p className="mt-8 text-center text-sm text-muted-foreground">No public outfits yet.</p>
         )}
       </div>
+      <ReportDialog
+        targetType="user"
+        targetId={profile.id}
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+      />
     </div>
   );
 }
+
 
 function ErrorView({ msg }: { msg: string }) {
   return (

@@ -1,9 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { getPublicOutfitAssets } from "@/lib/public-outfit.functions";
+import { getRecreateSeed, buildRecreateSearch } from "@/lib/recreate.functions";
+import { blockAndUnfollow } from "@/lib/moderation.functions";
+import { ReportDialog } from "@/components/ReportDialog";
 import { toast } from "sonner";
-import { Heart, Bookmark, Share2 } from "lucide-react";
+import { Heart, Bookmark, Share2, Flag, Ban, Trash2, Sparkles, MessageCircleOff } from "lucide-react";
+
 
 export const Route = createFileRoute("/o/$slug")({
   ssr: false,
@@ -31,8 +36,10 @@ type Outfit = {
   explanation: string | null;
   cover_image_url: string | null;
   visibility: string;
+  comments_enabled: boolean;
   created_at: string;
 };
+
 type Piece = {
   id: string;
   name: string;
@@ -51,6 +58,9 @@ type Comment = {
 
 function OutfitPage() {
   const { slug } = Route.useParams();
+  const navigate = useNavigate();
+  const blockFn = useServerFn(blockAndUnfollow);
+  const recreateFn = useServerFn(getRecreateSeed);
   const [outfit, setOutfit] = useState<Outfit | null>(null);
   const [ownerHandle, setOwnerHandle] = useState<string | null>(null);
   const [ownerName, setOwnerName] = useState<string | null>(null);
@@ -67,6 +77,12 @@ function OutfitPage() {
   const [meId, setMeId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reportTarget, setReportTarget] = useState<{ type: "outfit" | "comment"; id: string } | null>(null);
+  const [recreating, setRecreating] = useState(false);
+
+
+  const isOwner = !!meId && !!outfit && meId === outfit.user_id;
+
 
   useEffect(() => {
     (async () => {
@@ -226,6 +242,44 @@ function OutfitPage() {
     }
   }
 
+  async function deleteComment(c: Comment) {
+    if (!meId || !outfit) return;
+    const canDelete = c.user_id === meId || outfit.user_id === meId;
+    if (!canDelete) return;
+    if (!confirm("Delete this comment?")) return;
+    const { error } = await supabase.from("outfit_comments").delete().eq("id", c.id);
+    if (error) return toast.error(error.message);
+    setComments((cs) => cs.filter((x) => x.id !== c.id));
+  }
+
+  async function doBlock() {
+    if (!meId || !outfit) return toast.error("Sign in first");
+    if (meId === outfit.user_id) return;
+    if (!confirm("Block this user? They won't see your content and you won't see theirs.")) return;
+    try {
+      await blockFn({ data: { blocked_id: outfit.user_id } });
+      toast.success("Blocked");
+      navigate({ to: "/feed" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Block failed");
+    }
+  }
+
+  async function doRecreate() {
+    if (recreating) return;
+    setRecreating(true);
+    try {
+      const seed = await recreateFn({ data: { slug } });
+      if (!seed) throw new Error("Outfit unavailable");
+      navigate({ to: "/inspo", search: buildRecreateSearch(seed) });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't build seed");
+    } finally {
+      setRecreating(false);
+    }
+  }
+
+
   if (loading)
     return <div className="container-app py-10 text-sm text-muted-foreground">Loading…</div>;
   if (!outfit)
@@ -296,6 +350,33 @@ function OutfitPage() {
           </button>
         </div>
 
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={doRecreate}
+            disabled={recreating}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/60 px-3 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary/10 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> {recreating ? "Building…" : "Recreate with my closet"}
+          </button>
+          {!isOwner && meId && (
+            <>
+              <button
+                onClick={() => setReportTarget({ type: "outfit", id: outfit.id })}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs uppercase tracking-widest hover:bg-surface-2"
+              >
+                <Flag className="h-3.5 w-3.5" /> Report outfit
+              </button>
+              <button
+                onClick={doBlock}
+                className="inline-flex items-center gap-1.5 rounded-full border border-destructive/50 px-3 py-2 text-xs uppercase tracking-widest text-destructive hover:bg-destructive/10"
+              >
+                <Ban className="h-3.5 w-3.5" /> Block user
+              </button>
+            </>
+          )}
+        </div>
+
+
         {pieces.length > 0 && (
           <div className="mt-8">
             <p className="text-xs uppercase tracking-widest text-primary">Pieces</p>
@@ -323,38 +404,67 @@ function OutfitPage() {
           <p className="text-xs uppercase tracking-widest text-primary">
             {comments.length} comment{comments.length === 1 ? "" : "s"}
           </p>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              maxLength={1000}
-              placeholder={meId ? "Say something" : "Sign in to comment"}
-              disabled={!meId}
-              className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-            <button
-              disabled={!meId || !draft.trim()}
-              onClick={postComment}
-              className="btn-lime !px-4 !py-2 text-xs disabled:opacity-50"
-            >
-              Post
-            </button>
-          </div>
+          {outfit.comments_enabled ? (
+            <div className="mt-3 flex gap-2">
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                maxLength={1000}
+                placeholder={meId ? "Say something" : "Sign in to comment"}
+                disabled={!meId}
+                className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+              />
+              <button
+                disabled={!meId || !draft.trim()}
+                onClick={postComment}
+                className="btn-lime !px-4 !py-2 text-xs disabled:opacity-50"
+              >
+                Post
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted-foreground">
+              <MessageCircleOff className="h-3.5 w-3.5" /> Comments are turned off for this outfit.
+            </div>
+          )}
           <ul className="mt-4 space-y-3">
             {comments.map((c) => {
               const a = commentAuthors[c.user_id];
               const handle = a?.handle;
+              const canDelete = meId && (c.user_id === meId || outfit.user_id === meId);
               return (
                 <li key={c.id} className="card-surface p-3">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {handle ? (
-                      <Link to="/u/$handle" params={{ handle }} className="hover:text-foreground">
-                        @{handle}
-                      </Link>
-                    ) : (
-                      (a?.name ?? "someone")
-                    )}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {handle ? (
+                        <Link to="/u/$handle" params={{ handle }} className="hover:text-foreground">
+                          @{handle}
+                        </Link>
+                      ) : (
+                        (a?.name ?? "someone")
+                      )}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      {meId && c.user_id !== meId && (
+                        <button
+                          onClick={() => setReportTarget({ type: "comment", id: c.id })}
+                          className="hover:text-foreground"
+                          aria-label="Report comment"
+                        >
+                          <Flag className="h-3 w-3" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => deleteComment(c)}
+                          className="hover:text-destructive"
+                          aria-label="Delete comment"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <p className="mt-1 text-sm text-foreground/90">{c.body}</p>
                 </li>
               );
@@ -362,6 +472,13 @@ function OutfitPage() {
           </ul>
         </div>
       </div>
+      <ReportDialog
+        targetType={reportTarget?.type ?? "outfit"}
+        targetId={reportTarget?.id}
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
+
     </div>
   );
 }
