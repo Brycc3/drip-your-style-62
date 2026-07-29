@@ -102,6 +102,9 @@ export type Database = {
           id: string
           reason: string
           reporter_id: string | null
+          resolution_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
           target_id: string | null
           target_type: string
@@ -113,6 +116,9 @@ export type Database = {
           id?: string
           reason: string
           reporter_id?: string | null
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           target_id?: string | null
           target_type: string
@@ -124,6 +130,9 @@ export type Database = {
           id?: string
           reason?: string
           reporter_id?: string | null
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           target_id?: string | null
           target_type?: string
@@ -443,8 +452,10 @@ export type Database = {
           display_name: string | null
           handle: string | null
           id: string
+          is_admin: boolean
           is_public: boolean
           onboarded: boolean
+          public_suspended: boolean
           updated_at: string
         }
         Insert: {
@@ -454,8 +465,10 @@ export type Database = {
           display_name?: string | null
           handle?: string | null
           id: string
+          is_admin?: boolean
           is_public?: boolean
           onboarded?: boolean
+          public_suspended?: boolean
           updated_at?: string
         }
         Update: {
@@ -465,14 +478,17 @@ export type Database = {
           display_name?: string | null
           handle?: string | null
           id?: string
+          is_admin?: boolean
           is_public?: boolean
           onboarded?: boolean
+          public_suspended?: boolean
           updated_at?: string
         }
         Relationships: []
       }
       saved_outfits: {
         Row: {
+          comments_enabled: boolean
           cover_image_url: string | null
           created_at: string
           dress_code: Database["public"]["Enums"]["formality"] | null
@@ -495,6 +511,7 @@ export type Database = {
           worn_at: string | null
         }
         Insert: {
+          comments_enabled?: boolean
           cover_image_url?: string | null
           created_at?: string
           dress_code?: Database["public"]["Enums"]["formality"] | null
@@ -517,6 +534,7 @@ export type Database = {
           worn_at?: string | null
         }
         Update: {
+          comments_enabled?: boolean
           cover_image_url?: string | null
           created_at?: string
           dress_code?: Database["public"]["Enums"]["formality"] | null
@@ -551,6 +569,8 @@ export type Database = {
       shop_catalog: {
         Row: {
           accessory_subtype: string | null
+          affiliate: boolean
+          affiliate_disclosure: string | null
           availability: string
           brand: string | null
           buy_url: string | null
@@ -565,6 +585,7 @@ export type Database = {
           formality: Database["public"]["Enums"]["formality"]
           fragrance_family: string | null
           id: string
+          image_rights_basis: string | null
           image_url: string | null
           is_demo: boolean
           kind: Database["public"]["Enums"]["item_kind"]
@@ -577,11 +598,18 @@ export type Database = {
           retailer: string | null
           season: Database["public"]["Enums"]["season"]
           source: string | null
+          source_name: string | null
+          source_type: string | null
+          source_url: string | null
           tags: string[]
+          verification_method: string | null
+          verified_at: string | null
           vibe: string | null
         }
         Insert: {
           accessory_subtype?: string | null
+          affiliate?: boolean
+          affiliate_disclosure?: string | null
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -596,6 +624,7 @@ export type Database = {
           formality?: Database["public"]["Enums"]["formality"]
           fragrance_family?: string | null
           id?: string
+          image_rights_basis?: string | null
           image_url?: string | null
           is_demo?: boolean
           kind: Database["public"]["Enums"]["item_kind"]
@@ -608,11 +637,18 @@ export type Database = {
           retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
+          source_name?: string | null
+          source_type?: string | null
+          source_url?: string | null
           tags?: string[]
+          verification_method?: string | null
+          verified_at?: string | null
           vibe?: string | null
         }
         Update: {
           accessory_subtype?: string | null
+          affiliate?: boolean
+          affiliate_disclosure?: string | null
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -627,6 +663,7 @@ export type Database = {
           formality?: Database["public"]["Enums"]["formality"]
           fragrance_family?: string | null
           id?: string
+          image_rights_basis?: string | null
           image_url?: string | null
           is_demo?: boolean
           kind?: Database["public"]["Enums"]["item_kind"]
@@ -639,7 +676,12 @@ export type Database = {
           retailer?: string | null
           season?: Database["public"]["Enums"]["season"]
           source?: string | null
+          source_name?: string | null
+          source_type?: string | null
+          source_url?: string | null
           tags?: string[]
+          verification_method?: string | null
+          verified_at?: string | null
           vibe?: string | null
         }
         Relationships: []
@@ -824,6 +866,8 @@ export type Database = {
       }
     }
     Functions: {
+      blocks_between: { Args: { _a: string; _b: string }; Returns: boolean }
+      is_admin: { Args: { _uid: string }; Returns: boolean }
       is_following: {
         Args: { _followee: string; _follower: string }
         Returns: boolean
