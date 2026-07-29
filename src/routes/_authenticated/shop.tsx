@@ -134,6 +134,8 @@ function ShopPage() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
+  const [scope, setScope] = useState<"verified" | "demo" | "all">("all");
+  const [showHow, setShowHow] = useState(false);
   const [tab, setTab] = useState<PrimaryTab>("clothing");
   const [accSub, setAccSub] = useState<AccessorySub | "all">("all");
   const [fragFam, setFragFam] = useState<FragranceFamily | "all">("all");
