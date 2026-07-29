@@ -240,9 +240,16 @@ function PublicProfile() {
           <p className="mt-8 text-center text-sm text-muted-foreground">No public outfits yet.</p>
         )}
       </div>
+      <ReportDialog
+        targetType="user"
+        targetId={profile.id}
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+      />
     </div>
   );
 }
+
 
 function ErrorView({ msg }: { msg: string }) {
   return (
