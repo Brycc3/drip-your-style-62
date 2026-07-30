@@ -83,6 +83,30 @@ CREATE POLICY "catalog admin update"
 -- No browser role may delete catalog rows. Archive or update availability.
 DROP POLICY IF EXISTS "catalog admin delete" ON public.shop_catalog;
 
+-- Authenticated admins may write catalog fields through RLS, but never the
+-- verification timestamps themselves. The SECURITY DEFINER Verify/Reverify
+-- RPC below is the only callable path with permission to set those columns.
+REVOKE INSERT, UPDATE ON public.shop_catalog FROM authenticated;
+REVOKE INSERT (verified_at, last_checked_at),
+  UPDATE (verified_at, last_checked_at)
+ON public.shop_catalog FROM authenticated;
+GRANT INSERT (
+  name, brand, kind, category, color, material, fit, season, formality, price,
+  condition, source, image_url, tags, description, current_price, original_price,
+  availability, external_id, retailer, buy_url, is_demo, source_type, source_name,
+  source_url, image_rights_basis, verification_method, affiliate,
+  affiliate_disclosure, vibe, price_tier, accessory_subtype, fragrance_family,
+  archived
+) ON public.shop_catalog TO authenticated;
+GRANT UPDATE (
+  name, brand, kind, category, color, material, fit, season, formality, price,
+  condition, source, image_url, tags, description, current_price, original_price,
+  availability, external_id, retailer, buy_url, source_type, source_name,
+  source_url, image_rights_basis, verification_method, affiliate,
+  affiliate_disclosure, vibe, price_tier, accessory_subtype, fragrance_family,
+  archived
+) ON public.shop_catalog TO authenticated;
+
 -- New and updated catalog rows must keep category and kind aligned. NOT VALID
 -- preserves any unrelated legacy data while still enforcing this on writes.
 ALTER TABLE public.shop_catalog
@@ -111,6 +135,10 @@ RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
+DECLARE
+  verification_write_allowed boolean :=
+    current_setting('drip.catalog_verification_write', true) = 'allowed';
+  verification_critical_change boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.verified_at IS NOT NULL OR NEW.last_checked_at IS NOT NULL THEN
@@ -119,17 +147,94 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF (
+  -- Description, material, and fit are deliberately noncritical. Everything
+  -- below affects product identity, commerce safety, provenance, verified
+  -- availability, or recommendation integrity and therefore invalidates the
+  -- previous verification atomically in this same row update.
+  verification_critical_change := (
+    OLD.name IS DISTINCT FROM NEW.name
+    OR OLD.brand IS DISTINCT FROM NEW.brand
+    OR OLD.category IS DISTINCT FROM NEW.category
+    OR OLD.kind IS DISTINCT FROM NEW.kind
+    OR OLD.color IS DISTINCT FROM NEW.color
+    OR OLD.retailer IS DISTINCT FROM NEW.retailer
+    OR OLD.buy_url IS DISTINCT FROM NEW.buy_url
+    OR OLD.image_url IS DISTINCT FROM NEW.image_url
+    OR OLD.price IS DISTINCT FROM NEW.price
+    OR OLD.current_price IS DISTINCT FROM NEW.current_price
+    OR OLD.original_price IS DISTINCT FROM NEW.original_price
+    OR OLD.availability IS DISTINCT FROM NEW.availability
+    OR OLD.source IS DISTINCT FROM NEW.source
+    OR OLD.source_type IS DISTINCT FROM NEW.source_type
+    OR OLD.source_name IS DISTINCT FROM NEW.source_name
+    OR OLD.source_url IS DISTINCT FROM NEW.source_url
+    OR OLD.image_rights_basis IS DISTINCT FROM NEW.image_rights_basis
+    OR OLD.verification_method IS DISTINCT FROM NEW.verification_method
+    OR OLD.affiliate IS DISTINCT FROM NEW.affiliate
+    OR OLD.affiliate_disclosure IS DISTINCT FROM NEW.affiliate_disclosure
+    OR OLD.accessory_subtype IS DISTINCT FROM NEW.accessory_subtype
+    OR OLD.fragrance_family IS DISTINCT FROM NEW.fragrance_family
+    OR OLD.vibe IS DISTINCT FROM NEW.vibe
+    OR OLD.price_tier IS DISTINCT FROM NEW.price_tier
+    OR OLD.formality IS DISTINCT FROM NEW.formality
+    OR OLD.season IS DISTINCT FROM NEW.season
+    OR OLD.condition IS DISTINCT FROM NEW.condition
+    OR OLD.tags IS DISTINCT FROM NEW.tags
+    OR OLD.external_id IS DISTINCT FROM NEW.external_id
+    OR OLD.archived IS DISTINCT FROM NEW.archived
+  );
+
+  -- The explicit verification RPC sets this transaction-local guard
+  -- immediately before its timestamp-only UPDATE. It cannot combine
+  -- verification with a product edit, and both timestamps must use the same
+  -- non-null server value.
+  IF verification_write_allowed THEN
+    IF verification_critical_change THEN
+      RAISE EXCEPTION 'Verification cannot be combined with a catalog edit';
+    END IF;
+    IF NEW.verified_at IS NULL
+      OR NEW.last_checked_at IS NULL
+      OR NEW.verified_at IS DISTINCT FROM NEW.last_checked_at
+    THEN
+      RAISE EXCEPTION 'Explicit verification must set both timestamps to one server time';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Any ordinary browser/SQL attempt to write either timestamp is rejected.
+  -- Critical edits omit these fields; the trigger itself clears them below.
+  IF
     OLD.verified_at IS DISTINCT FROM NEW.verified_at
     OR OLD.last_checked_at IS DISTINCT FROM NEW.last_checked_at
-  ) AND current_setting('drip.catalog_verification_write', true) IS DISTINCT FROM 'allowed' THEN
+  THEN
+    RAISE EXCEPTION 'Use the explicit catalog verification action to update verification timestamps';
+  END IF;
+
+  IF verification_critical_change THEN
+    NEW.verified_at := NULL;
+    NEW.last_checked_at := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.protect_catalog_verification_timestamps() FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION public.reject_direct_catalog_verification_writes()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF current_setting('drip.catalog_verification_write', true) IS DISTINCT FROM 'allowed' THEN
     RAISE EXCEPTION 'Use the explicit catalog verification action to update verification timestamps';
   END IF;
   RETURN NEW;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.protect_catalog_verification_timestamps() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.reject_direct_catalog_verification_writes() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS protect_new_catalog_verification_timestamps ON public.shop_catalog;
 CREATE TRIGGER protect_new_catalog_verification_timestamps
@@ -139,9 +244,15 @@ CREATE TRIGGER protect_new_catalog_verification_timestamps
 
 DROP TRIGGER IF EXISTS protect_catalog_verification_timestamps ON public.shop_catalog;
 CREATE TRIGGER protect_catalog_verification_timestamps
-  BEFORE UPDATE OF verified_at, last_checked_at ON public.shop_catalog
+  BEFORE UPDATE ON public.shop_catalog
   FOR EACH ROW
   EXECUTE FUNCTION public.protect_catalog_verification_timestamps();
+
+DROP TRIGGER IF EXISTS reject_direct_catalog_verification_writes ON public.shop_catalog;
+CREATE TRIGGER reject_direct_catalog_verification_writes
+  BEFORE UPDATE OF verified_at, last_checked_at ON public.shop_catalog
+  FOR EACH ROW
+  EXECUTE FUNCTION public.reject_direct_catalog_verification_writes();
 
 CREATE OR REPLACE FUNCTION public.verify_shop_catalog_item(_catalog_id uuid)
 RETURNS timestamptz

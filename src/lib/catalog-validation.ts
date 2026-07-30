@@ -373,8 +373,6 @@ export function buildCatalogPayload(input: CatalogAddInput): Record<string, unkn
 export function buildNewCatalogPayload(input: CatalogAddInput): Record<string, unknown> {
   return {
     ...buildCatalogPayload(input),
-    verified_at: null,
-    last_checked_at: null,
     is_demo: false,
     archived: false,
   };

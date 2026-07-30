@@ -33,6 +33,22 @@ import { computeStarterProgress, starterCountsFromItems } from "../src/lib/start
 
 const NOW = Date.parse("2026-07-29T18:00:00.000Z");
 const PROJECT_ROOT = path.resolve(import.meta.dir, "..");
+const PASS_3_MIGRATION = path.join(
+  PROJECT_ROOT,
+  "supabase/migrations/20260729220000_pass_3_security_and_beta_repair.sql",
+);
+
+function pass3Sql(): string {
+  return fs.readFileSync(PASS_3_MIGRATION, "utf8");
+}
+
+function sqlFunction(source: string, name: string): string {
+  const start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+  const end = source.indexOf("\n$$;", start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(start, end + 4);
+}
 
 function product(
   id: string,
@@ -161,14 +177,14 @@ describe("catalog server policy helpers", () => {
     ).toBe(false);
   });
 
-  it("keeps routine edits separate from explicit verification", () => {
+  it("keeps all client payloads unable to write verification timestamps", () => {
     const editPayload = buildCatalogPayload(validCatalogInput);
     expect(editPayload).not.toHaveProperty("verified_at");
     expect(editPayload).not.toHaveProperty("last_checked_at");
 
     const insertPayload = buildNewCatalogPayload(validCatalogInput);
-    expect(insertPayload.verified_at).toBeNull();
-    expect(insertPayload.last_checked_at).toBeNull();
+    expect(insertPayload).not.toHaveProperty("verified_at");
+    expect(insertPayload).not.toHaveProperty("last_checked_at");
     expect(insertPayload.is_demo).toBe(false);
   });
 
@@ -240,13 +256,7 @@ describe("catalog server policy helpers", () => {
   });
 
   it("ships database-level demo protection without a catalog delete policy", () => {
-    const sql = fs.readFileSync(
-      path.join(
-        PROJECT_ROOT,
-        "supabase/migrations/20260729220000_pass_3_security_and_beta_repair.sql",
-      ),
-      "utf8",
-    );
+    const sql = pass3Sql();
     expect(sql).toContain("CREATE TRIGGER protect_demo_catalog_rows");
     expect(sql).toContain("OLD.is_demo = true");
     expect(sql).toContain("AND is_demo = false");
@@ -257,6 +267,90 @@ describe("catalog server policy helpers", () => {
     expect(sql).toContain("protect_new_catalog_verification_timestamps");
     expect(sql).toContain("AND verified_at IS NULL");
     expect(sql).toContain("AND last_checked_at IS NULL");
+  });
+});
+
+describe("atomic catalog verification invalidation", () => {
+  const sql = pass3Sql();
+  const guard = sqlFunction(sql, "protect_catalog_verification_timestamps()");
+  const verifyRpc = sqlFunction(sql, "verify_shop_catalog_item(_catalog_id uuid)");
+
+  it("clears both timestamps when any critical or recommendation field changes", () => {
+    const criticalFields = [
+      "name",
+      "brand",
+      "category",
+      "kind",
+      "color",
+      "retailer",
+      "buy_url",
+      "image_url",
+      "current_price",
+      "original_price",
+      "availability",
+      "source_type",
+      "source_name",
+      "source_url",
+      "image_rights_basis",
+      "verification_method",
+      "affiliate",
+      "affiliate_disclosure",
+      "accessory_subtype",
+      "fragrance_family",
+      "vibe",
+      "price_tier",
+      "formality",
+      "season",
+      "condition",
+    ];
+    for (const field of criticalFields) {
+      expect(guard).toContain(`OLD.${field} IS DISTINCT FROM NEW.${field}`);
+    }
+    expect(guard).toContain("IF verification_critical_change THEN");
+    expect(guard).toContain("NEW.verified_at := NULL;");
+    expect(guard).toContain("NEW.last_checked_at := NULL;");
+    expect(sql).toContain(
+      "CREATE TRIGGER protect_catalog_verification_timestamps\n  BEFORE UPDATE ON public.shop_catalog",
+    );
+  });
+
+  it("preserves timestamps for description, material, and fit-only edits", () => {
+    expect(guard).not.toContain("OLD.description IS DISTINCT FROM NEW.description");
+    expect(guard).not.toContain("OLD.material IS DISTINCT FROM NEW.material");
+    expect(guard).not.toContain("OLD.fit IS DISTINCT FROM NEW.fit");
+  });
+
+  it("requires reverification after restoring an archived row", () => {
+    expect(guard).toContain("OLD.archived IS DISTINCT FROM NEW.archived");
+    expect(guard.indexOf("OLD.archived IS DISTINCT FROM NEW.archived")).toBeLessThan(
+      guard.indexOf("NEW.verified_at := NULL;"),
+    );
+  });
+
+  it("requires reverification after restocking an unavailable row", () => {
+    expect(guard).toContain("OLD.availability IS DISTINCT FROM NEW.availability");
+    expect(guard.indexOf("OLD.availability IS DISTINCT FROM NEW.availability")).toBeLessThan(
+      guard.indexOf("NEW.last_checked_at := NULL;"),
+    );
+  });
+
+  it("rejects direct timestamp writes from browser and SQL paths", () => {
+    expect(sql).toContain("REVOKE INSERT, UPDATE ON public.shop_catalog FROM authenticated;");
+    expect(sql).toContain("REVOKE INSERT (verified_at, last_checked_at)");
+    expect(sql).toContain("UPDATE (verified_at, last_checked_at)");
+    expect(sql).toContain(
+      "CREATE TRIGGER reject_direct_catalog_verification_writes\n  BEFORE UPDATE OF verified_at, last_checked_at",
+    );
+    expect(sqlFunction(sql, "reject_direct_catalog_verification_writes()")).toContain(
+      "Use the explicit catalog verification action",
+    );
+  });
+
+  it("lets only explicit Verify restore one non-null server timestamp", () => {
+    expect(verifyRpc).toContain("verified_time timestamptz := now();");
+    expect(verifyRpc).toContain("SET verified_at = verified_time, last_checked_at = verified_time");
+    expect(guard).toContain("NEW.verified_at IS DISTINCT FROM NEW.last_checked_at");
+    expect(guard).toContain("Explicit verification must set both timestamps to one server time");
   });
 });
 

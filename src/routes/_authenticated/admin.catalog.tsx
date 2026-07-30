@@ -120,7 +120,9 @@ function AdminCatalogPage() {
   async function saveEdit(id: string, data: CatalogAddInput) {
     try {
       await updateFn({ data: { id, data } });
-      toast.success("Saved");
+      toast.success(
+        "Saved. If a verification-critical field changed, the product now requires Reverify.",
+      );
       setEditing(null);
       await load();
     } catch (e) {
@@ -144,7 +146,11 @@ function AdminCatalogPage() {
     const next = !(row.archived === true);
     try {
       await archiveFn({ data: { id: row.id, archived: next } });
-      toast.success(next ? "Archived" : "Restored");
+      toast.success(
+        next
+          ? "Archived. Verification cleared."
+          : "Restored. Reverify before it can return to Verified inventory.",
+      );
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -155,7 +161,9 @@ function AdminCatalogPage() {
     if (row.is_demo) return;
     try {
       await availabilityFn({ data: { id: row.id, availability } });
-      toast.success(`Availability set to ${availability.replaceAll("_", " ")}`);
+      toast.success(
+        `Availability set to ${availability.replaceAll("_", " ")}. Reverify before Verified inventory.`,
+      );
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -189,8 +197,8 @@ function AdminCatalogPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Catalog</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add and manage products, then explicitly verify complete rows. Demo rows are read-only
-            and cannot be edited, archived, or converted.
+            Add and manage products, then explicitly verify complete rows. Critical changes,
+            restocking, and archive/restore clear verification atomically. Demo rows are read-only.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -471,6 +479,14 @@ function EditorModal({
         <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
           {CATALOG_IMAGE_WARNING}
         </div>
+        {isEdit && (
+          <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            Saving changes to identity, category, recommendation metadata, retailer, URLs, images,
+            pricing, availability, rights/provenance, or affiliate fields clears verification and
+            requires Reverify. Vibe and price tier are treated as critical. Description, material,
+            and fit-only edits preserve the existing verification timestamps.
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <Text
@@ -681,7 +697,7 @@ function EditorModal({
             onClick={attempt}
             className="btn-lime flex-1 !py-2 text-xs inline-flex items-center justify-center gap-1"
           >
-            <Save className="h-3 w-3" /> {isEdit ? "Save without reverifying" : "Add product"}
+            <Save className="h-3 w-3" /> {isEdit ? "Save changes" : "Add product"}
           </button>
         </div>
       </div>

@@ -94,7 +94,9 @@ export const updateCatalogItem = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await requireServerAdmin(context.supabase, context.userId);
     await loadNonDemoRow(context.supabase, data.id);
-    // Routine edits intentionally omit verified_at and last_checked_at.
+    // The PostgreSQL trigger atomically clears verification for critical
+    // changes and preserves it for description/material/fit-only edits.
+    // Timestamps are never client-writable.
     const payload = buildCatalogPayload(data.data);
     const { error } = await context.supabase
       .from("shop_catalog")
@@ -106,8 +108,9 @@ export const updateCatalogItem = createServerFn({ method: "POST" })
   });
 
 /**
- * Archive / unarchive a non-demo catalog row. Archived rows disappear from
- * Shop but are preserved in the DB.
+ * Archive / unarchive a non-demo catalog row. PostgreSQL atomically clears
+ * verification whenever archived changes, so a restored row must be
+ * explicitly reverified before returning to verified inventory.
  */
 export const setCatalogArchived = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -125,7 +128,8 @@ export const setCatalogArchived = createServerFn({ method: "POST" })
   });
 
 /**
- * Update availability without changing verification timestamps.
+ * Update availability. PostgreSQL atomically clears verification in the same
+ * row update, including when restocking an unavailable product.
  */
 export const setCatalogAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
