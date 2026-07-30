@@ -3,25 +3,30 @@ import fs from "node:fs";
 import path from "node:path";
 import { assertAdminAuthorized } from "../src/lib/admin-auth";
 import {
+  CATALOG_ACCESSORY_SUBTYPES,
   assertCatalogRowWritable,
-  buildVerifiedCatalogPayload,
+  buildCatalogPayload,
+  buildNewCatalogPayload,
   catalogAddSchema,
+  deriveCatalogKind,
   type CatalogAddInput,
 } from "../src/lib/catalog-validation";
 import {
   catalogMatchesScope,
   rankCatalogForScope,
+  shouldShowVerifiedInventoryEmpty,
   type VerifiableCatalogItem,
 } from "../src/lib/shop-catalog";
 import {
   attachmentPath,
+  buildProblemReportDetails,
   buildSafeReportMeta,
   problemReportType,
   screenshotIsApproved,
 } from "../src/lib/report-attachment";
 import {
-  isRecoveryUrl,
   parseRecoveryCallback,
+  recoveryEventAuthorizes,
   validateNewPassword,
 } from "../src/lib/reset-password-guard";
 import { computeStarterProgress, starterCountsFromItems } from "../src/lib/starter-progress";
@@ -37,6 +42,7 @@ function product(
     id,
     name: `Product ${id}`,
     brand: "Authorized Brand",
+    kind: "clothing",
     category: "top",
     color: "black",
     price: 100,
@@ -82,6 +88,10 @@ const validCatalogInput: CatalogAddInput = {
   source_url: "https://authorized.example/field-jacket",
   image_rights_basis: "authorized",
   verification_method: "manual",
+  vibe: "workwear",
+  price_tier: "mid",
+  accessory_subtype: "",
+  fragrance_family: "",
   affiliate: false,
   affiliate_disclosure: "",
   description: "An authorized product fixture.",
@@ -122,11 +132,19 @@ describe("Pass 3 Shop scopes", () => {
   it("Demo contains only demo rows", () => {
     expect(rankCatalogForScope(scored, "demo", NOW).map(({ item }) => item.id)).toEqual(["demo"]);
   });
+
+  it("prioritizes verified inventory emptiness inside every Shop tab", () => {
+    expect(shouldShowVerifiedInventoryEmpty("verified", 0)).toBe(true);
+    expect(shouldShowVerifiedInventoryEmpty("verified", 1)).toBe(false);
+    expect(shouldShowVerifiedInventoryEmpty("demo", 0)).toBe(false);
+  });
 });
 
 describe("catalog server policy helpers", () => {
   it("validates required catalog provenance and commerce fields", () => {
     expect(catalogAddSchema.safeParse(validCatalogInput).success).toBe(true);
+    expect(catalogAddSchema.safeParse({ ...validCatalogInput, source_url: "" }).success).toBe(true);
+    expect(buildCatalogPayload({ ...validCatalogInput, source_url: "" }).source_url).toBeNull();
     expect(
       catalogAddSchema.safeParse({
         ...validCatalogInput,
@@ -143,12 +161,67 @@ describe("catalog server policy helpers", () => {
     ).toBe(false);
   });
 
-  it("sets verification timestamps on the server payload time", () => {
-    const now = new Date("2026-07-29T19:00:00.000Z");
-    const payload = buildVerifiedCatalogPayload(validCatalogInput, now);
-    expect(payload.verified_at).toBe(now.toISOString());
-    expect(payload.last_checked_at).toBe(now.toISOString());
-    expect(payload.is_demo).toBe(false);
+  it("keeps routine edits separate from explicit verification", () => {
+    const editPayload = buildCatalogPayload(validCatalogInput);
+    expect(editPayload).not.toHaveProperty("verified_at");
+    expect(editPayload).not.toHaveProperty("last_checked_at");
+
+    const insertPayload = buildNewCatalogPayload(validCatalogInput);
+    expect(insertPayload.verified_at).toBeNull();
+    expect(insertPayload.last_checked_at).toBeNull();
+    expect(insertPayload.is_demo).toBe(false);
+  });
+
+  it("validates intelligence fields, accessory coverage, and derived kind", () => {
+    expect(deriveCatalogKind("jacket")).toBe("clothing");
+    expect(deriveCatalogKind("runner")).toBe("shoes");
+    expect(deriveCatalogKind("bracelet")).toBe("accessory");
+    expect(deriveCatalogKind("edp")).toBe("fragrance");
+
+    expect(catalogAddSchema.safeParse({ ...validCatalogInput, kind: "accessory" }).success).toBe(
+      false,
+    );
+    expect(catalogAddSchema.safeParse({ ...validCatalogInput, vibe: "" }).success).toBe(false);
+    expect(
+      catalogAddSchema.safeParse({ ...validCatalogInput, price_tier: undefined }).success,
+    ).toBe(false);
+
+    const requiredSubtypes = [
+      "bracelets",
+      "grills",
+      "glasses",
+      "earrings",
+      "chains",
+      "watches",
+      "rings",
+      "hat",
+      "belts",
+      "bags",
+      "socks",
+      "scarves",
+      "wallets",
+    ];
+    expect(
+      requiredSubtypes.every((subtype) => CATALOG_ACCESSORY_SUBTYPES.includes(subtype as never)),
+    ).toBe(true);
+
+    const glasses = {
+      ...validCatalogInput,
+      category: "glasses" as const,
+      kind: "accessory" as const,
+      accessory_subtype: "glasses" as const,
+    };
+    expect(catalogAddSchema.safeParse(glasses).success).toBe(true);
+    expect(catalogAddSchema.safeParse({ ...glasses, accessory_subtype: "" }).success).toBe(false);
+
+    const fragrance = {
+      ...validCatalogInput,
+      category: "edp" as const,
+      kind: "fragrance" as const,
+      fragrance_family: "woody" as const,
+    };
+    expect(catalogAddSchema.safeParse(fragrance).success).toBe(true);
+    expect(catalogAddSchema.safeParse({ ...fragrance, fragrance_family: "" }).success).toBe(false);
   });
 
   it("protects every demo row and the curated demo source", () => {
@@ -179,6 +252,11 @@ describe("catalog server policy helpers", () => {
     expect(sql).toContain("AND is_demo = false");
     expect(sql).toContain('DROP POLICY IF EXISTS "catalog admin delete"');
     expect(sql).not.toContain('CREATE POLICY "catalog admin delete"');
+    expect(sql).toContain("FUNCTION public.verify_shop_catalog_item");
+    expect(sql).toContain("protect_catalog_verification_timestamps");
+    expect(sql).toContain("protect_new_catalog_verification_timestamps");
+    expect(sql).toContain("AND verified_at IS NULL");
+    expect(sql).toContain("AND last_checked_at IS NULL");
   });
 });
 
@@ -192,21 +270,35 @@ describe("password recovery safety", () => {
     expect(validateNewPassword("long-enough", "long-enough")).toEqual({ ok: true });
   });
 
-  it("does not authorize an ordinary session or a marker-only URL", () => {
-    expect(isRecoveryUrl("", "")).toBe(false);
-    expect(isRecoveryUrl("#type=recovery", "")).toBe(false);
-    expect(isRecoveryUrl("", "?type=recovery")).toBe(false);
+  it("authorizes only the verified Supabase recovery event", () => {
+    expect(recoveryEventAuthorizes("PASSWORD_RECOVERY")).toBe(true);
+    expect(recoveryEventAuthorizes("SIGNED_IN")).toBe(false);
+    expect(recoveryEventAuthorizes("INITIAL_SESSION")).toBe(false);
   });
 
-  it("requires a real implicit token pair or PKCE code and rejects errors", () => {
-    expect(isRecoveryUrl("#type=recovery&access_token=token&refresh_token=refresh", "")).toBe(true);
-    expect(isRecoveryUrl("", "?type=recovery&code=pkce-code")).toBe(true);
+  it("never treats fake raw tokens or codes as authorization", () => {
+    const fakeImplicit = parseRecoveryCallback(
+      "#type=recovery&access_token=fake&refresh_token=fake",
+      "",
+    );
+    const fakePkce = parseRecoveryCallback("", "?type=recovery&code=fake");
+    expect(fakeImplicit.hasCallbackParameters).toBe(true);
+    expect(fakePkce.hasCallbackParameters).toBe(true);
+    expect(fakeImplicit).not.toHaveProperty("authorized");
+    expect(fakePkce).not.toHaveProperty("authorized");
+
     const expired = parseRecoveryCallback(
       "#error=access_denied&error_code=otp_expired&error_description=expired",
       "",
     );
-    expect(expired.authorized).toBe(false);
     expect(expired.error).toContain("expired");
+
+    const route = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/routes/auth_.reset-password.tsx"),
+      "utf8",
+    );
+    expect(route).not.toContain("callback.authorized");
+    expect(route).toContain("recoveryEventAuthorizes(event)");
   });
 
   it("keeps the reset page outside the leaf auth component tree", () => {
@@ -252,6 +344,23 @@ describe("starter closet category gating", () => {
     expect(ready.generatorReady).toBe(true);
     expect(ready.complete).toBe(false);
   });
+
+  it("excludes archived closet items and hides the active Home Generate shortcut", () => {
+    const counts = starterCountsFromItems([
+      { category: "tee", kind: "clothing", archived: true },
+      { category: "bottom", kind: "clothing" },
+      { category: "shoes", kind: "shoes" },
+    ]);
+    expect(counts.tops).toBe(0);
+    expect(computeStarterProgress(counts).generatorReady).toBe(false);
+
+    const home = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/routes/_authenticated/home.tsx"),
+      "utf8",
+    );
+    expect(home.match(/\.eq\("archived", false\)/g)?.length).toBe(2);
+    expect(home).toContain("progress?.generatorReady &&");
+  });
 });
 
 describe("safe problem reporting", () => {
@@ -291,6 +400,17 @@ describe("safe problem reporting", () => {
     expect(JSON.stringify(safe)).not.toContain("must-not-survive");
   });
 
+  it("preserves an accepted 4,000-character description", () => {
+    const description = "x".repeat(4000);
+    const details = buildProblemReportDetails({
+      report_type: "bug",
+      description,
+      route: "/shop",
+    });
+    expect(details.endsWith(description)).toBe(true);
+    expect(details.length).toBeGreaterThanOrEqual(4000);
+  });
+
   it("requires screenshot consent and creates a report-owned private path", () => {
     expect(screenshotIsApproved(true, false)).toBe(false);
     expect(screenshotIsApproved(false, true)).toBe(false);
@@ -317,5 +437,28 @@ describe("safe problem reporting", () => {
     expect(sql).toContain("false,\n  5242880");
     expect(sql).toContain("array_length(storage.foldername(name), 1) = 2");
     expect(sql).toContain("storage.filename(name) ~");
+    expect(sql).toContain("report.reporter_id = auth.uid()");
+    expect(sql).toContain("attach_problem_report_screenshot");
+
+    const dialog = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/components/ProblemReportDialog.tsx"),
+      "utf8",
+    );
+    expect(dialog.indexOf("await createReport")).toBeLessThan(
+      dialog.indexOf("await uploadAttachment"),
+    );
+    expect(dialog).toContain(".remove([attachmentPathValue])");
+
+    const reports = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/lib/reports.functions.ts"),
+      "utf8",
+    );
+    expect(reports).not.toContain("details.slice(0, 2000)");
+
+    const moderation = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/lib/moderation.functions.ts"),
+      "utf8",
+    );
+    expect(moderation).toContain("createSignedUrl(report.attachment_path, 300");
   });
 });

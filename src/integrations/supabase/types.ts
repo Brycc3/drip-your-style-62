@@ -846,6 +846,10 @@ export type Database = {
       }
     }
     Functions: {
+      attach_problem_report_screenshot: {
+        Args: { _path: string; _report: string }
+        Returns: undefined
+      }
       admin_delete_comment: {
         Args: { _comment: string; _note?: string }
         Returns: undefined
@@ -868,6 +872,10 @@ export type Database = {
       is_following: {
         Args: { _followee: string; _follower: string }
         Returns: boolean
+      }
+      verify_shop_catalog_item: {
+        Args: { _catalog_id: string }
+        Returns: string
       }
       outfit_signature: { Args: { _outfit_id: string }; Returns: string }
       record_item_wear: {

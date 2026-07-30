@@ -3,18 +3,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore } from "lucide-react";
+import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore, BadgeCheck } from "lucide-react";
 import { isVerifiedPurchasable, type VerifiableCatalogItem } from "@/lib/shop-catalog";
 import {
   CATALOG_AVAILABILITY,
+  CATALOG_ACCESSORY_SUBTYPES,
   CATALOG_CATEGORIES,
   CATALOG_CONDITIONS,
+  CATALOG_FRAGRANCE_FAMILIES,
   CATALOG_IMAGE_RIGHTS,
   CATALOG_IMAGE_WARNING,
-  CATALOG_KINDS,
+  CATALOG_PRICE_TIERS,
   CATALOG_SOURCE_TYPES,
   CATALOG_VERIFICATION_METHODS,
   catalogAddSchema,
+  deriveCatalogKind,
   type CatalogAddInput,
 } from "@/lib/catalog-validation";
 import {
@@ -22,6 +25,7 @@ import {
   setCatalogArchived,
   setCatalogAvailability,
   updateCatalogItem,
+  verifyCatalogItem,
 } from "@/lib/catalog-admin.functions";
 import type { CatalogItem } from "@/lib/shop-gap";
 
@@ -63,6 +67,7 @@ function AdminCatalogPage() {
   const updateFn = useServerFn(updateCatalogItem);
   const archiveFn = useServerFn(setCatalogArchived);
   const availabilityFn = useServerFn(setCatalogAvailability);
+  const verifyFn = useServerFn(verifyCatalogItem);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("needs_verification");
@@ -157,6 +162,24 @@ function AdminCatalogPage() {
     }
   }
 
+  async function verify(row: Row) {
+    if (row.is_demo) return;
+    const verb = row.verified_at ? "Reverify" : "Verify";
+    if (
+      !window.confirm(
+        `${verb} ${row.name}? This validates the current product, rights, provenance, price, and availability, then records the current server time.`,
+      )
+    )
+      return;
+    try {
+      await verifyFn({ data: { id: row.id } });
+      toast.success(`${verb} complete`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `${verb} failed`);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -166,8 +189,8 @@ function AdminCatalogPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Catalog</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add and manage verified products. Demo rows are read-only and cannot be edited,
-            archived, or converted.
+            Add and manage products, then explicitly verify complete rows. Demo rows are read-only
+            and cannot be edited, archived, or converted.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -187,7 +210,7 @@ function AdminCatalogPage() {
             onClick={() => setAdding(true)}
             className="btn-lime inline-flex items-center gap-1 !px-3 !py-1.5 text-[11px]"
           >
-            <Plus className="h-3 w-3" /> Add verified product
+            <Plus className="h-3 w-3" /> Add product
           </button>
         </div>
       </div>
@@ -222,7 +245,7 @@ function AdminCatalogPage() {
         <p className="card-surface p-3 text-[11px] text-muted-foreground">
           Demo products are protected. They exist to preview the gap engine using project-owned
           placeholder art and never link to a retailer. To ship a real product, use{" "}
-          <span className="text-primary">Add verified product</span> above.
+          <span className="text-primary">Add product</span> above.
         </p>
       )}
 
@@ -271,6 +294,15 @@ function AdminCatalogPage() {
                       >
                         Edit
                       </button>
+                      {!archived && (
+                        <button
+                          onClick={() => void verify(r)}
+                          className="rounded-full border border-primary/60 px-3 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 inline-flex items-center gap-1 justify-center"
+                        >
+                          <BadgeCheck className="h-3 w-3" />
+                          {r.verified_at ? "Reverify" : "Verify"}
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleArchive(r)}
                         className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
@@ -380,6 +412,10 @@ function EditorModal({
       (initial?.image_rights_basis as CatalogAddInput["image_rights_basis"]) ?? "authorized",
     verification_method:
       (initial?.verification_method as CatalogAddInput["verification_method"]) ?? "manual",
+    vibe: initial?.vibe ?? "",
+    price_tier: (initial?.price_tier as CatalogAddInput["price_tier"]) ?? "mid",
+    accessory_subtype: (initial?.accessory_subtype as CatalogAddInput["accessory_subtype"]) ?? "",
+    fragrance_family: (initial?.fragrance_family as CatalogAddInput["fragrance_family"]) ?? "",
     affiliate: initial?.affiliate ?? false,
     affiliate_disclosure: initial?.affiliate_disclosure ?? "",
     description: initial?.description ?? "",
@@ -389,6 +425,17 @@ function EditorModal({
 
   function set<K extends keyof CatalogAddInput>(k: K, v: CatalogAddInput[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
+  }
+
+  function setCategory(value: CatalogAddInput["category"]) {
+    const kind = deriveCatalogKind(value);
+    setDraft((draftValue) => ({
+      ...draftValue,
+      category: value,
+      kind,
+      accessory_subtype: kind === "accessory" ? draftValue.accessory_subtype : "",
+      fragrance_family: kind === "fragrance" ? draftValue.fragrance_family : "",
+    }));
   }
 
   function attempt() {
@@ -419,7 +466,7 @@ function EditorModal({
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xs uppercase tracking-[0.3em] text-primary">
-          {isEdit ? "Edit verified product" : "Add verified product"}
+          {isEdit ? "Edit product" : "Add product"}
         </p>
         <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
           {CATALOG_IMAGE_WARNING}
@@ -442,17 +489,11 @@ function EditorModal({
           <Select
             label="Category*"
             value={draft.category ?? "top"}
-            onChange={(v) => set("category", v as CatalogAddInput["category"])}
+            onChange={(v) => setCategory(v as CatalogAddInput["category"])}
             options={[...CATALOG_CATEGORIES]}
             error={errors.category}
           />
-          <Select
-            label="Kind*"
-            value={draft.kind ?? "clothing"}
-            onChange={(v) => set("kind", v as CatalogAddInput["kind"])}
-            options={[...CATALOG_KINDS]}
-            error={errors.kind}
-          />
+          <ReadOnly label="Kind (derived)" value={draft.kind ?? "clothing"} error={errors.kind} />
           <Text
             label="Color*"
             value={draft.color ?? ""}
@@ -558,6 +599,37 @@ function EditorModal({
             options={[...CATALOG_VERIFICATION_METHODS]}
             error={errors.verification_method}
           />
+          <Text
+            label="Vibe*"
+            value={draft.vibe ?? ""}
+            onChange={(v) => set("vibe", v)}
+            error={errors.vibe}
+          />
+          <Select
+            label="Price tier*"
+            value={draft.price_tier ?? "mid"}
+            onChange={(v) => set("price_tier", v as CatalogAddInput["price_tier"])}
+            options={[...CATALOG_PRICE_TIERS]}
+            error={errors.price_tier}
+          />
+          {draft.kind === "accessory" && (
+            <Select
+              label="Accessory subtype*"
+              value={draft.accessory_subtype ?? ""}
+              onChange={(v) => set("accessory_subtype", v as CatalogAddInput["accessory_subtype"])}
+              options={["", ...CATALOG_ACCESSORY_SUBTYPES]}
+              error={errors.accessory_subtype}
+            />
+          )}
+          {draft.kind === "fragrance" && (
+            <Select
+              label="Fragrance family*"
+              value={draft.fragrance_family ?? ""}
+              onChange={(v) => set("fragrance_family", v as CatalogAddInput["fragrance_family"])}
+              options={["", ...CATALOG_FRAGRANCE_FAMILIES]}
+              error={errors.fragrance_family}
+            />
+          )}
           <label className="col-span-2 flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -609,10 +681,26 @@ function EditorModal({
             onClick={attempt}
             className="btn-lime flex-1 !py-2 text-xs inline-flex items-center justify-center gap-1"
           >
-            <Save className="h-3 w-3" /> {isEdit ? "Save changes" : "Add product"}
+            <Save className="h-3 w-3" /> {isEdit ? "Save without reverifying" : "Add product"}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadOnly({ label, value, error }: { label: string; value: string; error?: string }) {
+  return (
+    <div>
+      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      <div
+        className={`mt-1 w-full rounded-lg border bg-surface-2 px-3 py-2 text-sm ${
+          error ? "border-destructive/60" : "border-border"
+        }`}
+      >
+        {value}
+      </div>
+      {error && <span className="mt-1 block text-[10px] text-destructive">{error}</span>}
     </div>
   );
 }

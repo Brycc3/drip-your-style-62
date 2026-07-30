@@ -18,6 +18,7 @@ import {
   dedupeCatalog,
   prioritizeUnseenCatalog,
   productActionFor,
+  shouldShowVerifiedInventoryEmpty,
   isVerifiedPurchasable,
   rankCatalogForScope,
   type ShopScope,
@@ -546,6 +547,8 @@ function ShopPage() {
             <div key={i} className="h-64 animate-pulse rounded-lg bg-surface" />
           ))}
         </div>
+      ) : shouldShowVerifiedInventoryEmpty(scope, scored.length) ? (
+        <VerifiedInventoryEmpty />
       ) : tab === "outfits" ? (
         outfitIdeas.length === 0 ? (
           <div className="card-surface p-6 text-center text-sm text-muted-foreground">
@@ -567,17 +570,7 @@ function ShopPage() {
         )
       ) : scored.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
-          {scope === "verified" ? (
-            <>
-              <p className="font-medium text-foreground">No verified products yet.</p>
-              <p className="mt-2">
-                Inventory will appear only after an authorized retailer, affiliate feed, partner
-                API, or manually verified product is added.
-              </p>
-            </>
-          ) : (
-            "No matches in this filter. Try Refresh or a different tab."
-          )}
+          No matches in this filter. Try Refresh or a different tab.
         </div>
       ) : (
         <>
@@ -608,6 +601,18 @@ function ShopPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function VerifiedInventoryEmpty() {
+  return (
+    <div className="card-surface p-6 text-center text-sm text-muted-foreground">
+      <p className="font-medium text-foreground">No verified products yet.</p>
+      <p className="mt-2">
+        Inventory will appear only after an authorized retailer, affiliate feed, partner API, or
+        manually verified product is added.
+      </p>
     </div>
   );
 }

@@ -39,7 +39,11 @@ function HomePage() {
       const [{ data: profile }, { data: items }, { count: fragCount }, { data: recentItems }] =
         await Promise.all([
           supabase.from("profiles").select("display_name").eq("id", uid).maybeSingle(),
-          supabase.from("closet_items").select("id,category,kind").eq("user_id", uid),
+          supabase
+            .from("closet_items")
+            .select("id,category,kind")
+            .eq("user_id", uid)
+            .eq("archived", false),
           supabase
             .from("fragrances")
             .select("*", { count: "exact", head: true })
@@ -48,6 +52,7 @@ function HomePage() {
             .from("closet_items")
             .select("id,name,image_url,color")
             .eq("user_id", uid)
+            .eq("archived", false)
             .order("created_at", { ascending: false })
             .limit(6),
         ]);
@@ -149,7 +154,9 @@ function HomePage() {
           <section className="grid grid-cols-2 gap-3">
             <QuickLink to="/closet" icon={Shirt} label="Closet" />
             <QuickLink to="/saved" icon={Bookmark} label="Saved outfits" />
-            <QuickLink to="/generate" icon={Sparkles} label="Generate" />
+            {progress?.generatorReady && (
+              <QuickLink to="/generate" icon={Sparkles} label="Generate" />
+            )}
             <QuickLink to="/shop" icon={ShoppingBag} label="Shop gaps" />
             <QuickLink to="/swipe" icon={TrendingUp} label="Train taste" />
           </section>

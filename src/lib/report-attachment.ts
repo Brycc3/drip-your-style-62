@@ -87,6 +87,20 @@ export type ProblemReportMeta = {
   attachment_path?: string;
 };
 
+export function buildProblemReportDetails(input: ProblemReportMeta): string {
+  return [
+    `REPORT_TYPE: ${input.report_type}`,
+    input.route ? `ROUTE: ${input.route}` : null,
+    input.client_timestamp ? `CLIENT_TS: ${input.client_timestamp}` : null,
+    input.device ? `DEVICE: ${input.device}` : null,
+    input.user_agent ? `UA: ${input.user_agent}` : null,
+    "",
+    input.description,
+  ]
+    .filter((value) => value !== null)
+    .join("\n");
+}
+
 export function buildSafeReportMeta(input: ProblemReportMeta): ProblemReportMeta {
   const clip = (s: string | undefined, n: number) => (s === undefined ? undefined : s.slice(0, n));
   const asHttpPath = (s: string | undefined) => {

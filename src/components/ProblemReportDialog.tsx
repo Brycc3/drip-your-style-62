@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { LifeBuoy, X, ImagePlus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { reportProblem } from "@/lib/reports.functions";
+import { attachProblemScreenshot, createProblemReport } from "@/lib/reports.functions";
 import {
   REPORT_ALLOWED_MIME,
   REPORT_MAX_BYTES,
@@ -14,7 +14,8 @@ import {
 } from "@/lib/report-attachment";
 
 export function ProblemReportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const submit = useServerFn(reportProblem);
+  const createReport = useServerFn(createProblemReport);
+  const attachScreenshot = useServerFn(attachProblemScreenshot);
   const [reportType, setReportType] = useState<"bug" | "other">("bug");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -48,8 +49,7 @@ export function ProblemReportDialog({ open, onClose }: { open: boolean; onClose:
     if (!file || !screenshotIsApproved(Boolean(file), screenshotApproved)) return undefined;
     const v = validateAttachment({ type: file.type, size: file.size, name: file.name });
     if (!v.ok) {
-      toast.error(v.error);
-      return undefined;
+      throw new Error(v.error);
     }
     setUploading(true);
     try {
@@ -81,9 +81,8 @@ export function ProblemReportDialog({ open, onClose }: { open: boolean; onClose:
       return toast.error("Approve the selected screenshot or remove it before sending.");
     }
     setBusy(true);
+    let reportCreated = false;
     try {
-      const report_id = crypto.randomUUID();
-      const attachment_path = await uploadAttachment(report_id);
       const meta = buildSafeReportMeta({
         report_type: reportType,
         description: description.trim(),
@@ -94,28 +93,54 @@ export function ProblemReportDialog({ open, onClose }: { open: boolean; onClose:
             ? `${window.innerWidth}x${window.innerHeight}; ${navigator.platform || "unknown platform"}`
             : undefined,
         client_timestamp: new Date().toISOString(),
-        attachment_path,
       });
-      await submit({
+      const created = await createReport({
         data: {
-          report_id,
           report_type: meta.report_type,
           description: meta.description,
           route: meta.route,
           user_agent: meta.user_agent,
           device: meta.device,
           client_timestamp: meta.client_timestamp,
-          attachment_path: meta.attachment_path,
         },
       });
+      reportCreated = true;
+
+      if (file) {
+        const attachmentPathValue = await uploadAttachment(created.report_id);
+        if (attachmentPathValue) {
+          try {
+            await attachScreenshot({
+              data: {
+                report_id: created.report_id,
+                attachment_path: attachmentPathValue,
+              },
+            });
+          } catch (linkError) {
+            // The object must not become an orphan if the report link fails.
+            const { error: cleanupError } = await supabase.storage
+              .from("reports")
+              .remove([attachmentPathValue]);
+
+            if (cleanupError) {
+              throw new Error(
+                `The report was saved, but its screenshot could not be attached or cleaned up: ${cleanupError.message}`,
+              );
+            }
+
+            throw linkError;
+          }
+        }
+      }
       toast.success("Thanks — problem logged.");
-      setDescription("");
-      setFile(null);
-      setScreenshotApproved(false);
-      if (fileRef.current) fileRef.current.value = "";
-      onClose();
+      closeAndReset();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to send");
+      if (reportCreated) {
+        toast.error("The report was saved, but its screenshot could not be attached.");
+        closeAndReset();
+      } else {
+        toast.error(e instanceof Error ? e.message : "Failed to send");
+      }
     } finally {
       setBusy(false);
     }

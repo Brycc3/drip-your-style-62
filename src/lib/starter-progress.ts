@@ -32,6 +32,7 @@ export type StarterProgress = {
 export type ClosetStarterItem = {
   category?: string | null;
   kind?: string | null;
+  archived?: boolean | null;
 };
 
 const TOP_CATEGORIES = new Set(["top", "tee", "hoodie", "shirt", "polo", "sweater", "tank"]);
@@ -59,6 +60,7 @@ const SHOE_CATEGORIES = new Set([
 export function starterCountsFromItems(items: ClosetStarterItem[]): StarterCounts {
   const counts: StarterCounts = { tops: 0, bottoms: 0, shoes: 0, accessories: 0 };
   for (const item of items) {
+    if (item.archived === true) continue;
     const category = (item.category ?? "").toLowerCase();
     const kind = (item.kind ?? "").toLowerCase();
     if (kind === "shoes" || SHOE_CATEGORIES.has(category)) counts.shoes += 1;

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildProblemReportDetails } from "./report-attachment";
 
 const reportInput = z.object({
   target_type: z.enum(["outfit", "user", "comment", "shop_item", "broken_link", "other"]),
@@ -37,59 +38,62 @@ export const blockUser = createServerFn({ method: "POST" })
   });
 
 const problemInput = z.object({
-  report_id: z.string().uuid(),
   report_type: z.enum(["bug", "other"]),
   description: z.string().trim().min(4).max(4000),
   route: z.string().max(500).optional(),
   user_agent: z.string().max(500).optional(),
   device: z.string().max(120).optional(),
   client_timestamp: z.string().max(40).optional(),
+});
+
+const attachmentInput = z.object({
+  report_id: z.string().uuid(),
   attachment_path: z
     .string()
     .max(500)
     .regex(
       /^[a-f0-9-]{36}\/[a-f0-9-]{36}\/[a-f0-9-]{36}\.(png|jpg|webp|gif)$/i,
       "Invalid attachment path",
-    )
-    .optional(),
+    ),
 });
 
-export const reportProblem = createServerFn({ method: "POST" })
+export const createProblemReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i) => problemInput.parse(i))
   .handler(async ({ context, data }) => {
-    // If an attachment_path was supplied it MUST live under the caller's
-    // own folder — reject anything else even if the client claims otherwise.
-    if (
-      data.attachment_path &&
-      !data.attachment_path.startsWith(`${context.userId}/${data.report_id}/`)
-    ) {
+    const details = buildProblemReportDetails(data);
+    const { data: inserted, error } = await context.supabase
+      .from("content_reports")
+      .insert({
+        reporter_id: context.userId,
+        // `target_type` identifies the reported entity and its database check
+        // constraint intentionally has no `bug` value. Keep problem reports in
+        // the existing `other` target bucket and store their user-selected type
+        // in the reason/details for moderation.
+        target_type: "other",
+        target_id: null,
+        reason: `problem:${data.report_type}: ${data.description}`.slice(0, 200),
+        // Preserve the complete accepted description. `details` is a text
+        // column and must not truncate a valid 4,000-character report.
+        details,
+        attachment_path: null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { ok: true, report_id: inserted.id };
+  });
+
+export const attachProblemScreenshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => attachmentInput.parse(i))
+  .handler(async ({ context, data }) => {
+    if (!data.attachment_path.startsWith(`${context.userId}/${data.report_id}/`)) {
       throw new Error("Attachment must belong to this report");
     }
-    const details = [
-      `REPORT_TYPE: ${data.report_type}`,
-      data.route ? `ROUTE: ${data.route}` : null,
-      data.client_timestamp ? `CLIENT_TS: ${data.client_timestamp}` : null,
-      data.device ? `DEVICE: ${data.device}` : null,
-      data.user_agent ? `UA: ${data.user_agent}` : null,
-      data.attachment_path ? `PRIVATE_ATTACHMENT: ${data.attachment_path}` : null,
-      "",
-      data.description,
-    ]
-      .filter((x) => x !== null)
-      .join("\n");
-    const { error } = await context.supabase.from("content_reports").insert({
-      id: data.report_id,
-      reporter_id: context.userId,
-      // `target_type` identifies the reported entity and its database check
-      // constraint intentionally has no `bug` value. Keep problem reports in
-      // the existing `other` target bucket and store their user-selected type
-      // in the reason/details for moderation.
-      target_type: "other",
-      target_id: null,
-      reason: `problem:${data.report_type}: ${data.description}`.slice(0, 200),
-      details: details.slice(0, 2000),
-      attachment_path: data.attachment_path ?? null,
+    const { error } = await context.supabase.rpc("attach_problem_report_screenshot", {
+      _report: data.report_id,
+      _path: data.attachment_path,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

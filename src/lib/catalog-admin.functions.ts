@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   assertCatalogRowWritable,
-  buildVerifiedCatalogPayload,
+  buildCatalogPayload,
+  buildNewCatalogPayload,
   catalogAddSchema,
   catalogUpdateSchema,
 } from "./catalog-validation";
@@ -12,6 +13,7 @@ import { requireServerAdmin } from "./admin-auth";
 import type { Database } from "@/integrations/supabase/types";
 
 type CatalogInsert = Database["public"]["Tables"]["shop_catalog"]["Insert"];
+type CatalogRow = Database["public"]["Tables"]["shop_catalog"]["Row"];
 type CatalogUpdate = Database["public"]["Tables"]["shop_catalog"]["Update"];
 
 /**
@@ -21,25 +23,58 @@ type CatalogUpdate = Database["public"]["Tables"]["shop_catalog"]["Update"];
 async function loadNonDemoRow(supabase: SupabaseClient<Database>, id: string) {
   const { data, error } = await supabase
     .from("shop_catalog")
-    .select("id,is_demo,source")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Product not found");
-  const row = data as { id: string; is_demo: boolean | null; source: string | null };
+  const row = data as CatalogRow;
   assertCatalogRowWritable(row);
   return row;
 }
 
+function validateStoredCatalogRow(row: CatalogRow) {
+  return catalogAddSchema.parse({
+    name: row.name,
+    brand: row.brand ?? "",
+    category: row.category,
+    kind: row.kind,
+    color: row.color ?? "",
+    material: row.material ?? "",
+    fit: row.fit ?? "",
+    formality: row.formality,
+    season: row.season,
+    condition: row.condition,
+    retailer: row.retailer ?? "",
+    buy_url: row.buy_url ?? "",
+    image_url: row.image_url ?? "",
+    current_price: row.current_price,
+    original_price: row.original_price ?? undefined,
+    availability: row.availability,
+    source_type: row.source_type,
+    source_name: row.source_name ?? "",
+    source_url: row.source_url ?? undefined,
+    image_rights_basis: row.image_rights_basis,
+    verification_method: row.verification_method,
+    vibe: row.vibe ?? "",
+    price_tier: row.price_tier,
+    accessory_subtype: row.accessory_subtype ?? "",
+    fragrance_family: row.fragrance_family ?? "",
+    affiliate: row.affiliate,
+    affiliate_disclosure: row.affiliate_disclosure ?? "",
+    description: row.description ?? "",
+  });
+}
+
 /**
- * ADD a verified catalog row. Non-demo, non-archived.
+ * Add an unverified catalog row. Verification is a separate explicit action.
  */
 export const addCatalogItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i) => catalogAddSchema.parse(i))
   .handler(async ({ context, data }) => {
     await requireServerAdmin(context.supabase, context.userId);
-    const payload = buildVerifiedCatalogPayload(data) as CatalogInsert;
+    const payload = buildNewCatalogPayload(data) as CatalogInsert;
     const { data: inserted, error } = await context.supabase
       .from("shop_catalog")
       .insert(payload)
@@ -59,11 +94,8 @@ export const updateCatalogItem = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await requireServerAdmin(context.supabase, context.userId);
     await loadNonDemoRow(context.supabase, data.id);
-    const payload = buildVerifiedCatalogPayload(data.data);
-    // Never allow archived/is_demo change via update — they have their own
-    // dedicated paths (and is_demo is immutable).
-    delete payload.archived;
-    delete payload.is_demo;
+    // Routine edits intentionally omit verified_at and last_checked_at.
+    const payload = buildCatalogPayload(data.data);
     const { error } = await context.supabase
       .from("shop_catalog")
       .update(payload as CatalogUpdate)
@@ -93,8 +125,7 @@ export const setCatalogArchived = createServerFn({ method: "POST" })
   });
 
 /**
- * Update the availability of a non-demo catalog row and refresh
- * last_checked_at.
+ * Update availability without changing verification timestamps.
  */
 export const setCatalogAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -111,12 +142,29 @@ export const setCatalogAvailability = createServerFn({ method: "POST" })
     await loadNonDemoRow(context.supabase, data.id);
     const { error } = await context.supabase
       .from("shop_catalog")
-      .update({
-        availability: data.availability,
-        last_checked_at: new Date().toISOString(),
-      })
+      .update({ availability: data.availability })
       .eq("id", data.id)
       .eq("is_demo", false);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Explicitly verify/reverify the complete stored row. Shared server validation
+ * runs first; the database RPC independently authorizes the admin, validates
+ * the row, and is the only path permitted to refresh both timestamps.
+ */
+export const verifyCatalogItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await requireServerAdmin(context.supabase, context.userId);
+    const row = await loadNonDemoRow(context.supabase, data.id);
+    if (row.archived) throw new Error("Restore this product before verifying it");
+    validateStoredCatalogRow(row);
+    const { data: verifiedAt, error } = await context.supabase.rpc("verify_shop_catalog_item", {
+      _catalog_id: data.id,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, verified_at: verifiedAt };
   });

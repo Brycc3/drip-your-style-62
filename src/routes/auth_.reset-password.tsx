@@ -2,7 +2,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { parseRecoveryCallback, validateNewPassword } from "@/lib/reset-password-guard";
+import {
+  parseRecoveryCallback,
+  recoveryEventAuthorizes,
+  validateNewPassword,
+} from "@/lib/reset-password-guard";
 
 export const Route = createFileRoute("/auth_/reset-password")({
   ssr: false,
@@ -20,10 +24,9 @@ export const Route = createFileRoute("/auth_/reset-password")({
  * The trailing underscore in this file name keeps /auth/reset-password out
  * of the /auth component tree; the sign-in page is a leaf, not a layout.
  *
- * Password reset must not accept a plain signed-in session. Only a genuine
- * PASSWORD_RECOVERY flow — recognized by Supabase firing the recovery event
- * OR by the URL still carrying the `type=recovery` marker — unlocks the
- * form. Any other case shows the invalid/expired state.
+ * Password reset must not accept a plain signed-in session or token-shaped URL
+ * text. Supabase must successfully verify/exchange the provider callback and
+ * emit PASSWORD_RECOVERY before the form unlocks.
  */
 function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -38,22 +41,19 @@ function ResetPasswordPage() {
 
   useEffect(() => {
     let cancelled = false;
-    // Read the callback before first touching the lazy Supabase client:
-    // initializing auth may consume and remove the hash immediately.
+    // URL text is used only to surface provider errors. It never authorizes
+    // recovery: fake tokens/codes must remain locked.
     if (typeof window !== "undefined") {
       const callback = parseRecoveryCallback(window.location.hash, window.location.search);
-      if (callback.authorized) {
-        setHasRecovery(true);
-      } else if (callback.error) {
-        setErr(callback.error);
-      }
+      if (callback.error) setErr(callback.error);
     }
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
-      if (event === "PASSWORD_RECOVERY") setHasRecovery(true);
+      if (recoveryEventAuthorizes(event)) setHasRecovery(true);
     });
-    // getSession is used ONLY to know when Supabase finished parsing the URL,
-    // not as a substitute for the recovery signal.
+    // Initialization verifies implicit callbacks or exchanges PKCE codes. A
+    // successful recovery emits PASSWORD_RECOVERY before this settles. The
+    // returned session itself is never accepted as recovery evidence.
     supabase.auth.getSession().finally(() => {
       if (!cancelled) setReady(true);
     });

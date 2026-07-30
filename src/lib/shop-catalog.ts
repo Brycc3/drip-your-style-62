@@ -1,4 +1,10 @@
-import { hasValidBuyUrl, type CatalogItem } from "./shop-gap";
+import type { CatalogItem } from "./shop-gap";
+import {
+  CATALOG_CATEGORIES,
+  catalogImageRightsAreConsistent,
+  deriveCatalogKind,
+  isValidHttpsUrl,
+} from "./catalog-validation";
 
 /**
  * Provenance fields added by the Pass 1 foundation migration. Optional on the
@@ -59,17 +65,25 @@ export function isVerifiedPurchasable(
   // Product identity
   if (!isNonEmpty(item.name)) return false;
   if (!isNonEmpty(item.brand)) return false;
+  if (!isNonEmpty(item.category)) return false;
+  if (!CATALOG_CATEGORIES.includes(item.category as (typeof CATALOG_CATEGORIES)[number]))
+    return false;
+  if (!isNonEmpty(item.color)) return false;
   if (!isNonEmpty(item.retailer)) return false;
+  if (
+    !isNonEmpty(item.kind) ||
+    deriveCatalogKind(item.category as Parameters<typeof deriveCatalogKind>[0]) !== item.kind
+  )
+    return false;
 
-  // Destination URL — real https link required.
-  if (!hasValidBuyUrl(item)) return false;
-  if (!isNonEmpty(item.buy_url) || !/^https:\/\//i.test(item.buy_url)) return false;
+  // Destination URL — independently require a real https link.
+  if (!isValidHttpsUrl(item.buy_url)) return false;
 
   // Authorized image (either an https URL or a project-owned storage path,
   // paired with an explicit rights basis).
-  if (!isNonEmpty(item.image_url)) return false;
-  if (!isNonEmpty(item.image_rights_basis)) return false;
-  if (!ALLOWED_IMAGE_RIGHTS.has(item.image_rights_basis)) return false;
+  if (!catalogImageRightsAreConsistent(item.image_url, item.image_rights_basis)) return false;
+  if (!isNonEmpty(item.image_rights_basis) || !ALLOWED_IMAGE_RIGHTS.has(item.image_rights_basis))
+    return false;
 
   // Provenance
   if (!isNonEmpty(item.source_type)) return false;
@@ -80,7 +94,7 @@ export function isVerifiedPurchasable(
   if (!isFreshIso(item.verified_at, now)) return false;
 
   // Pricing — must be a positive number.
-  const price = item.current_price ?? item.price;
+  const price = item.current_price;
   if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return false;
 
   // Availability signal
@@ -90,7 +104,16 @@ export function isVerifiedPurchasable(
   // Last-checked freshness
   if (!isFreshIso(item.last_checked_at, now)) return false;
 
+  if (item.affiliate === true && !isNonEmpty(item.affiliate_disclosure)) return false;
+
   return true;
+}
+
+export function shouldShowVerifiedInventoryEmpty(
+  scope: ShopScope,
+  matchingProductCount: number,
+): boolean {
+  return scope === "verified" && matchingProductCount === 0;
 }
 
 function normalizeIdentityPart(value?: string | null): string {
