@@ -3,17 +3,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore, PackageX } from "lucide-react";
+import { Shield, Save, Plus, RefreshCw, Archive, ArchiveRestore, BadgeCheck } from "lucide-react";
 import { isVerifiedPurchasable, type VerifiableCatalogItem } from "@/lib/shop-catalog";
 import {
   CATALOG_AVAILABILITY,
+  CATALOG_ACCESSORY_SUBTYPES,
   CATALOG_CATEGORIES,
   CATALOG_CONDITIONS,
+  CATALOG_FRAGRANCE_FAMILIES,
   CATALOG_IMAGE_RIGHTS,
   CATALOG_IMAGE_WARNING,
+  CATALOG_PRICE_TIERS,
   CATALOG_SOURCE_TYPES,
   CATALOG_VERIFICATION_METHODS,
   catalogAddSchema,
+  deriveCatalogKind,
   type CatalogAddInput,
 } from "@/lib/catalog-validation";
 import {
@@ -21,6 +25,7 @@ import {
   setCatalogArchived,
   setCatalogAvailability,
   updateCatalogItem,
+  verifyCatalogItem,
 } from "@/lib/catalog-admin.functions";
 import type { CatalogItem } from "@/lib/shop-gap";
 
@@ -62,6 +67,7 @@ function AdminCatalogPage() {
   const updateFn = useServerFn(updateCatalogItem);
   const archiveFn = useServerFn(setCatalogArchived);
   const availabilityFn = useServerFn(setCatalogAvailability);
+  const verifyFn = useServerFn(verifyCatalogItem);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("needs_verification");
@@ -114,7 +120,9 @@ function AdminCatalogPage() {
   async function saveEdit(id: string, data: CatalogAddInput) {
     try {
       await updateFn({ data: { id, data } });
-      toast.success("Saved");
+      toast.success(
+        "Saved. If a verification-critical field changed, the product now requires Reverify.",
+      );
       setEditing(null);
       await load();
     } catch (e) {
@@ -138,21 +146,45 @@ function AdminCatalogPage() {
     const next = !(row.archived === true);
     try {
       await archiveFn({ data: { id: row.id, archived: next } });
-      toast.success(next ? "Archived" : "Restored");
+      toast.success(
+        next
+          ? "Archived. Verification cleared."
+          : "Restored. Reverify before it can return to Verified inventory.",
+      );
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     }
   }
 
-  async function markUnavailable(row: Row) {
+  async function updateAvailability(row: Row, availability: CatalogAddInput["availability"]) {
     if (row.is_demo) return;
     try {
-      await availabilityFn({ data: { id: row.id, availability: "out_of_stock" } });
-      toast.success("Marked out of stock");
+      await availabilityFn({ data: { id: row.id, availability } });
+      toast.success(
+        `Availability set to ${availability.replaceAll("_", " ")}. Reverify before Verified inventory.`,
+      );
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
+    }
+  }
+
+  async function verify(row: Row) {
+    if (row.is_demo) return;
+    const verb = row.verified_at ? "Reverify" : "Verify";
+    if (
+      !window.confirm(
+        `${verb} ${row.name}? This validates the current product, rights, provenance, price, and availability, then records the current server time.`,
+      )
+    )
+      return;
+    try {
+      await verifyFn({ data: { id: row.id } });
+      toast.success(`${verb} complete`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `${verb} failed`);
     }
   }
 
@@ -165,8 +197,8 @@ function AdminCatalogPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Catalog</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add and manage verified products. Demo rows are read-only and cannot be edited,
-            archived, or converted.
+            Add and manage products, then explicitly verify complete rows. Critical changes,
+            restocking, and archive/restore clear verification atomically. Demo rows are read-only.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -186,9 +218,13 @@ function AdminCatalogPage() {
             onClick={() => setAdding(true)}
             className="btn-lime inline-flex items-center gap-1 !px-3 !py-1.5 text-[11px]"
           >
-            <Plus className="h-3 w-3" /> Add verified product
+            <Plus className="h-3 w-3" /> Add product
           </button>
         </div>
+      </div>
+
+      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
+        {CATALOG_IMAGE_WARNING}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -217,7 +253,7 @@ function AdminCatalogPage() {
         <p className="card-surface p-3 text-[11px] text-muted-foreground">
           Demo products are protected. They exist to preview the gap engine using project-owned
           placeholder art and never link to a retailer. To ship a real product, use{" "}
-          <span className="text-primary">Add verified product</span> above.
+          <span className="text-primary">Add product</span> above.
         </p>
       )}
 
@@ -233,10 +269,7 @@ function AdminCatalogPage() {
             const verified = !r.is_demo && isVerifiedPurchasable(r as VerifiableCatalogItem);
             const archived = r.archived === true;
             return (
-              <li
-                key={r.id}
-                className={`card-surface p-3 ${archived ? "opacity-70" : ""}`}
-              >
+              <li key={r.id} className={`card-surface p-3 ${archived ? "opacity-70" : ""}`}>
                 <div className="flex items-start gap-3">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface-2">
                     {r.image_url && (
@@ -250,7 +283,11 @@ function AdminCatalogPage() {
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge tone={r.is_demo ? "muted" : verified ? "good" : "warn"}>
-                        {r.is_demo ? "Demo (read-only)" : verified ? "Verified" : "Needs verification"}
+                        {r.is_demo
+                          ? "Demo (read-only)"
+                          : verified
+                            ? "Verified"
+                            : "Needs verification"}
                       </Badge>
                       {archived && <Badge tone="warn">Archived</Badge>}
                       {r.affiliate ? <Badge tone="muted">Affiliate</Badge> : null}
@@ -265,6 +302,15 @@ function AdminCatalogPage() {
                       >
                         Edit
                       </button>
+                      {!archived && (
+                        <button
+                          onClick={() => void verify(r)}
+                          className="rounded-full border border-primary/60 px-3 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 inline-flex items-center gap-1 justify-center"
+                        >
+                          <BadgeCheck className="h-3 w-3" />
+                          {r.verified_at ? "Reverify" : "Verify"}
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleArchive(r)}
                         className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
@@ -279,14 +325,26 @@ function AdminCatalogPage() {
                           </>
                         )}
                       </button>
-                      {!archived && r.availability !== "out_of_stock" && (
-                        <button
-                          onClick={() => markUnavailable(r)}
-                          className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest hover:bg-surface-2 inline-flex items-center gap-1 justify-center"
+                      <label className="text-[9px] uppercase tracking-widest text-muted-foreground">
+                        Stock status
+                        <select
+                          aria-label={`Availability for ${r.name}`}
+                          value={r.availability ?? "out_of_stock"}
+                          onChange={(event) =>
+                            void updateAvailability(
+                              r,
+                              event.target.value as CatalogAddInput["availability"],
+                            )
+                          }
+                          className="mt-1 block max-w-36 rounded-full border border-border bg-background px-2 py-1 text-[10px] normal-case tracking-normal text-foreground"
                         >
-                          <PackageX className="h-3 w-3" /> Out of stock
-                        </button>
-                      )}
+                          {CATALOG_AVAILABILITY.map((status) => (
+                            <option key={status} value={status}>
+                              {status.replaceAll("_", " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -316,7 +374,9 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "good" | "
         ? "border-destructive/60 text-destructive"
         : "border-border text-muted-foreground";
   return (
-    <span className={`rounded-full border ${cls} px-2 py-0.5 text-[10px] uppercase tracking-widest`}>
+    <span
+      className={`rounded-full border ${cls} px-2 py-0.5 text-[10px] uppercase tracking-widest`}
+    >
       {children}
     </span>
   );
@@ -340,6 +400,7 @@ function EditorModal({
     name: initial?.name ?? "",
     brand: initial?.brand ?? "",
     category: (initial?.category as CatalogAddInput["category"]) ?? "top",
+    kind: (initial?.kind as CatalogAddInput["kind"]) ?? "clothing",
     color: initial?.color ?? "",
     material: initial?.material ?? "",
     fit: initial?.fit ?? "",
@@ -359,6 +420,10 @@ function EditorModal({
       (initial?.image_rights_basis as CatalogAddInput["image_rights_basis"]) ?? "authorized",
     verification_method:
       (initial?.verification_method as CatalogAddInput["verification_method"]) ?? "manual",
+    vibe: initial?.vibe ?? "",
+    price_tier: (initial?.price_tier as CatalogAddInput["price_tier"]) ?? "mid",
+    accessory_subtype: (initial?.accessory_subtype as CatalogAddInput["accessory_subtype"]) ?? "",
+    fragrance_family: (initial?.fragrance_family as CatalogAddInput["fragrance_family"]) ?? "",
     affiliate: initial?.affiliate ?? false,
     affiliate_disclosure: initial?.affiliate_disclosure ?? "",
     description: initial?.description ?? "",
@@ -368,6 +433,17 @@ function EditorModal({
 
   function set<K extends keyof CatalogAddInput>(k: K, v: CatalogAddInput[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
+  }
+
+  function setCategory(value: CatalogAddInput["category"]) {
+    const kind = deriveCatalogKind(value);
+    setDraft((draftValue) => ({
+      ...draftValue,
+      category: value,
+      kind,
+      accessory_subtype: kind === "accessory" ? draftValue.accessory_subtype : "",
+      fragrance_family: kind === "fragrance" ? draftValue.fragrance_family : "",
+    }));
   }
 
   function attempt() {
@@ -398,24 +474,53 @@ function EditorModal({
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xs uppercase tracking-[0.3em] text-primary">
-          {isEdit ? "Edit verified product" : "Add verified product"}
+          {isEdit ? "Edit product" : "Add product"}
         </p>
         <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
           {CATALOG_IMAGE_WARNING}
         </div>
+        {isEdit && (
+          <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            Saving changes to identity, category, recommendation metadata, retailer, URLs, images,
+            pricing, availability, rights/provenance, or affiliate fields clears verification and
+            requires Reverify. Vibe and price tier are treated as critical. Description, material,
+            and fit-only edits preserve the existing verification timestamps.
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <Text label="Name*" value={draft.name ?? ""} onChange={(v) => set("name", v)} full error={errors.name} />
-          <Text label="Brand*" value={draft.brand ?? ""} onChange={(v) => set("brand", v)} error={errors.brand} />
+          <Text
+            label="Name*"
+            value={draft.name ?? ""}
+            onChange={(v) => set("name", v)}
+            full
+            error={errors.name}
+          />
+          <Text
+            label="Brand*"
+            value={draft.brand ?? ""}
+            onChange={(v) => set("brand", v)}
+            error={errors.brand}
+          />
           <Select
             label="Category*"
             value={draft.category ?? "top"}
-            onChange={(v) => set("category", v as CatalogAddInput["category"])}
+            onChange={(v) => setCategory(v as CatalogAddInput["category"])}
             options={[...CATALOG_CATEGORIES]}
             error={errors.category}
           />
-          <Text label="Color*" value={draft.color ?? ""} onChange={(v) => set("color", v)} error={errors.color} />
-          <Text label="Material" value={draft.material ?? ""} onChange={(v) => set("material", v)} />
+          <ReadOnly label="Kind (derived)" value={draft.kind ?? "clothing"} error={errors.kind} />
+          <Text
+            label="Color*"
+            value={draft.color ?? ""}
+            onChange={(v) => set("color", v)}
+            error={errors.color}
+          />
+          <Text
+            label="Material"
+            value={draft.material ?? ""}
+            onChange={(v) => set("material", v)}
+          />
           <Text label="Fit" value={draft.fit ?? ""} onChange={(v) => set("fit", v)} />
           <Select
             label="Formality"
@@ -435,7 +540,12 @@ function EditorModal({
             onChange={(v) => set("condition", v as CatalogAddInput["condition"])}
             options={[...CATALOG_CONDITIONS]}
           />
-          <Text label="Retailer*" value={draft.retailer ?? ""} onChange={(v) => set("retailer", v)} error={errors.retailer} />
+          <Text
+            label="Retailer*"
+            value={draft.retailer ?? ""}
+            onChange={(v) => set("retailer", v)}
+            error={errors.retailer}
+          />
           <Text
             label="Product URL (https://…)*"
             value={draft.buy_url ?? ""}
@@ -499,10 +609,43 @@ function EditorModal({
           <Select
             label="Verification method*"
             value={draft.verification_method ?? "manual"}
-            onChange={(v) => set("verification_method", v as CatalogAddInput["verification_method"])}
+            onChange={(v) =>
+              set("verification_method", v as CatalogAddInput["verification_method"])
+            }
             options={[...CATALOG_VERIFICATION_METHODS]}
             error={errors.verification_method}
           />
+          <Text
+            label="Vibe*"
+            value={draft.vibe ?? ""}
+            onChange={(v) => set("vibe", v)}
+            error={errors.vibe}
+          />
+          <Select
+            label="Price tier*"
+            value={draft.price_tier ?? "mid"}
+            onChange={(v) => set("price_tier", v as CatalogAddInput["price_tier"])}
+            options={[...CATALOG_PRICE_TIERS]}
+            error={errors.price_tier}
+          />
+          {draft.kind === "accessory" && (
+            <Select
+              label="Accessory subtype*"
+              value={draft.accessory_subtype ?? ""}
+              onChange={(v) => set("accessory_subtype", v as CatalogAddInput["accessory_subtype"])}
+              options={["", ...CATALOG_ACCESSORY_SUBTYPES]}
+              error={errors.accessory_subtype}
+            />
+          )}
+          {draft.kind === "fragrance" && (
+            <Select
+              label="Fragrance family*"
+              value={draft.fragrance_family ?? ""}
+              onChange={(v) => set("fragrance_family", v as CatalogAddInput["fragrance_family"])}
+              options={["", ...CATALOG_FRAGRANCE_FAMILIES]}
+              error={errors.fragrance_family}
+            />
+          )}
           <label className="col-span-2 flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -558,6 +701,22 @@ function EditorModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadOnly({ label, value, error }: { label: string; value: string; error?: string }) {
+  return (
+    <div>
+      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      <div
+        className={`mt-1 w-full rounded-lg border bg-surface-2 px-3 py-2 text-sm ${
+          error ? "border-destructive/60" : "border-border"
+        }`}
+      >
+        {value}
+      </div>
+      {error && <span className="mt-1 block text-[10px] text-destructive">{error}</span>}
     </div>
   );
 }

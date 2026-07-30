@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildProblemReportDetails } from "./report-attachment";
 
 const reportInput = z.object({
   target_type: z.enum(["outfit", "user", "comment", "shop_item", "broken_link", "other"]),
@@ -37,63 +38,62 @@ export const blockUser = createServerFn({ method: "POST" })
   });
 
 const problemInput = z.object({
-  area: z.enum([
-    "closet",
-    "generate",
-    "shop",
-    "feed",
-    "profile",
-    "auth",
-    "onboarding",
-    "swipe",
-    "inspo",
-    "other",
-  ]),
-  summary: z.string().min(4).max(200),
-  details: z.string().max(4000).optional(),
-  path: z.string().max(500).optional(),
+  report_type: z.enum(["bug", "other"]),
+  description: z.string().trim().min(4).max(4000),
+  route: z.string().max(500).optional(),
   user_agent: z.string().max(500).optional(),
-  screen: z.string().max(80).optional(),
-  app_version: z.string().max(80).optional(),
+  device: z.string().max(120).optional(),
   client_timestamp: z.string().max(40).optional(),
+});
+
+const attachmentInput = z.object({
+  report_id: z.string().uuid(),
   attachment_path: z
     .string()
     .max(500)
     .regex(
-      /^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(png|jpe?g|webp|gif)$/i,
+      /^[a-f0-9-]{36}\/[a-f0-9-]{36}\/[a-f0-9-]{36}\.(png|jpg|webp|gif)$/i,
       "Invalid attachment path",
-    )
-    .optional(),
+    ),
 });
 
-export const reportProblem = createServerFn({ method: "POST" })
+export const createProblemReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => problemInput.parse(i))
+  .validator((i) => problemInput.parse(i))
   .handler(async ({ context, data }) => {
-    // If an attachment_path was supplied it MUST live under the caller's
-    // own folder — reject anything else even if the client claims otherwise.
-    if (data.attachment_path && !data.attachment_path.startsWith(`${context.userId}/`)) {
-      throw new Error("Attachment must belong to the caller");
+    const details = buildProblemReportDetails(data);
+    const { data: inserted, error } = await context.supabase
+      .from("content_reports")
+      .insert({
+        reporter_id: context.userId,
+        // `target_type` identifies the reported entity and its database check
+        // constraint intentionally has no `bug` value. Keep problem reports in
+        // the existing `other` target bucket and store their user-selected type
+        // in the reason/details for moderation.
+        target_type: "other",
+        target_id: null,
+        reason: `problem:${data.report_type}: ${data.description}`.slice(0, 200),
+        // Preserve the complete accepted description. `details` is a text
+        // column and must not truncate a valid 4,000-character report.
+        details,
+        attachment_path: null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { ok: true, report_id: inserted.id };
+  });
+
+export const attachProblemScreenshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => attachmentInput.parse(i))
+  .handler(async ({ context, data }) => {
+    if (!data.attachment_path.startsWith(`${context.userId}/${data.report_id}/`)) {
+      throw new Error("Attachment must belong to this report");
     }
-    const details = [
-      `AREA: ${data.area}`,
-      data.path ? `PATH: ${data.path}` : null,
-      data.screen ? `SCREEN: ${data.screen}` : null,
-      data.app_version ? `VERSION: ${data.app_version}` : null,
-      data.client_timestamp ? `CLIENT_TS: ${data.client_timestamp}` : null,
-      data.user_agent ? `UA: ${data.user_agent}` : null,
-      "",
-      data.details ?? "",
-    ]
-      .filter((x) => x !== null)
-      .join("\n");
-    const { error } = await context.supabase.from("content_reports").insert({
-      reporter_id: context.userId,
-      target_type: "other",
-      target_id: null,
-      reason: `problem:${data.area}: ${data.summary}`.slice(0, 200),
-      details: details.slice(0, 2000),
-      attachment_path: data.attachment_path ?? null,
+    const { error } = await context.supabase.rpc("attach_problem_report_screenshot", {
+      _report: data.report_id,
+      _path: data.attachment_path,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

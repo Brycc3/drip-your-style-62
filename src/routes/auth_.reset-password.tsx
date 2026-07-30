@@ -2,9 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { isRecoveryUrl, validateNewPassword } from "@/lib/reset-password-guard";
+import {
+  parseRecoveryCallback,
+  recoveryEventAuthorizes,
+  validateNewPassword,
+} from "@/lib/reset-password-guard";
 
-export const Route = createFileRoute("/auth/reset-password")({
+export const Route = createFileRoute("/auth_/reset-password")({
   ssr: false,
   head: () => ({
     meta: [
@@ -17,10 +21,12 @@ export const Route = createFileRoute("/auth/reset-password")({
 });
 
 /**
- * Password reset must not accept a plain signed-in session. Only a genuine
- * PASSWORD_RECOVERY flow — recognized by Supabase firing the recovery event
- * OR by the URL still carrying the `type=recovery` marker — unlocks the
- * form. Any other case shows the invalid/expired state.
+ * The trailing underscore in this file name keeps /auth/reset-password out
+ * of the /auth component tree; the sign-in page is a leaf, not a layout.
+ *
+ * Password reset must not accept a plain signed-in session or token-shaped URL
+ * text. Supabase must successfully verify/exchange the provider callback and
+ * emit PASSWORD_RECOVERY before the form unlocks.
  */
 function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -31,23 +37,23 @@ function ResetPasswordPage() {
   const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    // URL text is used only to surface provider errors. It never authorizes
+    // recovery: fake tokens/codes must remain locked.
+    if (typeof window !== "undefined") {
+      const callback = parseRecoveryCallback(window.location.hash, window.location.search);
+      if (callback.error) setErr(callback.error);
+    }
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
-      if (event === "PASSWORD_RECOVERY") setHasRecovery(true);
+      if (recoveryEventAuthorizes(event)) setHasRecovery(true);
     });
-    // Recognize the recovery flow synchronously from the URL — Supabase's
-    // detectSessionInUrl will consume the hash almost immediately, so we
-    // must read it before that happens.
-    if (typeof window !== "undefined") {
-      if (isRecoveryUrl(window.location.hash, window.location.search)) {
-        setHasRecovery(true);
-      }
-    }
-    // getSession is used ONLY to know when Supabase finished parsing the URL,
-    // not as a substitute for the recovery signal.
+    // Initialization verifies implicit callbacks or exchanges PKCE codes. A
+    // successful recovery emits PASSWORD_RECOVERY before this settles. The
+    // returned session itself is never accepted as recovery evidence.
     supabase.auth.getSession().finally(() => {
       if (!cancelled) setReady(true);
     });
@@ -72,24 +78,36 @@ function ResetPasswordPage() {
       setErr(error.message);
       return;
     }
-    toast.success("Password updated. Signing you in…");
-    navigate({ to: "/home", replace: true });
+    setComplete(true);
+    toast.success("Password updated. You can sign in with your new password.");
+    await supabase.auth.signOut({ scope: "local" });
+    window.setTimeout(() => {
+      navigate({ to: "/auth", search: { mode: "signin" }, replace: true });
+    }, 1500);
   }
 
   return (
     <div className="min-h-dvh bg-background">
       <div className="container-app py-10">
         <h1 className="font-display text-4xl leading-none">Reset password</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Choose a new password (8+ characters).
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Choose a new password (8+ characters).</p>
 
-        {!ready ? (
+        {complete ? (
+          <div
+            role="status"
+            className="mt-6 rounded-lg border border-primary/40 bg-primary/10 p-4 text-sm"
+          >
+            <p className="font-medium text-primary">Password updated.</p>
+            <p className="mt-1 text-muted-foreground">
+              Returning you to sign in. Your recovery session has been closed.
+            </p>
+          </div>
+        ) : !ready ? (
           <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
         ) : !hasRecovery ? (
           <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-muted-foreground">
             <p>
-              This reset link is invalid or expired. Head back to{" "}
+              {err ?? "This reset link is invalid or expired."} Head back to{" "}
               <a href="/auth" className="text-primary underline">
                 sign in
               </a>{" "}

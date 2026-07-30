@@ -4,13 +4,25 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
   adminListOpenReports,
+  adminGetReportScreenshotUrl,
   adminHideOutfit,
   adminDeleteComment,
   adminSetSuspension,
   adminUpdateReport,
 } from "@/lib/moderation.functions";
+import { problemReportType } from "@/lib/report-attachment";
 import { toast } from "sonner";
-import { Shield, EyeOff, Trash2, UserX, Check, X } from "lucide-react";
+import {
+  Shield,
+  EyeOff,
+  Trash2,
+  UserX,
+  Check,
+  X,
+  Image as ImageIcon,
+  Download,
+  ExternalLink,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/moderation")({
   ssr: false,
@@ -37,6 +49,7 @@ type Report = {
   target_id: string | null;
   reason: string;
   details: string | null;
+  attachment_path: string | null;
   status: string;
   created_at: string;
   reviewed_at: string | null;
@@ -48,6 +61,7 @@ const STATUS_FILTERS = ["open", "reviewed", "actioned", "dismissed", "all"] as c
 
 function AdminModerationPage() {
   const listFn = useServerFn(adminListOpenReports);
+  const screenshotFn = useServerFn(adminGetReportScreenshotUrl);
   const hideOutfitFn = useServerFn(adminHideOutfit);
   const delCommentFn = useServerFn(adminDeleteComment);
   const suspendFn = useServerFn(adminSetSuspension);
@@ -57,6 +71,10 @@ function AdminModerationPage() {
   const [rows, setRows] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [screenshotBusy, setScreenshotBusy] = useState<string | null>(null);
+  const [screenshots, setScreenshots] = useState<
+    Record<string, { viewUrl: string; downloadUrl: string }>
+  >({});
 
   async function refresh() {
     setLoading(true);
@@ -85,6 +103,24 @@ function AdminModerationPage() {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function loadScreenshot(reportId: string) {
+    setScreenshotBusy(reportId);
+    try {
+      const signed = await screenshotFn({ data: { report_id: reportId } });
+      setScreenshots((current) => ({
+        ...current,
+        [reportId]: {
+          viewUrl: signed.view_url,
+          downloadUrl: signed.download_url,
+        },
+      }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to open screenshot");
+    } finally {
+      setScreenshotBusy(null);
     }
   }
 
@@ -125,14 +161,60 @@ function AdminModerationPage() {
                       {new Date(r.created_at).toLocaleString()} · {r.status}
                     </p>
                     <p className="mt-1 text-sm">
-                      <span className="text-primary">{r.target_type}</span>{" "}
+                      <span className="text-primary">
+                        {problemReportType(r.target_type, r.reason)}
+                      </span>{" "}
                       <span className="text-muted-foreground">{r.target_id ?? "—"}</span>
                     </p>
                     <p className="mt-1 text-xs uppercase tracking-widest text-foreground/80">
                       {r.reason}
                     </p>
                     {r.details && (
-                      <p className="mt-2 text-sm text-foreground/90">{r.details}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
+                        {r.details}
+                      </p>
+                    )}
+                    {r.attachment_path && (
+                      <div className="mt-3 rounded-lg border border-border bg-surface-2 p-3">
+                        {screenshots[r.id] ? (
+                          <>
+                            <img
+                              src={screenshots[r.id].viewUrl}
+                              alt="Private report screenshot"
+                              className="max-h-72 w-full rounded-md object-contain"
+                            />
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <a
+                                href={screenshots[r.id].viewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[10px] uppercase tracking-widest"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Open secure view
+                              </a>
+                              <a
+                                href={screenshots[r.id].downloadUrl}
+                                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[10px] uppercase tracking-widest"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                            </div>
+                            <p className="mt-2 text-[10px] text-muted-foreground">
+                              Secure links expire after five minutes.
+                            </p>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={screenshotBusy === r.id}
+                            onClick={() => void loadScreenshot(r.id)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-primary/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-primary disabled:opacity-50"
+                          >
+                            <ImageIcon className="h-3 w-3" />
+                            {screenshotBusy === r.id ? "Authorizing…" : "Secure screenshot"}
+                          </button>
+                        )}
+                      </div>
                     )}
                     {r.resolution_note && (
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -171,7 +253,11 @@ function AdminModerationPage() {
                           async () => {
                             await delCommentFn({ data: { comment_id: r.target_id! } });
                             await updateFn({
-                              data: { report_id: r.id, status: "actioned", note: "Comment deleted" },
+                              data: {
+                                report_id: r.id,
+                                status: "actioned",
+                                note: "Comment deleted",
+                              },
                             });
                           },
                           "Comment deleted",

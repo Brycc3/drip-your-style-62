@@ -93,6 +93,7 @@ describe("product button behavior", () => {
 
   // Pass 1 raises the bar: real provenance is required, not just a buy_url.
   const completeProvenance = {
+    kind: "clothing" as const,
     image_url: "https://cdn.retailer.example/products/123.jpg",
     image_rights_basis: "authorized",
     source_type: "manual",
@@ -145,6 +146,7 @@ describe("accessory subtype coverage", () => {
     for (const required of [
       "Earrings",
       "Prescription glasses",
+      "Glasses",
       "Sunglasses",
       "Necklaces",
       "Chains",

@@ -216,7 +216,7 @@ function Onboarding() {
           {step === 4 && (
             <div className="space-y-4">
               <p className="text-sm text-foreground/85">
-                DRIP builds outfits from what you own. To unlock the generator, aim for a{" "}
+                DRIP builds outfits from what you own. For a balanced starting rotation, aim for a{" "}
                 <span className="text-primary">3-2-2 starter</span>:
               </p>
               <ul className="card-surface space-y-2 p-4 text-sm">
@@ -234,8 +234,8 @@ function Onboarding() {
                 </li>
               </ul>
               <p className="text-xs text-muted-foreground">
-                That's 7 pieces — enough to start generating honestly and get gap analysis. Add
-                more anytime.
+                That's 7 pieces — enough to start generating honestly and get gap analysis. Add more
+                anytime.
               </p>
             </div>
           )}
@@ -268,7 +268,7 @@ function Onboarding() {
                 disabled={saving}
                 className="btn-lime flex-1 disabled:opacity-50"
               >
-                {saving ? "…" : "Add my first piece"}
+                {saving ? "…" : "Add First Item"}
               </button>
             </>
           )}

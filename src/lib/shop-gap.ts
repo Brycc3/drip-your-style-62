@@ -219,6 +219,7 @@ function hashStr(s: string): number {
 // Accessory subcategory taxonomy — used by the Shop Accessories tab.
 export type AccessorySub =
   | "earrings"
+  | "glasses"
   | "prescription_glasses"
   | "sunglasses"
   | "necklaces"
@@ -244,6 +245,7 @@ export const ACCESSORY_SUBTYPE_FILTERS: ReadonlyArray<{
 }> = [
   { value: "all", label: "All" },
   { value: "earrings", label: "Earrings" },
+  { value: "glasses", label: "Glasses" },
   { value: "prescription_glasses", label: "Prescription glasses" },
   { value: "sunglasses", label: "Sunglasses" },
   { value: "necklaces", label: "Necklaces" },
@@ -325,11 +327,13 @@ export function fragranceFamily(item: CatalogItem): FragranceFamily {
 }
 
 export function hasValidBuyUrl(item: CatalogItem): boolean {
+  const purchasableAvailability = new Set(["in_stock", "low_stock", "preorder"]);
   if (
     item.is_demo !== false ||
     !item.buy_url ||
     !item.retailer?.trim() ||
-    item.availability !== "in_stock" ||
+    !item.availability ||
+    !purchasableAvailability.has(item.availability) ||
     !item.last_checked_at
   )
     return false;

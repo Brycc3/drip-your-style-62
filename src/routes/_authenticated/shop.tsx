@@ -14,10 +14,14 @@ import {
 } from "@/lib/shop-gap";
 import {
   catalogWindowSize,
+  catalogMatchesScope,
   dedupeCatalog,
   prioritizeUnseenCatalog,
   productActionFor,
+  shouldShowVerifiedInventoryEmpty,
   isVerifiedPurchasable,
+  rankCatalogForScope,
+  type ShopScope,
   type VerifiableCatalogItem,
 } from "@/lib/shop-catalog";
 import type { ClosetItem } from "@/lib/outfit-generator";
@@ -71,7 +75,7 @@ const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "leather", l: "Leather" },
 ];
 
-const CACHE_KEY = "drip.shop.cache.v4";
+const CACHE_KEY = "drip.shop.cache.v5";
 const PAGE_SIZE = 12;
 const INITIAL = 12;
 
@@ -134,7 +138,7 @@ function ShopPage() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
-  const [scope, setScope] = useState<"verified" | "demo" | "all">("all");
+  const [scope, setScope] = useState<ShopScope>("all");
   const [showHow, setShowHow] = useState(false);
   const [tab, setTab] = useState<PrimaryTab>("clothing");
   const [accSub, setAccSub] = useState<AccessorySub | "all">("all");
@@ -234,11 +238,9 @@ function ShopPage() {
   const scored: GapScore[] = useMemo(() => {
     const filtered = distinctCatalog.filter((c) => {
       if (dismissed.has(c.id)) return false;
-      if (c.availability === "out_of_stock") return false;
       // Archived items are admin-hidden from Shop entirely, regardless of scope.
       if ((c as CatalogItem & { archived?: boolean }).archived === true) return false;
-      if (scope === "verified" && !isVerifiedPurchasable(c as VerifiableCatalogItem)) return false;
-      if (scope === "demo" && c.is_demo !== true) return false;
+      if (!catalogMatchesScope(c as VerifiableCatalogItem, scope)) return false;
       if (source !== "all" && c.condition !== source) return false;
       const k = primaryKind(c.category);
       if (tab === "outfits") return k === "clothing" || k === "shoes" || k === "accessories";
@@ -268,18 +270,7 @@ function ShopPage() {
     } else {
       ordered = prioritizeUnseenCatalog(s, immediatelyShown);
     }
-    // In "All" scope, verified purchasable items always rank ahead of demo
-    // rows so users see real products first when both are available.
-    if (scope === "all") {
-      const verified: GapScore[] = [];
-      const rest: GapScore[] = [];
-      for (const g of ordered) {
-        if (isVerifiedPurchasable(g.item as VerifiableCatalogItem)) verified.push(g);
-        else rest.push(g);
-      }
-      ordered = [...verified, ...rest];
-    }
-    return ordered;
+    return rankCatalogForScope(ordered as Array<GapScore & { item: VerifiableCatalogItem }>, scope);
   }, [
     distinctCatalog,
     closet,
@@ -396,16 +387,18 @@ function ShopPage() {
         {showHow && (
           <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-surface-2 p-3 text-[11px] leading-relaxed text-muted-foreground">
             <p>
-              <span className="text-foreground">Verified</span> — real products a DRIP moderator has
-              cross-checked with the retailer in the last 30 days. Only these show a Shop now link.
+              <span className="text-foreground">Demo concepts</span> preview the gap engine and are
+              not for purchase. They always stay labeled DEMO and Sample only.
             </p>
             <p>
-              <span className="text-foreground">Demo</span> — sample products used to preview the
-              gap engine. They never link to a retailer.
+              <span className="text-foreground">Verified products</span> meet DRIP&apos;s strict
+              freshness and provenance checks. Shop now opens an outside retailer; prices and
+              availability may change after the displayed last-checked time.
             </p>
             <p>
-              We never earn commission unless a product is marked with an affiliate disclosure on
-              its card. Ranking is rule-based — no ads, no paid placement.
+              Affiliate relationships are disclosed on the product card. Recommendations are
+              rule-based using closet compatibility, and DRIP may recommend not buying a duplicate
+              or low-value addition.
             </p>
           </div>
         )}
@@ -416,8 +409,8 @@ function ShopPage() {
         {(
           [
             { v: "all", l: "All" },
-            { v: "verified", l: "Verified only" },
-            { v: "demo", l: "Demo only" },
+            { v: "verified", l: "Verified products" },
+            { v: "demo", l: "Demo concepts" },
           ] as const
         ).map((s) => (
           <button
@@ -554,6 +547,8 @@ function ShopPage() {
             <div key={i} className="h-64 animate-pulse rounded-lg bg-surface" />
           ))}
         </div>
+      ) : shouldShowVerifiedInventoryEmpty(scope, scored.length) ? (
+        <VerifiedInventoryEmpty />
       ) : tab === "outfits" ? (
         outfitIdeas.length === 0 ? (
           <div className="card-surface p-6 text-center text-sm text-muted-foreground">
@@ -610,6 +605,18 @@ function ShopPage() {
   );
 }
 
+function VerifiedInventoryEmpty() {
+  return (
+    <div className="card-surface p-6 text-center text-sm text-muted-foreground">
+      <p className="font-medium text-foreground">No verified products yet.</p>
+      <p className="mt-2">
+        Inventory will appear only after an authorized retailer, affiliate feed, partner API, or
+        manually verified product is added.
+      </p>
+    </div>
+  );
+}
+
 function ItemCard({
   g,
   saved,
@@ -623,7 +630,9 @@ function ItemCard({
   onDismiss: () => void;
   eager?: boolean;
 }) {
-  const productAction = productActionFor(g.item);
+  const item = g.item as VerifiableCatalogItem;
+  const productAction = productActionFor(item);
+  const verified = isVerifiedPurchasable(item);
   return (
     <li className="card-surface overflow-hidden flex flex-col">
       <CatalogImage
@@ -684,18 +693,24 @@ function ItemCard({
               )}
           </p>
         )}
+        {verified && <VerifiedProductMetadata item={item} />}
         {g.duplicate && (
           <p className="flex items-center gap-1 text-[11px] text-destructive">
             <AlertTriangle className="h-3 w-3" /> {g.duplicateNote}
           </p>
         )}
-        <ul className="space-y-0.5">
-          {g.reasons.map((r, i) => (
-            <li key={i} className="text-xs text-muted-foreground">
-              · {r}
-            </li>
-          ))}
-        </ul>
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-foreground/80">
+            Why this belongs in your closet
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {g.reasons.map((r, i) => (
+              <li key={i} className="text-xs text-muted-foreground">
+                · {r}
+              </li>
+            ))}
+          </ul>
+        </div>
         {g.matches.length > 0 && (
           <p className="text-[11px] text-foreground/70">
             Pairs with:{" "}
@@ -752,6 +767,61 @@ function ItemCard({
   );
 }
 
+function formatAvailability(value?: string | null): string {
+  const labels: Record<string, string> = {
+    in_stock: "In stock",
+    low_stock: "Low stock",
+    preorder: "Preorder",
+    out_of_stock: "Out of stock",
+    discontinued: "Discontinued",
+  };
+  return labels[value ?? ""] ?? "Not confirmed";
+}
+
+function formatCheckedAt(value?: string | null): string {
+  if (!value) return "Not checked";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not checked";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatSourceType(value?: string | null): string {
+  const labels: Record<string, string> = {
+    manual: "Manual verification",
+    affiliate_feed: "Affiliate feed",
+    partner_api: "Partner API",
+    verified: "Verified source",
+  };
+  return labels[value ?? ""] ?? "Source recorded";
+}
+
+function VerifiedProductMetadata({ item }: { item: VerifiableCatalogItem }) {
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-border/70 bg-surface-2 p-2 text-[10px]">
+      <dt className="uppercase tracking-widest text-muted-foreground">Retailer</dt>
+      <dd className="text-right text-foreground/90">{item.retailer}</dd>
+      <dt className="uppercase tracking-widest text-muted-foreground">Availability</dt>
+      <dd className="text-right text-foreground/90">{formatAvailability(item.availability)}</dd>
+      <dt className="uppercase tracking-widest text-muted-foreground">Last checked</dt>
+      <dd className="text-right text-foreground/90">{formatCheckedAt(item.last_checked_at)}</dd>
+      <dt className="uppercase tracking-widest text-muted-foreground">Source</dt>
+      <dd className="text-right text-foreground/90">
+        {[item.source_name, formatSourceType(item.source_type)].filter(Boolean).join(" · ")}
+      </dd>
+      {item.affiliate && (
+        <>
+          <dt className="uppercase tracking-widest text-muted-foreground">Affiliate</dt>
+          <dd className="text-right text-foreground/90">{item.affiliate_disclosure}</dd>
+        </>
+      )}
+    </dl>
+  );
+}
+
 function OutfitCard({
   g,
   owned,
@@ -765,7 +835,9 @@ function OutfitCard({
   saved: boolean;
   onSave: () => void;
 }) {
-  const productAction = productActionFor(g.item);
+  const item = g.item as VerifiableCatalogItem;
+  const productAction = productActionFor(item);
+  const verified = isVerifiedPurchasable(item);
   return (
     <li className="card-surface overflow-hidden">
       <div className="p-3">
@@ -831,6 +903,7 @@ function OutfitCard({
             ${g.item.current_price ?? g.item.price}
           </p>
         )}
+        {verified && <VerifiedProductMetadata item={item} />}
         <div className="flex flex-wrap gap-2">
           {productAction.kind === "retailer" ? (
             <a

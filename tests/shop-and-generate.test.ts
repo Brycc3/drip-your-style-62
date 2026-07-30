@@ -86,6 +86,21 @@ describe("hasValidBuyUrl", () => {
         }),
       ),
     ).toBe(true));
+  it("accepts low stock and preorder", () => {
+    for (const availability of ["low_stock", "preorder"]) {
+      expect(
+        hasValidBuyUrl(
+          C({
+            buy_url: "https://uniqlo.com/x",
+            retailer: "Uniqlo",
+            availability,
+            last_checked_at: "2026-07-27T12:00:00Z",
+            is_demo: false,
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
   it("rejects missing / malformed", () => {
     expect(hasValidBuyUrl(C({ buy_url: null }))).toBe(false);
     expect(

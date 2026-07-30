@@ -14,6 +14,7 @@ function verifiedFixture(overrides: Partial<VerifiableCatalogItem> = {}): Verifi
     id: "cat-1",
     name: "Field Overshirt",
     brand: "Northline",
+    kind: "clothing",
     category: "outerwear",
     color: "olive",
     price: 148,
@@ -50,6 +51,8 @@ describe("isVerifiedPurchasable", () => {
   const requiredFields: Array<{ key: keyof VerifiableCatalogItem; bad: unknown }> = [
     { key: "name", bad: "" },
     { key: "brand", bad: null },
+    { key: "category", bad: "" },
+    { key: "color", bad: null },
     { key: "retailer", bad: null },
     { key: "buy_url", bad: null },
     { key: "image_url", bad: null },
@@ -73,17 +76,74 @@ describe("isVerifiedPurchasable", () => {
 
   it("rejects http:// buy urls", () => {
     expect(
-      isVerifiedPurchasable(
-        verifiedFixture({ buy_url: "http://northline.example/x" }),
-        NOW,
-      ),
+      isVerifiedPurchasable(verifiedFixture({ buy_url: "http://northline.example/x" }), NOW),
     ).toBe(false);
   });
 
-  it("rejects unlisted image_rights_basis values", () => {
+  it("accepts low-stock and preorder products", () => {
+    expect(isVerifiedPurchasable(verifiedFixture({ availability: "low_stock" }), NOW)).toBe(true);
+    expect(isVerifiedPurchasable(verifiedFixture({ availability: "preorder" }), NOW)).toBe(true);
+  });
+
+  it("rejects malformed and unsupported image references", () => {
+    expect(isVerifiedPurchasable(verifiedFixture({ image_url: "not-an-image" }), NOW)).toBe(false);
     expect(
-      isVerifiedPurchasable(verifiedFixture({ image_rights_basis: "unknown" }), NOW),
+      isVerifiedPurchasable(verifiedFixture({ image_url: "http://cdn.example/item.jpg" }), NOW),
     ).toBe(false);
+    expect(
+      isVerifiedPurchasable(verifiedFixture({ image_url: "/catalog/no-extension" }), NOW),
+    ).toBe(false);
+  });
+
+  it("requires image rights to match the image location", () => {
+    expect(
+      isVerifiedPurchasable(
+        verifiedFixture({
+          image_url: "/catalog/authorized-jacket.svg",
+          image_rights_basis: "authorized",
+        }),
+        NOW,
+      ),
+    ).toBe(false);
+    expect(
+      isVerifiedPurchasable(
+        verifiedFixture({
+          image_url: "https://cdn.example/jacket.jpg",
+          image_rights_basis: "project_owned",
+        }),
+        NOW,
+      ),
+    ).toBe(false);
+    expect(
+      isVerifiedPurchasable(
+        verifiedFixture({
+          image_url: "/catalog/authorized-jacket.svg",
+          image_rights_basis: "project_owned",
+        }),
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("requires affiliate disclosure for affiliate products", () => {
+    expect(
+      isVerifiedPurchasable(verifiedFixture({ affiliate: true, affiliate_disclosure: null }), NOW),
+    ).toBe(false);
+    expect(
+      isVerifiedPurchasable(
+        verifiedFixture({
+          affiliate: true,
+          affiliate_disclosure: "DRIP may earn a commission.",
+        }),
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects unlisted image_rights_basis values", () => {
+    expect(isVerifiedPurchasable(verifiedFixture({ image_rights_basis: "unknown" }), NOW)).toBe(
+      false,
+    );
   });
 
   it("rejects unlisted source_type values", () => {
@@ -97,9 +157,7 @@ describe("isVerifiedPurchasable", () => {
   });
 
   it("rejects a zero or negative price", () => {
-    expect(
-      isVerifiedPurchasable(verifiedFixture({ current_price: 0, price: 0 }), NOW),
-    ).toBe(false);
+    expect(isVerifiedPurchasable(verifiedFixture({ current_price: 0, price: 0 }), NOW)).toBe(false);
   });
 
   it("rejects stale verified_at older than 30 days", () => {
@@ -145,9 +203,7 @@ describe("productActionFor", () => {
   });
 
   it("never returns View Sample for a non-demo unverified row", () => {
-    const action = productActionFor(
-      verifiedFixture({ is_demo: false, verified_at: null }),
-    );
+    const action = productActionFor(verifiedFixture({ is_demo: false, verified_at: null }));
     expect(action.kind).not.toBe("sample");
   });
 });

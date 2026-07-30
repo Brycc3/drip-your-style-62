@@ -37,21 +37,37 @@ export const CATALOG_CATEGORIES = [
   "runner",
   "accessory",
   "bag",
+  "bags",
   "belt",
+  "belts",
   "beanie",
+  "bracelet",
+  "bracelets",
   "cap",
+  "chain",
+  "chains",
+  "earring",
+  "earrings",
+  "glasses",
+  "grill",
+  "grills",
   "hat",
-  "sunglasses",
-  "prescription_glasses",
-  "watch",
+  "hats",
   "jewelry",
   "necklace",
-  "chain",
+  "necklaces",
+  "prescription_glasses",
   "ring",
-  "earring",
+  "rings",
   "scarf",
+  "scarves",
+  "sock",
   "socks",
+  "sunglasses",
+  "watch",
+  "watches",
   "wallet",
+  "wallets",
   "fragrance",
   "cologne",
   "edp",
@@ -76,24 +92,79 @@ export const CATALOG_SOURCE_TYPES = [
 export const CATALOG_VERIFICATION_METHODS = ["manual", "feed", "partner_api"] as const;
 export const CATALOG_IMAGE_RIGHTS = ["authorized", "project_owned", "licensed"] as const;
 export const CATALOG_KINDS = ["clothing", "shoes", "accessory", "fragrance"] as const;
+export const CATALOG_PRICE_TIERS = ["entry", "mid", "premium", "luxury"] as const;
+export const CATALOG_ACCESSORY_SUBTYPES = [
+  "earrings",
+  "glasses",
+  "prescription_glasses",
+  "sunglasses",
+  "necklaces",
+  "chains",
+  "bracelets",
+  "rings",
+  "watches",
+  "hat",
+  "cap",
+  "beanie",
+  "belts",
+  "bags",
+  "socks",
+  "scarves",
+  "wallets",
+  "grills",
+  "jewelry",
+] as const;
+export const CATALOG_FRAGRANCE_FAMILIES = [
+  "fresh",
+  "woody",
+  "warm",
+  "sweet",
+  "aquatic",
+  "floral",
+  "leather",
+  "other",
+] as const;
+
+export function isValidHttpsUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export const PROJECT_CATALOG_IMAGE_PATTERN =
+  /^\/catalog\/(?:[a-z0-9._-]+\/)*[a-z0-9._-]+\.(jpg|jpeg|png|webp|avif|svg)$/i;
+
+export function isProjectOwnedCatalogImage(value: unknown): value is string {
+  return typeof value === "string" && PROJECT_CATALOG_IMAGE_PATTERN.test(value);
+}
+
+export function isValidCatalogImageReference(value: unknown): value is string {
+  return isValidHttpsUrl(value) || isProjectOwnedCatalogImage(value);
+}
+
+export function catalogImageRightsAreConsistent(imageUrl: unknown, rightsBasis: unknown): boolean {
+  if (!isValidCatalogImageReference(imageUrl)) return false;
+  if (!CATALOG_IMAGE_RIGHTS.includes(rightsBasis as (typeof CATALOG_IMAGE_RIGHTS)[number]))
+    return false;
+  return isProjectOwnedCatalogImage(imageUrl)
+    ? rightsBasis === "project_owned"
+    : rightsBasis === "authorized" || rightsBasis === "licensed";
+}
 
 const httpsUrl = z
   .string()
   .trim()
   .min(1, "Required")
-  .refine((v) => {
-    try {
-      const u = new URL(v);
-      return u.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, "Must be an https:// URL");
+  .refine(isValidHttpsUrl, "Must be an https:// URL");
 
 const projectOwnedPath = z
   .string()
   .trim()
-  .regex(/^\/catalog\/[a-z0-9._-]+\.(jpg|jpeg|png|webp|avif|svg)$/i, "Use https:// or /catalog/… path");
+  .regex(PROJECT_CATALOG_IMAGE_PATTERN, "Use https:// or /catalog/… path");
 
 /**
  * Image reference: either an https URL to an authorized/licensed remote asset
@@ -108,15 +179,54 @@ const priceSchema = z
   .positive("Price must be greater than 0")
   .max(100000, "Price looks wrong");
 
+const CLOTHING_CATEGORIES = new Set<string>([
+  "top",
+  "tee",
+  "hoodie",
+  "shirt",
+  "polo",
+  "bottom",
+  "trousers",
+  "cargos",
+  "joggers",
+  "shorts",
+  "denim",
+  "outerwear",
+  "bomber",
+  "chore",
+  "jacket",
+  "coat",
+]);
+const SHOE_CATEGORIES = new Set<string>([
+  "shoes",
+  "sneaker",
+  "jordan",
+  "vomero",
+  "new_balance",
+  "loafer",
+  "boot",
+  "runner",
+]);
+const FRAGRANCE_CATEGORIES = new Set<string>(["fragrance", "cologne", "edp", "edt", "parfum"]);
+
+export function deriveCatalogKind(
+  category: (typeof CATALOG_CATEGORIES)[number],
+): (typeof CATALOG_KINDS)[number] {
+  if (CLOTHING_CATEGORIES.has(category)) return "clothing";
+  if (SHOE_CATEGORIES.has(category)) return "shoes";
+  if (FRAGRANCE_CATEGORIES.has(category)) return "fragrance";
+  return "accessory";
+}
+
 /**
- * ADD payload — every field required for a shippable verified product.
+ * Add/edit payload — every field required before an explicit verification.
  */
 export const catalogAddSchema = z
   .object({
     name: z.string().trim().min(2, "Name is required").max(160),
     brand: z.string().trim().min(1, "Brand is required").max(80),
     category: z.enum(CATALOG_CATEGORIES),
-    kind: z.enum(CATALOG_KINDS).optional(),
+    kind: z.enum(CATALOG_KINDS),
     color: z.string().trim().min(1, "Color is required").max(60),
     material: z.string().trim().max(80).optional().or(z.literal("")),
     fit: z.string().trim().max(40).optional().or(z.literal("")),
@@ -137,9 +247,14 @@ export const catalogAddSchema = z
 
     source_type: z.enum(CATALOG_SOURCE_TYPES),
     source_name: z.string().trim().min(1, "Source name is required").max(120),
-    source_url: httpsUrl.optional(),
+    source_url: httpsUrl.optional().or(z.literal("")),
     image_rights_basis: z.enum(CATALOG_IMAGE_RIGHTS),
     verification_method: z.enum(CATALOG_VERIFICATION_METHODS),
+
+    vibe: z.string().trim().min(1, "Vibe is required").max(80),
+    price_tier: z.enum(CATALOG_PRICE_TIERS),
+    accessory_subtype: z.enum(CATALOG_ACCESSORY_SUBTYPES).optional().or(z.literal("")),
+    fragrance_family: z.enum(CATALOG_FRAGRANCE_FAMILIES).optional().or(z.literal("")),
 
     affiliate: z.boolean().default(false),
     affiliate_disclosure: z.string().trim().max(200).optional().or(z.literal("")),
@@ -148,19 +263,48 @@ export const catalogAddSchema = z
   })
   .superRefine((val, ctx) => {
     // If the image is a project-owned path, rights basis must say so.
-    const isProjectPath = /^\/catalog\//.test(val.image_url);
-    if (isProjectPath && val.image_rights_basis !== "project_owned") {
+    if (!catalogImageRightsAreConsistent(val.image_url, val.image_rights_basis)) {
       ctx.addIssue({
         code: "custom",
         path: ["image_rights_basis"],
-        message: "Project-owned paths require image_rights_basis=project_owned",
+        message:
+          "Project paths require project_owned rights; remote images require authorized or licensed rights",
       });
     }
-    if (!isProjectPath && val.image_rights_basis === "project_owned") {
+    const expectedKind = deriveCatalogKind(val.category);
+    if (val.kind !== expectedKind) {
       ctx.addIssue({
         code: "custom",
-        path: ["image_rights_basis"],
-        message: "project_owned requires a /catalog/… path",
+        path: ["kind"],
+        message: `${val.category} must use kind=${expectedKind}`,
+      });
+    }
+    if (expectedKind === "accessory" && !val.accessory_subtype) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["accessory_subtype"],
+        message: "Accessory products require an accessory subtype",
+      });
+    }
+    if (expectedKind !== "accessory" && val.accessory_subtype) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["accessory_subtype"],
+        message: "Accessory subtype is only valid for accessory products",
+      });
+    }
+    if (expectedKind === "fragrance" && !val.fragrance_family) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fragrance_family"],
+        message: "Fragrances require a fragrance family",
+      });
+    }
+    if (expectedKind !== "fragrance" && val.fragrance_family) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fragrance_family"],
+        message: "Fragrance family is only valid for fragrance products",
       });
     }
     if (val.affiliate && !val.affiliate_disclosure) {
@@ -191,6 +335,57 @@ export type CatalogAddInput = z.infer<typeof catalogAddSchema>;
  */
 export const catalogUpdateSchema = catalogAddSchema;
 export type CatalogUpdateInput = z.infer<typeof catalogUpdateSchema>;
+
+export function buildCatalogPayload(input: CatalogAddInput): Record<string, unknown> {
+  return {
+    name: input.name,
+    brand: input.brand,
+    category: input.category,
+    kind: input.kind,
+    color: input.color,
+    material: input.material || null,
+    fit: input.fit || null,
+    formality: input.formality,
+    season: input.season,
+    condition: input.condition,
+    retailer: input.retailer,
+    buy_url: input.buy_url,
+    image_url: input.image_url,
+    current_price: input.current_price,
+    price: input.current_price,
+    original_price: input.original_price ?? null,
+    availability: input.availability,
+    source_type: input.source_type,
+    source_name: input.source_name,
+    source_url: input.source_url || null,
+    image_rights_basis: input.image_rights_basis,
+    verification_method: input.verification_method,
+    vibe: input.vibe,
+    price_tier: input.price_tier,
+    accessory_subtype: input.accessory_subtype || null,
+    fragrance_family: input.fragrance_family || null,
+    affiliate: input.affiliate,
+    affiliate_disclosure: input.affiliate_disclosure || null,
+    description: input.description || null,
+  };
+}
+
+export function buildNewCatalogPayload(input: CatalogAddInput): Record<string, unknown> {
+  return {
+    ...buildCatalogPayload(input),
+    is_demo: false,
+    archived: false,
+  };
+}
+
+export function assertCatalogRowWritable(row: {
+  is_demo?: boolean | null;
+  source?: string | null;
+}): void {
+  if (row.is_demo === true || row.source === "phase_2_curated_demo") {
+    throw new Error("Demo products are read-only. Add a new verified product instead.");
+  }
+}
 
 export const CATALOG_IMAGE_WARNING =
   "Only add product images and information you are authorized to display. Do not copy retailer photography without permission.";

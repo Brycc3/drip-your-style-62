@@ -27,7 +27,7 @@ import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-im
 import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
 import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth_.reset-password'
 import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
 import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
@@ -137,9 +137,9 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   getParentRoute: () => LegalRoute,
 } as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => AuthRoute,
+  id: '/auth_/reset-password',
+  path: '/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
   id: '/taste',
@@ -228,7 +228,7 @@ const AuthenticatedClosetIdEditRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
@@ -264,7 +264,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/generate': typeof AuthenticatedGenerateRoute
@@ -301,7 +301,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/legal': typeof LegalRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
@@ -314,7 +314,7 @@ export interface FileRoutesById {
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/swipe': typeof AuthenticatedSwipeRoute
   '/_authenticated/taste': typeof AuthenticatedTasteRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth_/reset-password': typeof AuthResetPasswordRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/account-deletion': typeof LegalAccountDeletionRoute
   '/legal/affiliate-disclosure': typeof LegalAffiliateDisclosureRoute
@@ -424,7 +424,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shop'
     | '/_authenticated/swipe'
     | '/_authenticated/taste'
-    | '/auth/reset-password'
+    | '/auth_/reset-password'
     | '/legal/acceptable-use'
     | '/legal/account-deletion'
     | '/legal/affiliate-disclosure'
@@ -449,9 +449,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRouteWithChildren
+  AuthRoute: typeof AuthRoute
   LegalRoute: typeof LegalRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   OSlugRoute: typeof OSlugRoute
   UHandleRoute: typeof UHandleRoute
 }
@@ -584,12 +585,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/reset-password'
+    '/auth_/reset-password': {
+      id: '/auth_/reset-password'
+      path: '/auth/reset-password'
       fullPath: '/auth/reset-password'
       preLoaderRoute: typeof AuthResetPasswordRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/taste': {
       id: '/_authenticated/taste'
@@ -758,16 +759,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
-interface AuthRouteChildren {
-  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
-}
-
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthResetPasswordRoute: AuthResetPasswordRoute,
-}
-
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
-
 interface LegalRouteChildren {
   LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
   LegalAccountDeletionRoute: typeof LegalAccountDeletionRoute
@@ -801,12 +792,23 @@ const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRouteWithChildren,
+  AuthRoute: AuthRoute,
   LegalRoute: LegalRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
   OSlugRoute: OSlugRoute,
   UHandleRoute: UHandleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

@@ -3,30 +3,47 @@
  * side effects so they can be unit-tested without a browser or Supabase.
  */
 
-/**
- * Return true only when the URL carries an explicit recovery token from
- * Supabase's password reset email. We look at both the hash (implicit flow,
- * where Supabase historically posts tokens) and the query string (PKCE
- * flow). Any other URL — including one for a normal signed-in session — is
- * NOT a recovery URL and must not unlock the password form.
- */
-export function isRecoveryUrl(hash: string, search: string): boolean {
-  const strip = (s: string): string =>
-    s.startsWith("#") || s.startsWith("?") ? s.slice(1) : s;
+export type RecoveryCallbackState = {
+  error: string | null;
+  hasCallbackParameters: boolean;
+};
+
+export function parseRecoveryCallback(hash: string, search: string): RecoveryCallbackState {
+  const strip = (s: string): string => (s.startsWith("#") || s.startsWith("?") ? s.slice(1) : s);
   const h = new URLSearchParams(strip(hash));
   const q = new URLSearchParams(strip(search));
 
-  // Supabase implicit flow: #type=recovery&access_token=...
-  if (h.get("type") === "recovery") return true;
+  const errorCode = h.get("error_code") ?? q.get("error_code");
+  const errorDescription = h.get("error_description") ?? q.get("error_description");
+  if (errorCode || errorDescription) {
+    const expired = `${errorCode ?? ""} ${errorDescription ?? ""}`
+      .toLowerCase()
+      .includes("expired");
+    return {
+      error: expired
+        ? "This reset link has expired. Request a new password-reset email."
+        : "This reset link is invalid. Request a new password-reset email.",
+      hasCallbackParameters: true,
+    };
+  }
 
-  // Supabase PKCE flow: ?code=...&type=recovery (or just type=recovery)
-  if (q.get("type") === "recovery") return true;
+  return {
+    error: null,
+    hasCallbackParameters:
+      h.has("access_token") ||
+      h.has("refresh_token") ||
+      h.has("type") ||
+      q.has("code") ||
+      q.has("type"),
+  };
+}
 
-  // Explicit recovery error surfaces still count so we can render the
-  // invalid-state UI instead of dropping the user on the sign-in page.
-  if (h.get("error_code")?.includes("otp_expired")) return true;
-
-  return false;
+/**
+ * Raw URL values are untrusted input. Only Supabase can verify a recovery
+ * token/code and emit PASSWORD_RECOVERY after a successful provider exchange.
+ */
+export function recoveryEventAuthorizes(event: string): boolean {
+  return event === "PASSWORD_RECOVERY";
 }
 
 /**

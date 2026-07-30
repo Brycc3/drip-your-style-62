@@ -1,92 +1,83 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { catalogAddSchema, catalogUpdateSchema } from "./catalog-validation";
+import {
+  assertCatalogRowWritable,
+  buildCatalogPayload,
+  buildNewCatalogPayload,
+  catalogAddSchema,
+  catalogUpdateSchema,
+} from "./catalog-validation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireServerAdmin } from "./admin-auth";
+import type { Database } from "@/integrations/supabase/types";
 
-/**
- * Server-side admin gate. RLS on shop_catalog would also block writes for
- * non-admins if policies were tight, but we do NOT depend on that — every
- * write path here explicitly re-checks the profiles.is_admin flag before
- * touching the row.
- */
-async function assertAdmin(supabase: SupabaseClient, userId: string) {
-  const { data } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .maybeSingle();
-  if (!(data as { is_admin?: boolean } | null)?.is_admin) throw new Error("Forbidden");
-}
+type CatalogInsert = Database["public"]["Tables"]["shop_catalog"]["Insert"];
+type CatalogRow = Database["public"]["Tables"]["shop_catalog"]["Row"];
+type CatalogUpdate = Database["public"]["Tables"]["shop_catalog"]["Update"];
 
 /**
  * Fetch the current row and hard-block writes against demo rows.
  * A missing row also throws so admins never silently write to nothing.
  */
-async function loadNonDemoRow(supabase: SupabaseClient, id: string) {
+async function loadNonDemoRow(supabase: SupabaseClient<Database>, id: string) {
   const { data, error } = await supabase
     .from("shop_catalog")
-    .select("id,is_demo")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Product not found");
-  if ((data as { is_demo?: boolean }).is_demo === true) {
-    throw new Error("Demo products are read-only. Add a new verified product instead.");
-  }
-  return data as { id: string; is_demo: boolean | null };
+  const row = data as CatalogRow;
+  assertCatalogRowWritable(row);
+  return row;
 }
 
-function buildDbPayload(input: z.infer<typeof catalogAddSchema>) {
-  const now = new Date().toISOString();
-  const payload: Record<string, unknown> = {
-    name: input.name,
-    brand: input.brand,
-    category: input.category,
-    color: input.color,
-    material: input.material || null,
-    fit: input.fit || null,
-    formality: input.formality,
-    season: input.season,
-    condition: input.condition,
-    retailer: input.retailer,
-    buy_url: input.buy_url,
-    image_url: input.image_url,
-    current_price: input.current_price,
-    price: input.current_price, // legacy column, keep in sync
-    original_price: input.original_price ?? null,
-    availability: input.availability,
-    source_type: input.source_type,
-    source_name: input.source_name,
-    source_url: input.source_url ?? null,
-    image_rights_basis: input.image_rights_basis,
-    verification_method: input.verification_method,
-    affiliate: input.affiliate,
-    affiliate_disclosure: input.affiliate_disclosure || null,
-    description: input.description || null,
-    verified_at: now,
-    last_checked_at: now,
-    // Server never lets the client flip is_demo or archived here.
-    is_demo: false,
-    archived: false,
-  };
-  if (input.kind) payload.kind = input.kind;
-  return payload;
+function validateStoredCatalogRow(row: CatalogRow) {
+  return catalogAddSchema.parse({
+    name: row.name,
+    brand: row.brand ?? "",
+    category: row.category,
+    kind: row.kind,
+    color: row.color ?? "",
+    material: row.material ?? "",
+    fit: row.fit ?? "",
+    formality: row.formality,
+    season: row.season,
+    condition: row.condition,
+    retailer: row.retailer ?? "",
+    buy_url: row.buy_url ?? "",
+    image_url: row.image_url ?? "",
+    current_price: row.current_price,
+    original_price: row.original_price ?? undefined,
+    availability: row.availability,
+    source_type: row.source_type,
+    source_name: row.source_name ?? "",
+    source_url: row.source_url ?? undefined,
+    image_rights_basis: row.image_rights_basis,
+    verification_method: row.verification_method,
+    vibe: row.vibe ?? "",
+    price_tier: row.price_tier,
+    accessory_subtype: row.accessory_subtype ?? "",
+    fragrance_family: row.fragrance_family ?? "",
+    affiliate: row.affiliate,
+    affiliate_disclosure: row.affiliate_disclosure ?? "",
+    description: row.description ?? "",
+  });
 }
 
 /**
- * ADD a verified catalog row. Non-demo, non-archived.
+ * Add an unverified catalog row. Verification is a separate explicit action.
  */
 export const addCatalogItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => catalogAddSchema.parse(i))
+  .validator((i) => catalogAddSchema.parse(i))
   .handler(async ({ context, data }) => {
-    await assertAdmin(context.supabase, context.userId);
-    const payload = buildDbPayload(data);
+    await requireServerAdmin(context.supabase, context.userId);
+    const payload = buildNewCatalogPayload(data) as CatalogInsert;
     const { data: inserted, error } = await context.supabase
       .from("shop_catalog")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert(payload as any)
+      .insert(payload)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -99,21 +90,17 @@ export const addCatalogItem = createServerFn({ method: "POST" })
  */
 export const updateCatalogItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z.object({ id: z.string().uuid(), data: catalogUpdateSchema }).parse(i),
-  )
+  .validator((i) => z.object({ id: z.string().uuid(), data: catalogUpdateSchema }).parse(i))
   .handler(async ({ context, data }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireServerAdmin(context.supabase, context.userId);
     await loadNonDemoRow(context.supabase, data.id);
-    const payload = buildDbPayload(data.data);
-    // Never allow archived/is_demo change via update — they have their own
-    // dedicated paths (and is_demo is immutable).
-    delete payload.archived;
-    delete payload.is_demo;
+    // The PostgreSQL trigger atomically clears verification for critical
+    // changes and preserves it for description/material/fit-only edits.
+    // Timestamps are never client-writable.
+    const payload = buildCatalogPayload(data.data);
     const { error } = await context.supabase
       .from("shop_catalog")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update(payload as any)
+      .update(payload as CatalogUpdate)
       .eq("id", data.id)
       .eq("is_demo", false);
     if (error) throw new Error(error.message);
@@ -121,21 +108,19 @@ export const updateCatalogItem = createServerFn({ method: "POST" })
   });
 
 /**
- * Archive / unarchive a non-demo catalog row. Archived rows disappear from
- * Shop but are preserved in the DB.
+ * Archive / unarchive a non-demo catalog row. PostgreSQL atomically clears
+ * verification whenever archived changes, so a restored row must be
+ * explicitly reverified before returning to verified inventory.
  */
 export const setCatalogArchived = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(i),
-  )
+  .validator((i) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(i))
   .handler(async ({ context, data }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireServerAdmin(context.supabase, context.userId);
     await loadNonDemoRow(context.supabase, data.id);
     const { error } = await context.supabase
       .from("shop_catalog")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ archived: data.archived } as any)
+      .update({ archived: data.archived })
       .eq("id", data.id)
       .eq("is_demo", false);
     if (error) throw new Error(error.message);
@@ -143,37 +128,47 @@ export const setCatalogArchived = createServerFn({ method: "POST" })
   });
 
 /**
- * Update the availability of a non-demo catalog row and refresh
- * last_checked_at.
+ * Update availability. PostgreSQL atomically clears verification in the same
+ * row update, including when restocking an unavailable product.
  */
 export const setCatalogAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     z
       .object({
         id: z.string().uuid(),
-        availability: z.enum([
-          "in_stock",
-          "low_stock",
-          "preorder",
-          "out_of_stock",
-          "discontinued",
-        ]),
+        availability: z.enum(["in_stock", "low_stock", "preorder", "out_of_stock", "discontinued"]),
       })
       .parse(i),
   )
   .handler(async ({ context, data }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireServerAdmin(context.supabase, context.userId);
     await loadNonDemoRow(context.supabase, data.id);
     const { error } = await context.supabase
       .from("shop_catalog")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({
-        availability: data.availability,
-        last_checked_at: new Date().toISOString(),
-      } as any)
+      .update({ availability: data.availability })
       .eq("id", data.id)
       .eq("is_demo", false);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Explicitly verify/reverify the complete stored row. Shared server validation
+ * runs first; the database RPC independently authorizes the admin, validates
+ * the row, and is the only path permitted to refresh both timestamps.
+ */
+export const verifyCatalogItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await requireServerAdmin(context.supabase, context.userId);
+    const row = await loadNonDemoRow(context.supabase, data.id);
+    if (row.archived) throw new Error("Restore this product before verifying it");
+    validateStoredCatalogRow(row);
+    const { data: verifiedAt, error } = await context.supabase.rpc("verify_shop_catalog_item", {
+      _catalog_id: data.id,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, verified_at: verifiedAt };
   });
