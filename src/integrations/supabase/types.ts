@@ -846,10 +846,6 @@ export type Database = {
       }
     }
     Functions: {
-      attach_problem_report_screenshot: {
-        Args: { _path: string; _report: string }
-        Returns: undefined
-      }
       admin_delete_comment: {
         Args: { _comment: string; _note?: string }
         Returns: undefined
@@ -866,16 +862,16 @@ export type Database = {
         Args: { _note?: string; _report: string; _status: string }
         Returns: undefined
       }
+      attach_problem_report_screenshot: {
+        Args: { _path: string; _report: string }
+        Returns: boolean
+      }
       block_and_unfollow: { Args: { _blocked: string }; Returns: undefined }
       blocks_between: { Args: { _a: string; _b: string }; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_following: {
         Args: { _followee: string; _follower: string }
         Returns: boolean
-      }
-      verify_shop_catalog_item: {
-        Args: { _catalog_id: string }
-        Returns: string
       }
       outfit_signature: { Args: { _outfit_id: string }; Returns: string }
       record_item_wear: {
@@ -885,6 +881,10 @@ export type Database = {
       record_outfit_wear: { Args: { _outfit_id: string }; Returns: undefined }
       remove_item_wear: { Args: { _wear_id: string }; Returns: undefined }
       remove_outfit_wear: { Args: { _wear_id: string }; Returns: undefined }
+      verify_shop_catalog_item: {
+        Args: { _catalog_id: string }
+        Returns: string
+      }
     }
     Enums: {
       formality:
