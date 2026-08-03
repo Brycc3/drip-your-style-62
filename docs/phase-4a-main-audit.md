@@ -56,6 +56,16 @@ No history rewrite or automatic secret rotation was performed.
 - CI now has an isolated Supabase job that applies all migrations in order and executes real
   PostgreSQL behavior tests for RLS, triggers, RPC atomicity, duplicates, partial imports, demo
   immutability, verification invalidation, and account deletion.
+- A clean replay exposed the weak Lovable screenshot RPC changing an existing return type without
+  dropping the old signature. Its historical file now contains only the required compatibility
+  drop; environments where that migration is already recorded still receive all security repairs
+  exclusively from the later forward-only Phase 4A migration.
+
+Final blocker validation completed with formatting, TypeScript, changed-file ESLint, production
+build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **139 passing tests,
+0 failures, and 1,180 expectations across 9 files**. The isolated Supabase CI job applies every
+migration in order and passes its PostgreSQL behavior suite. Catalog validation remains exactly 51
+products and 51 Phase 2 SVG assets.
 
 The reviewed forward-only migration remains unapplied by Codex. No deployment, product import,
 retailer data, or retailer photography was added.
