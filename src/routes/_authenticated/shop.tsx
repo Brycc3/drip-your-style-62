@@ -75,7 +75,7 @@ const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "leather", l: "Leather" },
 ];
 
-const CACHE_KEY = "drip.shop.cache.v5";
+const CACHE_KEY = "drip.shop.cache.v6";
 const PAGE_SIZE = 12;
 const INITIAL = 12;
 
@@ -138,7 +138,7 @@ function ShopPage() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
-  const [scope, setScope] = useState<ShopScope>("all");
+  const [scope, setScope] = useState<ShopScope>("verified");
   const [showHow, setShowHow] = useState(false);
   const [tab, setTab] = useState<PrimaryTab>("clothing");
   const [accSub, setAccSub] = useState<AccessorySub | "all">("all");
@@ -408,9 +408,9 @@ function ShopPage() {
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {(
           [
-            { v: "all", l: "All" },
             { v: "verified", l: "Verified products" },
             { v: "demo", l: "Demo concepts" },
+            { v: "all", l: "All" },
           ] as const
         ).map((s) => (
           <button
@@ -610,8 +610,8 @@ function VerifiedInventoryEmpty() {
     <div className="card-surface p-6 text-center text-sm text-muted-foreground">
       <p className="font-medium text-foreground">No verified products yet.</p>
       <p className="mt-2">
-        Inventory will appear only after an authorized retailer, affiliate feed, partner API, or
-        manually verified product is added.
+        Verified products will appear after authorized retailer, affiliate, partner, or manually
+        verified inventory is approved.
       </p>
     </div>
   );
@@ -683,17 +683,20 @@ function ItemCard({
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
           <p className="font-display text-lg text-primary">
-            ${g.item.current_price ?? g.item.price}
+            {formatProductPrice(g.item.current_price ?? g.item.price, g.item.currency)}
             {g.item.original_price &&
               g.item.current_price &&
               g.item.original_price > g.item.current_price && (
                 <span className="ml-2 text-xs text-muted-foreground line-through">
-                  ${g.item.original_price}
+                  {formatProductPrice(g.item.original_price, g.item.currency)}
                 </span>
               )}
           </p>
         )}
         {verified && <VerifiedProductMetadata item={item} />}
+        <p className="text-[10px] uppercase tracking-widest text-foreground/75">
+          Estimated outfits unlocked: {g.outfitsUnlocked}
+        </p>
         {g.duplicate && (
           <p className="flex items-center gap-1 text-[11px] text-destructive">
             <AlertTriangle className="h-3 w-3" /> {g.duplicateNote}
@@ -787,6 +790,22 @@ function formatCheckedAt(value?: string | null): string {
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+function formatProductPrice(
+  value: number | null | undefined,
+  currency: string | null | undefined = "USD",
+): string {
+  if (value === null || value === undefined) return "";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${currency || "USD"} ${value.toFixed(2)}`;
+  }
 }
 
 function formatSourceType(value?: string | null): string {
@@ -900,7 +919,7 @@ function OutfitCard({
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
           <p className="font-display text-lg text-primary">
-            ${g.item.current_price ?? g.item.price}
+            {formatProductPrice(g.item.current_price ?? g.item.price, g.item.currency)}
           </p>
         )}
         {verified && <VerifiedProductMetadata item={item} />}

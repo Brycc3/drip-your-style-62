@@ -11,6 +11,9 @@ export type CatalogItem = {
   price: number | null;
   current_price?: number | null;
   original_price?: number | null;
+  currency?: string | null;
+  available_sizes?: string[] | null;
+  source_updated_at?: string | null;
   condition: "new" | "vintage" | "thrift" | "resale";
   image_url: string | null;
   formality: string;
@@ -21,6 +24,7 @@ export type CatalogItem = {
   last_checked_at?: string | null;
   external_id?: string | null;
   is_demo?: boolean;
+  archived?: boolean | null;
   kind?: string; // clothing | shoes | accessory | fragrance
   vibe?: string | null;
   price_tier?: string | null;

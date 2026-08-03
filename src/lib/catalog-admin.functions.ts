@@ -8,6 +8,7 @@ import {
   catalogAddSchema,
   catalogUpdateSchema,
 } from "./catalog-validation";
+import type { CatalogAddInput } from "./catalog-validation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireServerAdmin } from "./admin-auth";
 import type { Database } from "@/integrations/supabase/types";
@@ -48,8 +49,12 @@ function validateStoredCatalogRow(row: CatalogRow) {
     retailer: row.retailer ?? "",
     buy_url: row.buy_url ?? "",
     image_url: row.image_url ?? "",
+    external_id: row.external_id ?? "",
     current_price: row.current_price,
     original_price: row.original_price ?? undefined,
+    currency: row.currency as CatalogAddInput["currency"],
+    available_sizes: row.available_sizes,
+    source_updated_at: row.source_updated_at ?? undefined,
     availability: row.availability,
     source_type: row.source_type,
     source_name: row.source_name ?? "",

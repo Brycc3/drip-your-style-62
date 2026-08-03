@@ -1,0 +1,34 @@
+{
+  "products": [
+    {
+      "name": "REPLACE_WITH_AUTHORIZED_PRODUCT_NAME",
+      "brand": "REPLACE_WITH_REAL_BRAND",
+      "kind": "clothing",
+      "category": "top",
+      "color": "REPLACE_WITH_REAL_COLOR",
+      "current_price": 0,
+      "currency": "USD",
+      "retailer": "REPLACE_WITH_AUTHORIZED_RETAILER",
+      "buy_url": "https://replace.example/authorized-product",
+      "image_url": "https://replace.example/authorized-image.jpg",
+      "image_rights_basis": "authorized",
+      "source_type": "manual",
+      "source_name": "REPLACE_WITH_SOURCE_NAME",
+      "source_url": "https://replace.example/source",
+      "verification_method": "manual",
+      "availability": "out_of_stock",
+      "external_id": "",
+      "affiliate": false,
+      "affiliate_disclosure": "",
+      "vibe": "REPLACE_WITH_VIBE",
+      "price_tier": "mid",
+      "accessory_subtype": "",
+      "fragrance_family": "",
+      "description": "REPLACE_WITH_ACCURATE_DESCRIPTION",
+      "material": "",
+      "fit": "",
+      "available_sizes": ["S", "M", "L"],
+      "source_updated_at": ""
+    }
+  ]
+}

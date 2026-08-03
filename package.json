@@ -9,7 +9,12 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:changed": "node scripts/check-eslint.mjs",
     "format": "prettier --write .",
+    "format:check": "node scripts/check-format.mjs",
+    "typecheck": "tsc --noEmit",
+    "secrets:check": "node scripts/check-secrets.mjs",
+    "secrets:history": "node scripts/check-secrets.mjs --history",
     "test": "bun test",
     "catalog:generate": "node scripts/generate-shop-catalog.mjs",
     "catalog:check": "node scripts/generate-shop-catalog.mjs --check"

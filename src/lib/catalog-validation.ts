@@ -93,6 +93,7 @@ export const CATALOG_VERIFICATION_METHODS = ["manual", "feed", "partner_api"] as
 export const CATALOG_IMAGE_RIGHTS = ["authorized", "project_owned", "licensed"] as const;
 export const CATALOG_KINDS = ["clothing", "shoes", "accessory", "fragrance"] as const;
 export const CATALOG_PRICE_TIERS = ["entry", "mid", "premium", "luxury"] as const;
+export const CATALOG_CURRENCIES = ["USD", "CAD", "EUR", "GBP", "AUD"] as const;
 export const CATALOG_ACCESSORY_SUBTYPES = [
   "earrings",
   "glasses",
@@ -142,6 +143,15 @@ export function isProjectOwnedCatalogImage(value: unknown): value is string {
   return typeof value === "string" && PROJECT_CATALOG_IMAGE_PATTERN.test(value);
 }
 
+export function isCatalogProductStorageImage(value: unknown): value is string {
+  if (!isValidHttpsUrl(value)) return false;
+  const url = new URL(value);
+  return (
+    url.hostname.endsWith(".supabase.co") &&
+    url.pathname.includes("/storage/v1/object/public/catalog-products/")
+  );
+}
+
 export function isValidCatalogImageReference(value: unknown): value is string {
   return isValidHttpsUrl(value) || isProjectOwnedCatalogImage(value);
 }
@@ -150,9 +160,13 @@ export function catalogImageRightsAreConsistent(imageUrl: unknown, rightsBasis: 
   if (!isValidCatalogImageReference(imageUrl)) return false;
   if (!CATALOG_IMAGE_RIGHTS.includes(rightsBasis as (typeof CATALOG_IMAGE_RIGHTS)[number]))
     return false;
-  return isProjectOwnedCatalogImage(imageUrl)
-    ? rightsBasis === "project_owned"
-    : rightsBasis === "authorized" || rightsBasis === "licensed";
+  if (isProjectOwnedCatalogImage(imageUrl)) return rightsBasis === "project_owned";
+  if (isCatalogProductStorageImage(imageUrl)) {
+    return (
+      rightsBasis === "authorized" || rightsBasis === "licensed" || rightsBasis === "project_owned"
+    );
+  }
+  return rightsBasis === "authorized" || rightsBasis === "licensed";
 }
 
 const httpsUrl = z
@@ -239,9 +253,13 @@ export const catalogAddSchema = z
     retailer: z.string().trim().min(1, "Retailer is required").max(80),
     buy_url: httpsUrl,
     image_url: imageReference,
+    external_id: z.string().trim().max(160).optional().or(z.literal("")),
 
     current_price: priceSchema,
     original_price: priceSchema.optional(),
+    currency: z.enum(CATALOG_CURRENCIES).optional(),
+    available_sizes: z.array(z.string().trim().min(1).max(40)).max(40).optional(),
+    source_updated_at: z.string().datetime({ offset: true }).optional().or(z.literal("")),
 
     availability: z.enum(CATALOG_AVAILABILITY),
 
@@ -259,7 +277,7 @@ export const catalogAddSchema = z
     affiliate: z.boolean().default(false),
     affiliate_disclosure: z.string().trim().max(200).optional().or(z.literal("")),
 
-    description: z.string().trim().max(400).optional().or(z.literal("")),
+    description: z.string().trim().min(1, "Description is required").max(400),
   })
   .superRefine((val, ctx) => {
     // If the image is a project-owned path, rights basis must say so.
@@ -351,9 +369,13 @@ export function buildCatalogPayload(input: CatalogAddInput): Record<string, unkn
     retailer: input.retailer,
     buy_url: input.buy_url,
     image_url: input.image_url,
+    external_id: input.external_id || null,
     current_price: input.current_price,
     price: input.current_price,
     original_price: input.original_price ?? null,
+    currency: input.currency ?? "USD",
+    available_sizes: input.available_sizes ?? [],
+    source_updated_at: input.source_updated_at || null,
     availability: input.availability,
     source_type: input.source_type,
     source_name: input.source_name,

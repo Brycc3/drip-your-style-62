@@ -101,6 +101,7 @@ describe("product button behavior", () => {
     verification_method: "manual",
     verified_at: new Date().toISOString(),
     current_price: 40,
+    currency: "USD",
   };
 
   it("uses View Sample for demos even when they contain a product-looking URL", () => {

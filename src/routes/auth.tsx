@@ -4,6 +4,10 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
+import {
+  BACKEND_CONFIGURATION_ERROR,
+  currentBackendConfigurationStatus,
+} from "@/config/backend-env";
 
 const searchSchema = z.object({ mode: z.enum(["signin", "signup"]).optional() });
 
@@ -24,6 +28,38 @@ const emailSchema = z.string().trim().email("Enter a valid email");
 const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
 
 function AuthPage() {
+  const configuration = currentBackendConfigurationStatus();
+  if (!configuration.ok) return <BackendConfigurationUnavailable />;
+  return <ConfiguredAuthPage />;
+}
+
+function BackendConfigurationUnavailable() {
+  return (
+    <div className="min-h-dvh bg-background">
+      <div className="container-app py-10">
+        <Link to="/" className="font-display text-xl tracking-widest text-foreground">
+          DRIP<span className="text-primary">.</span>
+        </Link>
+        <div className="card-surface mt-10 border border-amber-400/30 p-6" role="alert">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-amber-300">Sign-in paused</p>
+          <h1 className="mt-2 font-display text-3xl">Backend configuration needed</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {BACKEND_CONFIGURATION_ERROR}
+          </p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            No credentials were exposed. Ask the deployment administrator to configure DRIP&apos;s
+            public Supabase URL and publishable key, then rebuild the site.
+          </p>
+          <Link to="/" className="mt-6 inline-flex text-xs uppercase tracking-widest text-primary">
+            Return home
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfiguredAuthPage() {
   const { mode: initialMode } = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">(initialMode ?? "signup");
   const [email, setEmail] = useState("");
