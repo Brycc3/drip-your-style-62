@@ -1635,21 +1635,42 @@ CREATE POLICY "catalog product images admin upload"
   WITH CHECK (
     bucket_id = 'catalog-products'
     AND public.is_admin(auth.uid())
+    AND array_length(storage.foldername(name), 1) = 4
+    AND (storage.foldername(name))[1] = 'drafts'
+    AND (storage.foldername(name))[2] = auth.uid()::text
+    AND EXISTS (
+      SELECT 1
+      FROM public.catalog_import_rows row
+      JOIN public.catalog_import_batches batch ON batch.id = row.batch_id
+      WHERE row.id::text = (storage.foldername(name))[4]
+        AND batch.id::text = (storage.foldername(name))[3]
+        AND batch.created_by = auth.uid()
+        AND row.review_status NOT IN ('imported', 'rejected', 'skipped')
+    )
     AND storage.filename(name) ~
       '^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(png|jpg|webp|avif)$'
     AND lower(storage.extension(name)) IN ('png', 'jpg', 'webp', 'avif')
   );
 
 DROP POLICY IF EXISTS "catalog product images admin update" ON storage.objects;
-CREATE POLICY "catalog product images admin update"
-  ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'catalog-products' AND public.is_admin(auth.uid()))
-  WITH CHECK (bucket_id = 'catalog-products' AND public.is_admin(auth.uid()));
-
 DROP POLICY IF EXISTS "catalog product images admin delete" ON storage.objects;
-CREATE POLICY "catalog product images admin delete"
+DROP POLICY IF EXISTS "catalog product images owner cleanup" ON storage.objects;
+CREATE POLICY "catalog product images owner cleanup"
   ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'catalog-products' AND public.is_admin(auth.uid()));
+  USING (
+    bucket_id = 'catalog-products'
+    AND public.is_admin(auth.uid())
+    AND (storage.foldername(name))[1] = 'drafts'
+    AND (storage.foldername(name))[2] = auth.uid()::text
+    AND NOT EXISTS (
+      SELECT 1 FROM public.catalog_import_rows row
+      WHERE row.normalized_data->>'image_url' LIKE '%/catalog-products/' || name
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.shop_catalog product
+      WHERE product.image_url LIKE '%/catalog-products/' || name
+    )
+  );
 
 -- --------------------------------------------------------------------------
 -- Phase 4A review-blocker reconciliation. The migration is still unshipped,
