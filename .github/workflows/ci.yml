@@ -60,3 +60,29 @@ jobs:
 
       - name: Safe secret-pattern history scan
         run: npm run secrets:history
+
+  database-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+
+      - name: Start local Supabase and apply every migration
+        run: |
+          supabase start
+          supabase db reset --local
+
+      - name: Exercise Phase 4A database behavior
+        run: |
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < supabase/tests/phase-4a-integration.sql
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup

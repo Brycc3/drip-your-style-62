@@ -34,3 +34,28 @@ are not copied into Phase 4A as hand-authored work.
   values and would report only category, file, and commit.
 
 No history rewrite or automatic secret rotation was performed.
+
+## Draft PR #4 review-blocker reconciliation
+
+- Batch planning now treats brand + product name + color + retailer as a descriptive identity in
+  both TypeScript and PostgreSQL. Corrections replan every open row, while invalid rows do not
+  inflate `duplicate_row_count`.
+- Import-table writes are revoked from browser roles. Atomic staging, batch-wide correction,
+  resolution, review, approval, and import are authenticated administrator RPCs.
+- Manual matches retain the automated proposal and a separate create/update/skip resolution audit.
+  Create requires explicit duplicate acknowledgement; update rejects demos and missing targets.
+- Imports use a global transaction advisory lock and perform complete validation plus live and
+  intra-batch identity preflight before the first catalog mutation. Unexpected matches return to
+  manual review without a partial catalog write.
+- Partial batches remain recoverable. Only approved rows are processed, terminal rows are not
+  processed twice, and the batch closes only after every row is imported, rejected, or skipped.
+- Account export includes import/report/image audit data. Deletion removes private drafts, unlinks
+  report attachments, anonymizes imported audit ownership, and preserves imported catalog products.
+- Product-image uploads use owner/batch/row draft paths. Deletion policies reject any object still
+  referenced by staging or `shop_catalog`.
+- CI now has an isolated Supabase job that applies all migrations in order and executes real
+  PostgreSQL behavior tests for RLS, triggers, RPC atomicity, duplicates, partial imports, demo
+  immutability, verification invalidation, and account deletion.
+
+The reviewed forward-only migration remains unapplied by Codex. No deployment, product import,
+retailer data, or retailer photography was added.

@@ -27,8 +27,8 @@ function source(file: string): string {
 }
 
 function sqlFunction(name: string): string {
-  const replaceStart = migration.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
-  const createStart = migration.indexOf(`CREATE FUNCTION public.${name}`);
+  const replaceStart = migration.lastIndexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+  const createStart = migration.lastIndexOf(`CREATE FUNCTION public.${name}`);
   const start = replaceStart >= 0 ? replaceStart : createStart;
   const end = migration.indexOf("\n$$;", start);
   expect(start).toBeGreaterThanOrEqual(0);
@@ -281,22 +281,249 @@ describe("Phase 4A real-product staging", () => {
     ]);
   });
 
+  it("flags same-description batch identities even when URLs and external IDs differ", () => {
+    const rows = [
+      validateCatalogImportRecord(validRaw({ external_id: "one" }), 1),
+      validateCatalogImportRecord(
+        validRaw({
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/field-coat-second-listing",
+        }),
+        2,
+      ),
+    ];
+    const planned = planCatalogImportRows(rows, []);
+    expect(planned.map((row) => row.action)).toEqual(["create", "manual_review"]);
+    expect(planned[1].duplicateReason).toContain("batch row 1");
+  });
+
+  it("replanning detects a duplicate created by a correction", () => {
+    const initiallyDistinct = [
+      validateCatalogImportRecord(validRaw({ external_id: "one" }), 1),
+      validateCatalogImportRecord(
+        validRaw({
+          name: "Different Test Coat",
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/different",
+        }),
+        2,
+      ),
+    ];
+    expect(planCatalogImportRows(initiallyDistinct, []).map((row) => row.action)).toEqual([
+      "create",
+      "create",
+    ]);
+    const corrected = [
+      initiallyDistinct[0],
+      validateCatalogImportRecord(
+        validRaw({
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/different",
+        }),
+        2,
+      ),
+    ];
+    expect(planCatalogImportRows(corrected, []).map((row) => row.action)).toEqual([
+      "create",
+      "manual_review",
+    ]);
+  });
+
+  it("replanning clears a descriptive duplicate after a correction", () => {
+    const duplicated = [
+      validateCatalogImportRecord(validRaw({ external_id: "one" }), 1),
+      validateCatalogImportRecord(
+        validRaw({
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/second",
+        }),
+        2,
+      ),
+    ];
+    expect(planCatalogImportRows(duplicated, [])[1].action).toBe("manual_review");
+    const corrected = [
+      duplicated[0],
+      validateCatalogImportRecord(
+        validRaw({
+          name: "Corrected Distinct Test Coat",
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/second",
+        }),
+        2,
+      ),
+    ];
+    expect(planCatalogImportRows(corrected, []).map((row) => row.action)).toEqual([
+      "create",
+      "create",
+    ]);
+  });
+
+  it("does not count invalid lookalike rows as duplicates", () => {
+    const invalidRows = [
+      validateCatalogImportRecord(validRaw({ name: "" }), 1),
+      validateCatalogImportRecord(validRaw({ name: "" }), 2),
+    ];
+    const planned = planCatalogImportRows(invalidRows, []);
+    expect(planned.every((row) => row.action === "manual_review")).toBe(true);
+    expect(planned.filter((row) => row.duplicateReason).length).toBe(0);
+  });
+
+  it("derives duplicate counts from duplicate reasons, not all non-create actions", () => {
+    const rows = [
+      validateCatalogImportRecord(validRaw({ name: "" }), 1),
+      validateCatalogImportRecord(validRaw({ external_id: "one" }), 2),
+      validateCatalogImportRecord(
+        validRaw({
+          external_id: "two",
+          buy_url: "https://shop.example.test/products/other-url",
+        }),
+        3,
+      ),
+    ];
+    const planned = planCatalogImportRows(rows, []);
+    expect(planned.filter((row) => row.action !== "create").length).toBe(2);
+    expect(planned.filter((row) => row.duplicateReason).length).toBe(1);
+  });
+
   it("imports approved products atomically as real, active, and unverified", () => {
-    const importer = sqlFunction("import_catalog_batch");
+    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
     expect(importer).toContain("SECURITY DEFINER");
     expect(importer).toContain("is_demo, archived, verified_at, last_checked_at");
     expect(importer).toContain("false, false, NULL, NULL");
     expect(importer).toContain("'verified', false");
     expect(importer).toContain("AND is_demo = false");
+    expect(importer).toContain("pg_advisory_xact_lock");
+    expect(importer.indexOf("PERFORM public.assert_valid_catalog_import_product")).toBeLessThan(
+      importer.indexOf("INSERT INTO public.shop_catalog"),
+    );
   });
 
   it("requires administrator authorization on every import server operation", () => {
     const server = source("src/lib/catalog-import.functions.ts");
     const exportedOperations = (server.match(/export const \w+ = createServerFn/g) ?? []).length;
     const adminChecks = (server.match(/await requireServerAdmin\(/g) ?? []).length;
-    expect(exportedOperations).toBe(8);
+    expect(exportedOperations).toBe(10);
     expect(adminChecks).toBe(exportedOperations);
     expect(migration).toContain("USING (public.is_admin(auth.uid()))");
+  });
+});
+
+describe("Phase 4A import reconciliation blockers", () => {
+  it("replans every open row and clears stale decisions after a correction", () => {
+    const replan = sqlFunction("replan_catalog_import_batch");
+    const correction = sqlFunction("update_catalog_import_row_and_replan");
+    expect(replan).toContain("review_status NOT IN ('imported', 'rejected', 'skipped')");
+    expect(replan).toContain("resolution_action = NULL");
+    expect(replan).toContain("review_status = 'pending'");
+    expect(correction).toContain("PERFORM public.replan_catalog_import_batch(batch_id)");
+    expect(migration).toContain("count(*)::integer");
+    expect(migration).toContain("duplicate_reason IS NOT NULL");
+  });
+
+  it("keeps create, update, and skip resolutions separate from approval", () => {
+    const resolution = sqlFunction("resolve_catalog_import_row");
+    const review = sqlFunction("review_catalog_import_row");
+    expect(resolution).toContain("_action NOT IN ('create', 'update', 'skip')");
+    expect(resolution).toContain("requires explicit confirmation");
+    expect(resolution).toContain("valid non-demo catalog target");
+    expect(resolution).toContain("resolved_by = caller");
+    expect(review).toContain("staged.resolution_action IS NULL");
+    expect(review).toContain("Resolve validation and duplicate-review issues before approval");
+  });
+
+  it("stages batch metadata and all rows in one database transaction", () => {
+    const stage = sqlFunction("stage_catalog_import_batch");
+    const server = source("src/lib/catalog-import.functions.ts");
+    expect(stage).toContain("INSERT INTO public.catalog_import_batches");
+    expect(stage).toContain("INSERT INTO public.catalog_import_rows");
+    expect(stage).toContain("PERFORM public.replan_catalog_import_batch(batch_id)");
+    expect(server).toContain('.rpc("stage_catalog_import_batch"');
+    expect(server).not.toContain('.from("catalog_import_batches").insert');
+  });
+
+  it("models partial imports and leaves terminal rows untouched on repeat runs", () => {
+    const lifecycle = sqlFunction("refresh_catalog_import_batch_lifecycle");
+    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
+    expect(migration).toContain("'partially_imported'");
+    expect(lifecycle).toContain("review_status IN ('imported', 'rejected', 'skipped')");
+    expect(importer).toContain("review_status = 'approved'");
+    expect(importer).toContain("review_status = 'skipped'");
+    expect(importer).toContain("'remaining', remaining_count");
+  });
+
+  it("rechecks live and intra-batch identities under a global transaction lock", () => {
+    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
+    expect(importer).toContain("pg_advisory_xact_lock");
+    expect(importer).toContain("prior.row_number < staged.row_number");
+    expect(importer).toContain("FROM public.shop_catalog product");
+    expect(importer).toContain("FOR UPDATE");
+    expect(importer).toContain("review_status = 'pending'");
+    expect(importer).toContain("'blocked', true");
+  });
+
+  it("duplicates all application checks in the final database assertion", () => {
+    const assertion = sqlFunction("assert_valid_catalog_import_product");
+    for (const requirement of [
+      "protected catalog control fields",
+      "Imported text fields must be strings",
+      "Imported price fields must be numbers",
+      "Imported product text exceeds supported limits",
+      "available sizes",
+      "current price",
+      "product image rights",
+      "category and kind",
+      "accessory subtype",
+      "fragrance family",
+      "Affiliate imports require a disclosure",
+    ]) {
+      expect(assertion).toContain(requirement);
+    }
+  });
+
+  it("revokes direct import-table mutations and exposes admin RPCs instead", () => {
+    expect(migration).toContain(
+      "REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_batches FROM authenticated",
+    );
+    expect(migration).toContain(
+      "REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_rows FROM authenticated",
+    );
+    expect(
+      migration.lastIndexOf('DROP POLICY IF EXISTS "catalog imports admin update rows"'),
+    ).toBeGreaterThan(migration.lastIndexOf('CREATE POLICY "catalog imports admin update rows"'));
+    expect(migration).toContain(
+      "GRANT EXECUTE ON FUNCTION public.resolve_catalog_import_row(uuid, text, uuid, boolean)",
+    );
+  });
+
+  it("exports import/report/image records and preserves imported products on deletion", () => {
+    const account = source("src/lib/account.functions.ts");
+    const prepare = sqlFunction("prepare_catalog_import_account_deletion");
+    const accountExport = sqlFunction("get_my_catalog_import_export");
+    expect(account).toContain('"get_my_catalog_import_export"');
+    expect(account).toContain('"prepare_catalog_import_account_deletion"');
+    expect(account).toContain('from("catalog-products")');
+    expect(account).toContain('from("reports")');
+    expect(prepare).toContain("row.review_status = 'imported'");
+    expect(prepare).toContain("SET created_by = NULL");
+    expect(accountExport).toContain("catalogProductImagePaths");
+    expect(accountExport).toContain("reportScreenshotPaths");
+  });
+
+  it("binds draft images to owner/batch/row and deletes only unreferenced objects", () => {
+    const importsUi = source("src/routes/_authenticated/admin.catalog_.imports.tsx");
+    expect(migration).toContain("(storage.foldername(name))[2] = auth.uid()::text");
+    expect(migration).toContain("row.normalized_data->>'image_url'");
+    expect(migration).toContain("product.image_url LIKE");
+    expect(importsUi).toContain("cleanupUploadedPath");
+    expect(importsUi).toContain("catalogStoragePath");
+    expect(importsUi).toContain("Correction saved, but the prior image could not be cleaned up");
+  });
+
+  it("runs a migration-backed PostgreSQL behavior suite in CI", () => {
+    const workflow = source(".github/workflows/ci.yml");
+    expect(workflow).toContain("database-integration:");
+    expect(workflow).toContain("supabase db reset --local");
+    expect(workflow).toContain("phase-4a-integration.sql");
   });
 });
 

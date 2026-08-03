@@ -572,7 +572,7 @@ export type Database = {
       catalog_import_batches: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           duplicate_row_count: number
           id: string
           invalid_row_count: number
@@ -587,7 +587,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           duplicate_row_count?: number
           id?: string
           invalid_row_count?: number
@@ -602,7 +602,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           duplicate_row_count?: number
           id?: string
           invalid_row_count?: number
@@ -627,6 +627,12 @@ export type Database = {
           normalized_data: Json
           proposed_action: string
           raw_data: Json
+          resolution_action: string | null
+          resolution_catalog_id: string | null
+          resolution_confirmed: boolean
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
           review_status: string
           reviewed_at: string | null
           reviewed_by: string | null
@@ -644,6 +650,12 @@ export type Database = {
           normalized_data?: Json
           proposed_action: string
           raw_data: Json
+          resolution_action?: string | null
+          resolution_catalog_id?: string | null
+          resolution_confirmed?: boolean
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -661,6 +673,12 @@ export type Database = {
           normalized_data?: Json
           proposed_action?: string
           raw_data?: Json
+          resolution_action?: string | null
+          resolution_catalog_id?: string | null
+          resolution_confirmed?: boolean
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -680,6 +698,13 @@ export type Database = {
           {
             foreignKeyName: "catalog_import_rows_catalog_id_fkey"
             columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_import_rows_resolution_catalog_id_fkey"
+            columns: ["resolution_catalog_id"]
             isOneToOne: false
             referencedRelation: "shop_catalog"
             referencedColumns: ["id"]
@@ -992,6 +1017,10 @@ export type Database = {
         Args: { _path: string; _report: string }
         Returns: undefined
       }
+      approve_valid_catalog_import_rows: {
+        Args: { _batch: string }
+        Returns: number
+      }
       block_and_unfollow: { Args: { _blocked: string }; Returns: undefined }
       blocks_between: { Args: { _a: string; _b: string }; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
@@ -1000,14 +1029,43 @@ export type Database = {
         Returns: boolean
       }
       import_catalog_batch: { Args: { _batch: string }; Returns: Json }
+      get_my_catalog_import_export: { Args: never; Returns: Json }
+      get_my_account_storage_cleanup_paths: { Args: never; Returns: Json }
       outfit_signature: { Args: { _outfit_id: string }; Returns: string }
       record_item_wear: {
         Args: { _item_id: string; _worn_on?: string }
         Returns: string
       }
       record_outfit_wear: { Args: { _outfit_id: string }; Returns: undefined }
+      prepare_catalog_import_account_deletion: { Args: never; Returns: Json }
       remove_item_wear: { Args: { _wear_id: string }; Returns: undefined }
       remove_outfit_wear: { Args: { _wear_id: string }; Returns: undefined }
+      resolve_catalog_import_row: {
+        Args: {
+          _action: string
+          _catalog_target?: string | null
+          _confirm_create?: boolean
+          _row: string
+        }
+        Returns: undefined
+      }
+      review_catalog_import_row: {
+        Args: { _decision: string; _row: string }
+        Returns: undefined
+      }
+      stage_catalog_import_batch: {
+        Args: { _batch: Json; _rows: Json }
+        Returns: Json
+      }
+      update_catalog_import_row_and_replan: {
+        Args: {
+          _normalized: Json
+          _row: string
+          _validation_errors: string[]
+          _warnings: string[]
+        }
+        Returns: Json
+      }
       verify_shop_catalog_item: {
         Args: { _catalog_id: string }
         Returns: string

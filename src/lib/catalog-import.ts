@@ -333,12 +333,14 @@ export function planCatalogImportRows(
   const existingDescription = new Map(existing.map((item) => [descriptiveIdentity(item), item]));
   const seenExternal = new Set<string>();
   const seenUrls = new Set<string>();
+  const seenDescriptions = new Map<string, number>();
 
   return rows.map((row) => {
     if (row.errors.length > 0) return { ...row, action: "manual_review" as const };
 
     const externalKey = externalIdentity(row.normalized);
     const productUrl = normalizeProductUrl(row.normalized.buy_url);
+    const descriptionKey = descriptiveIdentity(row.normalized);
     if (
       (externalKey && seenExternal.has(externalKey)) ||
       (productUrl && seenUrls.has(productUrl))
@@ -351,6 +353,15 @@ export function planCatalogImportRows(
     }
     if (externalKey) seenExternal.add(externalKey);
     if (productUrl) seenUrls.add(productUrl);
+    const earlierDescriptionRow = seenDescriptions.get(descriptionKey);
+    if (descriptionKey && earlierDescriptionRow !== undefined) {
+      return {
+        ...row,
+        action: "manual_review" as const,
+        duplicateReason: `Brand, name, color, and retailer match batch row ${earlierDescriptionRow}`,
+      };
+    }
+    if (descriptionKey) seenDescriptions.set(descriptionKey, row.rowNumber);
 
     const exact = (externalKey && existingExternal.get(externalKey)) || existingUrl.get(productUrl);
     if (exact) {
@@ -371,7 +382,7 @@ export function planCatalogImportRows(
       };
     }
 
-    const possible = existingDescription.get(descriptiveIdentity(row.normalized));
+    const possible = existingDescription.get(descriptionKey);
     if (possible) {
       return {
         ...row,

@@ -24,8 +24,10 @@ No migration was applied, no product was imported, and no external retailer imag
 | Shop — real-product card      | Pass    | Pass   | An authorized local fixture showed matching image, price/currency, retailer, availability, last checked, provenance, estimated outfit value, and `Shop Now`.                                              |
 | Shop — Demo concepts          | Pass    | Pass   | Demo banner, `DEMO`, `Sample only`, and `View Sample` were visible. The fixture had no retailer purchase link.                                                                                            |
 | CSV/JSON staging              | Pass    | Pass   | File-format guidance, source fields, rights acknowledgement, and preview-before-import control were clear.                                                                                                |
-| Import preview and validation | Pass    | Pass   | Valid, invalid, warning, duplicate, create, update, skip, and manual-review states were distinguishable. Field-level validation errors were visible.                                                      |
-| Duplicate review and approval | Pass    | Pass   | Duplicate reasons, per-row approve/reject controls, approve-all-valid, and import-approved controls were present without implying verification.                                                           |
+| Import preview and validation | Pass    | Pass   | Valid, invalid, warning, actual-duplicate, create, update, skip, and manual-review states were distinguishable. Field-level validation errors were visible.                                               |
+| Batch lifecycle               | Pass    | Pass   | The `PARTIALLY IMPORTED` state showed approved/ready, already imported, rejected, skipped, unresolved, and remaining counts without closing the batch.                                                    |
+| Duplicate resolution          | Pass    | Pass   | The manual-review card showed an existing-target UUID field and distinct `Create as new…`, `Update existing`, and `Skip row` actions. Approval remained visibly disabled before resolution.               |
+| Duplicate review and approval | Pass    | Pass   | Duplicate reasons, per-row approve/reject controls, approve-all-valid, and import-approved controls remained present without implying verification.                                                       |
 | Import dashboard              | Pass    | Pass   | Staged, review, needs-verification, verified, stale, out-of-stock, and archived counts were separate.                                                                                                     |
 | Catalog verification queue    | Pass    | Pass   | Verified, needs verification, archived, and demo filters were visible. Copy explained atomic invalidation after critical edits, restocking, or restoration. Mobile document width remained exactly 390px. |
 
@@ -34,6 +36,15 @@ No migration was applied, no product was imported, and no external retailer imag
 The two-column import review grid could allow its detail pane to impose a wider minimum width
 on mobile. The grid now uses `minmax(0, 1fr)` and both panes use `min-w-0`. Reinspection found
 no horizontal document overflow in the import or verification-queue screens.
+
+## Final blocker recheck
+
+The review-blocker fixture used one pending manual match plus approved, imported, rejected, and
+skipped rows. At the mobile `390 x 844` viewport, the document width remained within the viewport,
+the lifecycle chips wrapped cleanly, the target UUID stayed contained, and all three resolution
+buttons remained visible. The app's default desktop viewport also retained the existing centered
+layout and dashboard grid. The temporary fixture and authentication bypass were removed before the
+final TypeScript, test, and build runs.
 
 ## Release boundary
 

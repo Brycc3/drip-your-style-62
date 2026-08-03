@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 import { requireServerAdmin } from "./admin-auth";
 import {
   CATALOG_IMPORT_FORMATS,
@@ -12,9 +12,6 @@ import {
 } from "./catalog-import";
 import { isValidHttpsUrl } from "./catalog-validation";
 import { isVerifiedPurchasable, type VerifiableCatalogItem } from "./shop-catalog";
-
-type ImportBatchInsert = Database["public"]["Tables"]["catalog_import_batches"]["Insert"];
-type ImportRowInsert = Database["public"]["Tables"]["catalog_import_rows"]["Insert"];
 
 const importUploadSchema = z.object({
   format: z.enum(CATALOG_IMPORT_FORMATS),
@@ -46,51 +43,28 @@ export const createCatalogImportBatch = createServerFn({ method: "POST" })
     if (catalogError) throw new Error(catalogError.message);
 
     const planned = planCatalogImportRows(validated, (catalog ?? []) as ExistingCatalogIdentity[]);
-    const batchPayload: ImportBatchInsert = {
-      created_by: context.userId,
-      source_type: data.format === "csv" ? "manual_csv" : "manual_json",
-      source_name: data.sourceName,
-      source_url: data.sourceUrl || null,
-      uploaded_file_name: data.fileName,
-      status: "validating",
-    };
-    const { data: batch, error: batchError } = await context.supabase
-      .from("catalog_import_batches")
-      .insert(batchPayload)
-      .select("id")
-      .single();
-    if (batchError || !batch)
-      throw new Error(batchError?.message ?? "Could not create import batch");
-
-    const rowPayloads: ImportRowInsert[] = planned.map((row) => ({
-      batch_id: batch.id,
-      row_number: row.rowNumber,
-      raw_data: row.raw as Json,
-      normalized_data: row.normalized as Json,
-      validation_errors: row.errors,
-      warnings: row.warnings,
-      duplicate_reason: row.duplicateReason ?? null,
-      proposed_action: row.action,
-      review_status: "pending",
-      catalog_id: row.catalogId ?? null,
-    }));
-    const { error: rowError } = await context.supabase
-      .from("catalog_import_rows")
-      .insert(rowPayloads);
-    if (rowError) throw new Error(rowError.message);
-
-    const { error: statusError } = await context.supabase
-      .from("catalog_import_batches")
-      .update({ status: "needs_review" })
-      .eq("id", batch.id);
-    if (statusError) throw new Error(statusError.message);
-
-    return {
-      id: batch.id,
-      total: planned.length,
-      valid: planned.filter((row) => row.errors.length === 0).length,
-      invalid: planned.filter((row) => row.errors.length > 0).length,
-      duplicates: planned.filter((row) => row.action !== "create").length,
+    const { data: result, error } = await context.supabase.rpc("stage_catalog_import_batch", {
+      _batch: {
+        source_type: data.format === "csv" ? "manual_csv" : "manual_json",
+        source_name: data.sourceName,
+        source_url: data.sourceUrl || null,
+        uploaded_file_name: data.fileName,
+      },
+      _rows: planned.map((row) => ({
+        row_number: row.rowNumber,
+        raw_data: row.raw,
+        normalized_data: row.normalized,
+        validation_errors: row.errors,
+        warnings: row.warnings,
+      })) as Json,
+    });
+    if (error || !result) throw new Error(error?.message ?? "Could not stage import batch");
+    return result as {
+      id: string;
+      total: number;
+      valid: number;
+      invalid: number;
+      duplicates: number;
     };
   });
 
@@ -134,44 +108,47 @@ export const updateCatalogImportRow = createServerFn({ method: "POST" })
     await requireServerAdmin(context.supabase, context.userId);
     const { data: current, error: currentError } = await context.supabase
       .from("catalog_import_rows")
-      .select("id,row_number,catalog_id")
+      .select("id,row_number")
       .eq("id", data.id)
       .single();
     if (currentError || !current) throw new Error(currentError?.message ?? "Import row not found");
 
     const validated = validateCatalogImportRecord(data.normalized, current.row_number);
-    const { data: catalog, error: catalogError } = await context.supabase
-      .from("shop_catalog")
-      .select("id,external_id,retailer,buy_url,brand,name,color,is_demo")
-      .limit(2000);
-    if (catalogError) throw new Error(catalogError.message);
-    const [planned] = planCatalogImportRows(
-      [validated],
-      (catalog ?? []) as ExistingCatalogIdentity[],
+    const { data: result, error } = await context.supabase.rpc(
+      "update_catalog_import_row_and_replan",
+      {
+        _row: data.id,
+        _normalized: validated.normalized,
+        _validation_errors: validated.errors,
+        _warnings: validated.warnings,
+      },
     );
+    if (error || !result) throw new Error(error?.message ?? "Could not update import row");
+    return result;
+  });
 
-    const { error } = await context.supabase
-      .from("catalog_import_rows")
-      .update({
-        normalized_data: planned.normalized as Json,
-        validation_errors: planned.errors,
-        warnings: planned.warnings,
-        duplicate_reason: planned.duplicateReason ?? null,
-        proposed_action: planned.action,
-        catalog_id: planned.catalogId ?? current.catalog_id,
-        review_status: "pending",
-        reviewed_at: null,
-        reviewed_by: null,
+export const resolveCatalogImportRow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        action: z.enum(["create", "update", "skip"]),
+        catalogTarget: z.string().uuid().nullable().optional(),
+        confirmCreate: z.boolean().default(false),
       })
-      .eq("id", data.id);
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await requireServerAdmin(context.supabase, context.userId);
+    const { error } = await context.supabase.rpc("resolve_catalog_import_row", {
+      _row: data.id,
+      _action: data.action,
+      _catalog_target: data.catalogTarget ?? null,
+      _confirm_create: data.confirmCreate,
+    });
     if (error) throw new Error(error.message);
-    return {
-      action: planned.action,
-      catalogId: planned.catalogId,
-      errors: planned.errors,
-      warnings: planned.warnings,
-      duplicateReason: planned.duplicateReason,
-    };
+    return { ok: true };
   });
 
 export const reviewCatalogImportRow = createServerFn({ method: "POST" })
@@ -181,26 +158,10 @@ export const reviewCatalogImportRow = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await requireServerAdmin(context.supabase, context.userId);
-    const { data: row, error: rowError } = await context.supabase
-      .from("catalog_import_rows")
-      .select("validation_errors,proposed_action")
-      .eq("id", data.id)
-      .single();
-    if (rowError || !row) throw new Error(rowError?.message ?? "Import row not found");
-    if (
-      data.decision === "approved" &&
-      (row.validation_errors.length > 0 || row.proposed_action === "manual_review")
-    ) {
-      throw new Error("Resolve validation and duplicate-review issues before approval");
-    }
-    const { error } = await context.supabase
-      .from("catalog_import_rows")
-      .update({
-        review_status: data.decision,
-        reviewed_by: context.userId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", data.id);
+    const { error } = await context.supabase.rpc("review_catalog_import_row", {
+      _row: data.id,
+      _decision: data.decision,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -210,33 +171,28 @@ export const approveValidCatalogImportRows = createServerFn({ method: "POST" })
   .validator((input) => idSchema.parse(input))
   .handler(async ({ context, data }) => {
     await requireServerAdmin(context.supabase, context.userId);
-    const { data: rows, error: rowsError } = await context.supabase
-      .from("catalog_import_rows")
-      .select("id,validation_errors,proposed_action")
-      .eq("batch_id", data.id);
-    if (rowsError) throw new Error(rowsError.message);
-    const approvable = (rows ?? []).filter(
-      (row) => row.validation_errors.length === 0 && row.proposed_action !== "manual_review",
+    const { data: approved, error } = await context.supabase.rpc(
+      "approve_valid_catalog_import_rows",
+      { _batch: data.id },
     );
-    if (approvable.length === 0) throw new Error("This batch has no rows ready for approval");
-    const { error } = await context.supabase
-      .from("catalog_import_rows")
-      .update({
-        review_status: "approved",
-        reviewed_by: context.userId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .in(
-        "id",
-        approvable.map((row) => row.id),
-      );
     if (error) throw new Error(error.message);
-    const { error: batchStatusError } = await context.supabase
-      .from("catalog_import_batches")
-      .update({ status: "approved" })
-      .eq("id", data.id);
-    if (batchStatusError) throw new Error(batchStatusError.message);
-    return { approved: approvable.length };
+    return { approved };
+  });
+
+export const deleteUncommittedCatalogImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ path: z.string().max(500) }).parse(input))
+  .handler(async ({ context, data }) => {
+    await requireServerAdmin(context.supabase, context.userId);
+    const escapedUserId = context.userId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const allowedPath = new RegExp(
+      `^drafts/${escapedUserId}/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}\\.(png|jpg|webp|avif)$`,
+      "i",
+    );
+    if (!allowedPath.test(data.path)) throw new Error("Invalid catalog image draft path");
+    const { error } = await context.supabase.storage.from("catalog-products").remove([data.path]);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const importApprovedCatalogRows = createServerFn({ method: "POST" })
@@ -277,8 +233,9 @@ export const getCatalogImportDashboard = createServerFn({ method: "GET" })
       isVerifiedPurchasable(row as VerifiableCatalogItem),
     );
     return {
-      stagedImports: (batchesResult.data ?? []).filter((batch) => batch.status !== "imported")
-        .length,
+      stagedImports: (batchesResult.data ?? []).filter(
+        (batch) => !["imported", "rejected"].includes(batch.status),
+      ).length,
       productsNeedingReview: (rowsResult.data ?? []).filter(
         (row) => row.review_status === "pending",
       ).length,

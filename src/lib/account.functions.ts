@@ -27,7 +27,6 @@ const OWNED_TABLES = [
   "user_blocks",
 ] as const;
 
-
 export const exportMyData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -37,7 +36,10 @@ export const exportMyData = createServerFn({ method: "POST" })
     const sb = supabase as unknown as {
       from: (t: string) => {
         select: (c: string) => {
-          eq: (col: string, val: string) => Promise<{ data: AnyRow[] | null }> & {
+          eq: (
+            col: string,
+            val: string,
+          ) => Promise<{ data: AnyRow[] | null }> & {
             maybeSingle: () => Promise<{ data: AnyRow | null }>;
           };
           in: (col: string, ids: string[]) => Promise<{ data: AnyRow[] | null }>;
@@ -57,6 +59,14 @@ export const exportMyData = createServerFn({ method: "POST" })
     bundle.profile = profile ?? null;
     bundle.preferences = prefs ?? null;
 
+    const { data: importExport, error: importExportError } = await supabase.rpc(
+      "get_my_catalog_import_export",
+    );
+    if (importExportError) {
+      throw new Error(`Could not export catalog import records: ${importExportError.message}`);
+    }
+    bundle.catalog_imports_reports_and_images = importExport ?? {};
+
     for (const table of OWNED_TABLES) {
       if (table === "user_preferences") continue;
       if (table === "follows") {
@@ -73,10 +83,7 @@ export const exportMyData = createServerFn({ method: "POST" })
         continue;
       }
       if (table === "outfit_items") {
-        const { data: outfits } = await sb
-          .from("saved_outfits")
-          .select("id")
-          .eq("user_id", userId);
+        const { data: outfits } = await sb.from("saved_outfits").select("id").eq("user_id", userId);
         const ids = (outfits ?? []).map((o) => String(o.id));
         if (ids.length === 0) {
           bundle[table] = [];
@@ -93,7 +100,6 @@ export const exportMyData = createServerFn({ method: "POST" })
     // JSON-round-trip guarantees the value is serializable for the server-fn boundary.
     return JSON.parse(JSON.stringify(bundle)) as { user_id: string; exported_at: string };
   });
-
 
 export const deleteMyAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -123,6 +129,33 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       auth: typeof _admin.auth;
     };
 
+    // Preserve imported product rows and anonymized reconciliation history while
+    // removing uncommitted imports and unlinking private report data in one DB transaction.
+    const { error: prepareError } = await supabase.rpc("prepare_catalog_import_account_deletion");
+    if (prepareError) {
+      throw new Error(`Could not prepare catalog data for deletion: ${prepareError.message}`);
+    }
+    const { data: cleanupData, error: cleanupPathsError } = await supabase.rpc(
+      "get_my_account_storage_cleanup_paths",
+    );
+    if (cleanupPathsError) {
+      throw new Error(`Could not determine private files to delete: ${cleanupPathsError.message}`);
+    }
+    const cleanupPaths = (cleanupData ?? {}) as {
+      reports?: string[];
+      catalogProducts?: string[];
+    };
+    if (cleanupPaths.reports?.length) {
+      const { error } = await supabase.storage.from("reports").remove(cleanupPaths.reports);
+      if (error) throw new Error(`Could not delete report screenshots: ${error.message}`);
+    }
+    if (cleanupPaths.catalogProducts?.length) {
+      const { error } = await supabase.storage
+        .from("catalog-products")
+        .remove(cleanupPaths.catalogProducts);
+      if (error) throw new Error(`Could not delete catalog image drafts: ${error.message}`);
+    }
+
     // Delete storage objects under closet/<uid>/
     try {
       const { data: files } = await _admin.storage.from("closet").list(userId, { limit: 1000 });
@@ -134,11 +167,6 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       console.error("[deleteMyAccount] storage cleanup failed", e);
     }
 
-    await admin
-      .from("content_reports")
-      .update({ reporter_id: null })
-      .eq("reporter_id", userId);
-
     // outfit_items via saved_outfits ids
     const sbUser = supabase as unknown as {
       from: (t: string) => {
@@ -147,10 +175,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
         };
       };
     };
-    const { data: outfits } = await sbUser
-      .from("saved_outfits")
-      .select("id")
-      .eq("user_id", userId);
+    const { data: outfits } = await sbUser.from("saved_outfits").select("id").eq("user_id", userId);
     const outfitIds = (outfits ?? []).map((o) => String(o.id));
     if (outfitIds.length > 0) {
       await admin.from("outfit_items").delete().in("outfit_id", outfitIds);
@@ -176,10 +201,10 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     }
     await admin.from("profiles").delete().eq("id", userId);
 
-
     // Finally: auth.users
     const { error: delErr } = await _admin.auth.admin.deleteUser(userId);
-    if (delErr) throw new Error(`Account row deleted, but auth user removal failed: ${delErr.message}`);
+    if (delErr)
+      throw new Error(`Account row deleted, but auth user removal failed: ${delErr.message}`);
 
     return { ok: true };
   });
