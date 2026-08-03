@@ -239,13 +239,13 @@ BEGIN
       WHERE id = '20000000-0000-4000-8000-000000000001'),
     'authenticated demo updates must be denied without changing the row'
   );
-  DELETE FROM public.shop_catalog
-  WHERE id = '20000000-0000-4000-8000-000000000001';
-  GET DIAGNOSTICS affected = ROW_COUNT;
   PERFORM public.phase4a_assert(
-    affected = 0 AND EXISTS (SELECT 1 FROM public.shop_catalog
+    public.phase4a_expect_failure($sql$
+      DELETE FROM public.shop_catalog
+      WHERE id = '20000000-0000-4000-8000-000000000001'
+    $sql$) AND EXISTS (SELECT 1 FROM public.shop_catalog
       WHERE id = '20000000-0000-4000-8000-000000000001'),
-    'authenticated demo deletion must be denied without deleting the row'
+    'authenticated catalog deletion must be denied without deleting the demo row'
   );
 END;
 $$;
