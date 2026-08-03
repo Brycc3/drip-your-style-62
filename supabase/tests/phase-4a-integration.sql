@@ -281,7 +281,7 @@ $$;
 DO $$
 DECLARE
   result jsonb;
-  batch_id uuid;
+  target_batch_id uuid;
   row_one uuid;
   row_two uuid;
   row_invalid uuid;
@@ -315,17 +315,17 @@ BEGIN
       )
     )
   );
-  batch_id := (result->>'id')::uuid;
+  target_batch_id := (result->>'id')::uuid;
   PERFORM public.phase4a_assert((result->>'duplicates')::integer = 1,
     'only the actual descriptive duplicate should count');
   SELECT row.id INTO row_one FROM public.catalog_import_rows row
-  WHERE row.batch_id = batch_id AND row.row_number = 1;
+  WHERE row.batch_id = target_batch_id AND row.row_number = 1;
   SELECT row.id INTO row_two FROM public.catalog_import_rows row
-  WHERE row.batch_id = batch_id AND row.row_number = 2;
+  WHERE row.batch_id = target_batch_id AND row.row_number = 2;
   SELECT row.id INTO row_invalid FROM public.catalog_import_rows row
-  WHERE row.batch_id = batch_id AND row.row_number = 3;
+  WHERE row.batch_id = target_batch_id AND row.row_number = 3;
   SELECT row.id INTO row_later FROM public.catalog_import_rows row
-  WHERE row.batch_id = batch_id AND row.row_number = 4;
+  WHERE row.batch_id = target_batch_id AND row.row_number = 4;
 
   PERFORM public.phase4a_assert(
     public.phase4a_expect_failure(format(
@@ -340,7 +340,7 @@ BEGIN
   PERFORM public.resolve_catalog_import_row(row_two, 'create', NULL, true);
   PERFORM public.review_catalog_import_row(row_one, 'approved');
   PERFORM public.review_catalog_import_row(row_two, 'approved');
-  result := public.import_catalog_batch(batch_id);
+  result := public.import_catalog_batch(target_batch_id);
   PERFORM public.phase4a_assert(
     result->>'status' = 'partially_imported' AND (result->>'created')::integer = 2
       AND (result->>'remaining')::integer = 2,
@@ -348,14 +348,14 @@ BEGIN
   );
 
   PERFORM public.review_catalog_import_row(row_later, 'approved');
-  result := public.import_catalog_batch(batch_id);
+  result := public.import_catalog_batch(target_batch_id);
   PERFORM public.phase4a_assert(
     (result->>'created')::integer = 1 AND (result->>'remaining')::integer = 1,
     'second import pass must import the newly approved row exactly once'
   );
   PERFORM public.review_catalog_import_row(row_invalid, 'rejected');
   PERFORM public.phase4a_assert(
-    (SELECT status = 'imported' FROM public.catalog_import_batches WHERE id = batch_id),
+    (SELECT status = 'imported' FROM public.catalog_import_batches WHERE id = target_batch_id),
     'the batch must become terminal after every row is terminal'
   );
   PERFORM public.phase4a_assert(
@@ -365,7 +365,7 @@ BEGIN
   );
   PERFORM public.phase4a_assert(
     public.phase4a_expect_failure(format(
-      'SELECT public.import_catalog_batch(%L::uuid)', batch_id
+      'SELECT public.import_catalog_batch(%L::uuid)', target_batch_id
     )), 'a terminal batch with no approved rows must not import again'
   );
 END;
@@ -374,7 +374,7 @@ $$;
 DO $$
 DECLARE
   result jsonb;
-  batch_id uuid;
+  target_batch_id uuid;
   row_id uuid;
   target_id uuid;
 BEGIN
@@ -389,15 +389,16 @@ BEGIN
       'validation_errors', '[]'::jsonb, 'warnings', '[]'::jsonb
     ))
   );
-  batch_id := (result->>'id')::uuid;
-  SELECT row.id INTO row_id FROM public.catalog_import_rows row WHERE row.batch_id = batch_id;
+  target_batch_id := (result->>'id')::uuid;
+  SELECT row.id INTO row_id FROM public.catalog_import_rows row
+  WHERE row.batch_id = target_batch_id;
   PERFORM public.phase4a_assert(
     (SELECT proposed_action = 'manual_review' FROM public.catalog_import_rows WHERE id = row_id),
     'descriptive live matches must require a manual outcome'
   );
   PERFORM public.resolve_catalog_import_row(row_id, 'update', target_id, false);
   PERFORM public.review_catalog_import_row(row_id, 'approved');
-  result := public.import_catalog_batch(batch_id);
+  result := public.import_catalog_batch(target_batch_id);
   PERFORM public.phase4a_assert(
     (result->>'updated')::integer = 1
       AND (SELECT external_id = 'partial-update' FROM public.shop_catalog WHERE id = target_id),
@@ -414,11 +415,12 @@ BEGIN
       'validation_errors', '[]'::jsonb, 'warnings', '[]'::jsonb
     ))
   );
-  batch_id := (result->>'id')::uuid;
-  SELECT row.id INTO row_id FROM public.catalog_import_rows row WHERE row.batch_id = batch_id;
+  target_batch_id := (result->>'id')::uuid;
+  SELECT row.id INTO row_id FROM public.catalog_import_rows row
+  WHERE row.batch_id = target_batch_id;
   PERFORM public.resolve_catalog_import_row(row_id, 'skip', NULL, false);
   PERFORM public.review_catalog_import_row(row_id, 'approved');
-  result := public.import_catalog_batch(batch_id);
+  result := public.import_catalog_batch(target_batch_id);
   PERFORM public.phase4a_assert(
     (result->>'skipped')::integer = 1
       AND (SELECT review_status = 'skipped' FROM public.catalog_import_rows WHERE id = row_id)
@@ -477,7 +479,7 @@ $$;
 DO $$
 DECLARE
   result jsonb;
-  batch_id uuid;
+  target_batch_id uuid;
   row_id uuid;
   before_products integer;
 BEGIN
@@ -492,11 +494,14 @@ BEGIN
       'validation_errors', '[]'::jsonb, 'warnings', '[]'::jsonb
     ))
   );
-  batch_id := (result->>'id')::uuid;
-  SELECT row.id INTO row_id FROM public.catalog_import_rows row WHERE row.batch_id = batch_id;
+  target_batch_id := (result->>'id')::uuid;
+  SELECT row.id INTO row_id FROM public.catalog_import_rows row
+  WHERE row.batch_id = target_batch_id;
   PERFORM public.review_catalog_import_row(row_id, 'approved');
   PERFORM public.phase4a_assert(
-    public.phase4a_expect_failure(format('SELECT public.import_catalog_batch(%L::uuid)', batch_id)),
+    public.phase4a_expect_failure(format(
+      'SELECT public.import_catalog_batch(%L::uuid)', target_batch_id
+    )),
     'database validation must reject normalized payloads that bypass application validation'
   );
   PERFORM public.phase4a_assert(
