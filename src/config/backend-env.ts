@@ -4,8 +4,7 @@ export const BACKEND_CONFIGURATION_ERROR =
 type Environment = Record<string, string | undefined>;
 
 export type BackendConfigurationStatus =
-  | { ok: true }
-  | { ok: false; missing: readonly ("url" | "publishable_key")[] };
+  { ok: true } | { ok: false; missing: readonly ("url" | "publishable_key")[] };
 
 export type PublicBackendConfiguration = {
   url: string;

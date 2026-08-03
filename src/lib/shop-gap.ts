@@ -302,14 +302,7 @@ export function accessorySubcategory(item: CatalogItem): AccessorySub {
 
 // Fragrance family classifier (fresh/woody/warm/sweet/aquatic/floral).
 export type FragranceFamily =
-  | "fresh"
-  | "woody"
-  | "warm"
-  | "sweet"
-  | "aquatic"
-  | "floral"
-  | "leather"
-  | "other";
+  "fresh" | "woody" | "warm" | "sweet" | "aquatic" | "floral" | "leather" | "other";
 
 export function fragranceFamily(item: CatalogItem): FragranceFamily {
   const explicit = item.fragrance_family?.trim() as FragranceFamily | undefined;
