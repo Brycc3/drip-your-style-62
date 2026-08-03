@@ -224,19 +224,31 @@ SELECT public.phase4a_assert(
   $sql$),
   'direct verification timestamp writes must fail'
 );
-SELECT public.phase4a_assert(
-  public.phase4a_expect_failure($sql$
-    UPDATE public.shop_catalog SET description = 'forbidden demo edit'
-    WHERE id = '20000000-0000-4000-8000-000000000001'
-  $sql$),
-  'demo updates must fail'
-);
-SELECT public.phase4a_assert(
-  public.phase4a_expect_failure($sql$
-    DELETE FROM public.shop_catalog WHERE id = '20000000-0000-4000-8000-000000000001'
-  $sql$),
-  'demo deletion must fail'
-);
+DO $$
+DECLARE
+  affected integer;
+  original_description text;
+BEGIN
+  SELECT description INTO original_description FROM public.shop_catalog
+  WHERE id = '20000000-0000-4000-8000-000000000001';
+  UPDATE public.shop_catalog SET description = 'forbidden demo edit'
+  WHERE id = '20000000-0000-4000-8000-000000000001';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  PERFORM public.phase4a_assert(
+    affected = 0 AND (SELECT description = original_description FROM public.shop_catalog
+      WHERE id = '20000000-0000-4000-8000-000000000001'),
+    'authenticated demo updates must be denied without changing the row'
+  );
+  DELETE FROM public.shop_catalog
+  WHERE id = '20000000-0000-4000-8000-000000000001';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  PERFORM public.phase4a_assert(
+    affected = 0 AND EXISTS (SELECT 1 FROM public.shop_catalog
+      WHERE id = '20000000-0000-4000-8000-000000000001'),
+    'authenticated demo deletion must be denied without deleting the row'
+  );
+END;
+$$;
 
 DO $$
 DECLARE
@@ -553,6 +565,19 @@ END;
 $$;
 
 RESET ROLE;
+SELECT public.phase4a_assert(
+  public.phase4a_expect_failure($sql$
+    UPDATE public.shop_catalog SET description = 'forbidden direct demo edit'
+    WHERE id = '20000000-0000-4000-8000-000000000001'
+  $sql$),
+  'the demo immutability trigger must reject privileged direct updates'
+);
+SELECT public.phase4a_assert(
+  public.phase4a_expect_failure($sql$
+    DELETE FROM public.shop_catalog WHERE id = '20000000-0000-4000-8000-000000000001'
+  $sql$),
+  'the demo immutability trigger must reject privileged direct deletes'
+);
 DELETE FROM auth.users WHERE id = 'f4000000-0000-4000-8000-000000000003';
 
 SELECT public.phase4a_assert(
