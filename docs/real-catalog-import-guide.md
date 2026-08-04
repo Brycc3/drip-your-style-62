@@ -46,6 +46,24 @@ The planner checks retailer/external ID, canonical URL, and brand/name/color/ret
 whole batch and live catalog. The importer repeats those checks inside one locked database
 transaction. A new unexpected match returns the row to manual review before any catalog write.
 
+### Canonical product URL identity
+
+TypeScript planning and PostgreSQL replanning/import checks implement the same specification:
+
+- parse an absolute HTTPS URL and reject credentials or malformed input;
+- lowercase only the hostname while preserving path case;
+- remove the fragment;
+- remove only case-insensitive `utm_*`, `ref`, `affiliate`, and `aff` tracking parameters;
+- preserve meaningful parameters, including `variant`, `sku`, `color`, `size`, `product`, and
+  `style`;
+- decode then RFC 3986-encode query keys and values, sort by encoded key and value using bytewise
+  order, and retain distinct values; and
+- remove unnecessary trailing path slashes (including the root slash).
+
+The shared fixture file at `tests/fixtures/product-url-canonicalization.json` is exercised against
+both implementations. Two URLs with different path case or product-variant values intentionally
+remain different identities.
+
 ## CSV details
 
 The parser supports quoted fields, escaped quotes, commas inside quoted fields, and CRLF files.
@@ -76,3 +94,44 @@ An administrator data export includes owned import audit rows, reports, and owne
 paths. Account deletion removes uncommitted private batches and private report files, anonymizes
 creator/reviewer references on imported audit history, and preserves company catalog products and
 any image they still reference.
+
+## Immutable migration replay and upgrade
+
+`20260730025301_cb455320-3ddc-42d0-894e-6a7e610dcc9b.sql` is already applied and must stay
+byte-for-byte identical to `main` (SHA-256
+`b78d464dc0feb701692ae1b03eed3aba5d8f5985a48da29f90856ef4ddbe8de1`). The historical migration
+changes a Pass 3 RPC return type from `void` to `boolean`; PostgreSQL requires the old signature to
+be dropped first. New baseline verification therefore uses the additive, non-migration
+compatibility file `supabase/compatibility/20260730025301_clean_replay.sql` immediately after Pass
+3 and immediately before the immutable migration. Existing databases must not run that
+compatibility file because they already contain the boolean RPC.
+
+The two isolated verification commands are:
+
+```sh
+bash scripts/verify-phase4a-database-path.sh fresh
+bash scripts/verify-phase4a-database-path.sh existing-upgrade
+```
+
+The fresh script executes this exact Supabase sequence: `supabase start`, `supabase db reset
+--local` through the Pass 3 checkpoint, the compatibility SQL and immutable migration through
+transactional local `psql`, `supabase migration repair 20260730025301 --status applied --local`,
+then `supabase migration up --local`. The temporary checkpoint is necessary because `supabase
+start` otherwise applies every visible migration before an inter-version compatibility boundary
+can run. Both held files are restored before migration history is repaired or advanced.
+
+The existing-upgrade verification constructs and asserts the same recorded weak checkpoint, then
+runs `supabase migration up --local`. A reviewed linked environment whose history already records
+the weak migration uses `supabase migration up` in its controlled change window; it does not run a
+history repair or the clean-baseline compatibility file.
+
+Immediately before the Phase 4A upgrade, the required history is:
+
+- `20260729220000`: applied;
+- `20260730025301`: applied and exposing the weak boolean screenshot RPC; and
+- `20260802010000`: pending.
+
+After `migration up`, all repository migration timestamps through `20260802010000` must appear
+exactly once in `supabase_migrations.schema_migrations`. The verification script compares that
+table with the sorted migration filenames, so neither path silently depends on an out-of-order
+migration.

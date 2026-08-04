@@ -513,6 +513,11 @@ $$;
 
 SELECT set_config('request.jwt.claim.sub', 'f4000000-0000-4000-8000-000000000003', false);
 
+CREATE TEMP TABLE phase4a_account_fixture (
+  fixture_name text PRIMARY KEY,
+  fixture_id uuid NOT NULL
+);
+
 DO $$
 DECLARE
   imported_result jsonb;
@@ -520,6 +525,8 @@ DECLARE
   draft_result jsonb;
   draft_batch uuid;
   imported_row uuid;
+  draft_row uuid;
+  report_id uuid;
 BEGIN
   imported_result := public.stage_catalog_import_batch(
     jsonb_build_object('source_type', 'manual_json', 'source_name', 'account import',
@@ -545,10 +552,91 @@ BEGIN
     ))
   );
   draft_batch := (draft_result->>'id')::uuid;
+  SELECT id INTO draft_row FROM public.catalog_import_rows WHERE batch_id = draft_batch;
   INSERT INTO public.content_reports (reporter_id, target_type, reason, details)
-  VALUES ('f4000000-0000-4000-8000-000000000003', 'other', 'integration', 'account deletion fixture');
+  VALUES (
+    'f4000000-0000-4000-8000-000000000003', 'other', 'integration',
+    'account deletion screenshot fixture'
+  )
+  RETURNING id INTO report_id;
+
+  INSERT INTO phase4a_account_fixture (fixture_name, fixture_id) VALUES
+    ('imported_batch', imported_batch),
+    ('imported_row', imported_row),
+    ('draft_batch', draft_batch),
+    ('draft_row', draft_row),
+    ('report', report_id);
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+DECLARE
+  owner_id uuid := 'f4000000-0000-4000-8000-000000000003';
+  imported_batch uuid;
+  imported_row uuid;
+  draft_batch uuid;
+  draft_row uuid;
+  report_id uuid;
+  report_path text;
+  draft_path text;
+  imported_path text;
+BEGIN
+  SELECT fixture_id INTO imported_batch FROM phase4a_account_fixture WHERE fixture_name = 'imported_batch';
+  SELECT fixture_id INTO imported_row FROM phase4a_account_fixture WHERE fixture_name = 'imported_row';
+  SELECT fixture_id INTO draft_batch FROM phase4a_account_fixture WHERE fixture_name = 'draft_batch';
+  SELECT fixture_id INTO draft_row FROM phase4a_account_fixture WHERE fixture_name = 'draft_row';
+  SELECT fixture_id INTO report_id FROM phase4a_account_fixture WHERE fixture_name = 'report';
+  report_path := owner_id::text || '/' || report_id::text ||
+    '/f4200000-0000-4000-8000-000000000001.png';
+  draft_path := 'drafts/' || owner_id::text || '/' || draft_batch::text || '/' ||
+    draft_row::text || '/f4200000-0000-4000-8000-000000000002.jpg';
+  imported_path := 'drafts/' || owner_id::text || '/' || imported_batch::text || '/' ||
+    imported_row::text || '/f4200000-0000-4000-8000-000000000003.jpg';
+
+  INSERT INTO storage.objects (bucket_id, name, owner_id, metadata) VALUES
+    ('reports', report_path, owner_id::text, '{"mimetype":"image/png"}'::jsonb),
+    ('catalog-products', draft_path, owner_id::text, '{"mimetype":"image/jpeg"}'::jsonb),
+    ('catalog-products', imported_path, owner_id::text, '{"mimetype":"image/jpeg"}'::jsonb);
+  UPDATE public.content_reports SET attachment_path = report_path WHERE id = report_id;
+  UPDATE public.shop_catalog
+  SET image_url = 'https://phase4a-fixture.supabase.co/storage/v1/object/public/catalog-products/' ||
+    imported_path
+  WHERE external_id = 'account-product';
+END;
+$$;
+
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'f4000000-0000-4000-8000-000000000003', false);
+
+DO $$
+DECLARE
+  cleanup_paths jsonb;
+  imported_batch uuid;
+  imported_row uuid;
+  draft_batch uuid;
+  draft_row uuid;
+  report_id uuid;
+  owner_id uuid := 'f4000000-0000-4000-8000-000000000003';
+  report_path text;
+  draft_path text;
+  imported_path text;
+BEGIN
+  SELECT fixture_id INTO imported_batch FROM phase4a_account_fixture WHERE fixture_name = 'imported_batch';
+  SELECT fixture_id INTO imported_row FROM phase4a_account_fixture WHERE fixture_name = 'imported_row';
+  SELECT fixture_id INTO draft_batch FROM phase4a_account_fixture WHERE fixture_name = 'draft_batch';
+  SELECT fixture_id INTO draft_row FROM phase4a_account_fixture WHERE fixture_name = 'draft_row';
+  SELECT fixture_id INTO report_id FROM phase4a_account_fixture WHERE fixture_name = 'report';
+  report_path := owner_id::text || '/' || report_id::text ||
+    '/f4200000-0000-4000-8000-000000000001.png';
+  draft_path := 'drafts/' || owner_id::text || '/' || draft_batch::text || '/' ||
+    draft_row::text || '/f4200000-0000-4000-8000-000000000002.jpg';
+  imported_path := 'drafts/' || owner_id::text || '/' || imported_batch::text || '/' ||
+    imported_row::text || '/f4200000-0000-4000-8000-000000000003.jpg';
 
   PERFORM public.prepare_catalog_import_account_deletion();
+  cleanup_paths := public.get_my_account_storage_cleanup_paths();
   PERFORM public.phase4a_assert(
     NOT EXISTS (SELECT 1 FROM public.catalog_import_batches WHERE id = draft_batch),
     'uncommitted account import batches must be deleted'
@@ -563,13 +651,56 @@ BEGIN
   );
   PERFORM public.phase4a_assert(
     EXISTS (SELECT 1 FROM public.content_reports
-      WHERE reason = 'integration' AND reporter_id IS NULL AND attachment_path IS NULL),
+      WHERE id = report_id AND reporter_id IS NULL AND attachment_path IS NULL),
     'private report ownership and attachments must be unlinked'
   );
+  PERFORM public.phase4a_assert(
+    cleanup_paths->'reports' ? report_path
+      AND cleanup_paths->'catalogProducts' ? draft_path,
+    'cleanup paths must include the report screenshot and uncommitted product draft'
+  );
+  PERFORM public.phase4a_assert(
+    NOT (cleanup_paths->'catalogProducts' ? imported_path),
+    'cleanup paths must exclude an imported product image still referenced by shop_catalog'
+  );
+
+  DELETE FROM storage.objects
+  WHERE bucket_id = 'reports'
+    AND name IN (SELECT jsonb_array_elements_text(cleanup_paths->'reports'));
+  DELETE FROM storage.objects
+  WHERE bucket_id = 'catalog-products'
+    AND name IN (SELECT jsonb_array_elements_text(cleanup_paths->'catalogProducts'));
 END;
 $$;
 
 RESET ROLE;
+
+SELECT public.phase4a_assert(
+  NOT EXISTS (
+    SELECT 1 FROM storage.objects
+    WHERE bucket_id = 'reports'
+      AND name LIKE 'f4000000-0000-4000-8000-000000000003/%'
+  ),
+  'the report screenshot must be removable before auth-user deletion'
+);
+SELECT public.phase4a_assert(
+  NOT EXISTS (
+    SELECT 1 FROM storage.objects
+    WHERE bucket_id = 'catalog-products'
+      AND name LIKE 'drafts/f4000000-0000-4000-8000-000000000003/%'
+      AND name NOT LIKE '%/f4200000-0000-4000-8000-000000000003.jpg'
+  ),
+  'the uncommitted catalog draft must be removable before auth-user deletion'
+);
+SELECT public.phase4a_assert(
+  EXISTS (
+    SELECT 1 FROM storage.objects
+    WHERE bucket_id = 'catalog-products'
+      AND name LIKE '%/f4200000-0000-4000-8000-000000000003.jpg'
+  ),
+  'the imported product image must remain while shop_catalog references it'
+);
+
 SELECT public.phase4a_assert(
   public.phase4a_expect_failure($sql$
     UPDATE public.shop_catalog SET description = 'forbidden direct demo edit'
@@ -586,8 +717,20 @@ SELECT public.phase4a_assert(
 DELETE FROM auth.users WHERE id = 'f4000000-0000-4000-8000-000000000003';
 
 SELECT public.phase4a_assert(
+  NOT EXISTS (SELECT 1 FROM auth.users WHERE id = 'f4000000-0000-4000-8000-000000000003'),
+  'auth user deletion must succeed after private object cleanup'
+);
+SELECT public.phase4a_assert(
   EXISTS (SELECT 1 FROM public.shop_catalog WHERE external_id = 'account-product'),
   'auth user deletion must not cascade to an imported catalog product'
+);
+SELECT public.phase4a_assert(
+  EXISTS (
+    SELECT 1 FROM storage.objects
+    WHERE bucket_id = 'catalog-products'
+      AND name LIKE '%/f4200000-0000-4000-8000-000000000003.jpg'
+  ),
+  'the imported product image must remain after auth user deletion'
 );
 SELECT public.phase4a_assert(
   (SELECT count(*) = 51 FROM public.shop_catalog WHERE source = 'phase_2_curated_demo'),

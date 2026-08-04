@@ -1,0 +1,62 @@
+[
+  {
+    "name": "tracking parameters",
+    "input": "https://Shop.Example.test/products/Field-Coat?utm_source=News&variant=42&REF=home&affiliate=campaign&aff=partner",
+    "expected": "https://shop.example.test/products/Field-Coat?variant=42"
+  },
+  {
+    "name": "fragments",
+    "input": "https://shop.example.test/products/Field-Coat#details",
+    "expected": "https://shop.example.test/products/Field-Coat"
+  },
+  {
+    "name": "trailing slashes",
+    "input": "https://shop.example.test/products/Field-Coat///",
+    "expected": "https://shop.example.test/products/Field-Coat"
+  },
+  {
+    "name": "uppercase hostnames",
+    "input": "https://SHOP.EXAMPLE.TEST/Products/Field-Coat",
+    "expected": "https://shop.example.test/Products/Field-Coat"
+  },
+  {
+    "name": "case-sensitive paths",
+    "input": "https://shop.example.test/Products/Field-Coat",
+    "expected": "https://shop.example.test/Products/Field-Coat"
+  },
+  {
+    "name": "case-sensitive paths stay distinct",
+    "input": "https://shop.example.test/products/field-coat",
+    "expected": "https://shop.example.test/products/field-coat"
+  },
+  {
+    "name": "Shopify variant parameters",
+    "input": "https://shop.example.test/products/field-coat?variant=44990011&utm_medium=email",
+    "expected": "https://shop.example.test/products/field-coat?variant=44990011"
+  },
+  {
+    "name": "SKU parameters",
+    "input": "https://shop.example.test/products/field-coat?sku=COAT-NAVY-M",
+    "expected": "https://shop.example.test/products/field-coat?sku=COAT-NAVY-M"
+  },
+  {
+    "name": "multiple query parameters",
+    "input": "https://shop.example.test/products/field-coat?style=Field&size=M&product=Coat&color=Navy",
+    "expected": "https://shop.example.test/products/field-coat?color=Navy&product=Coat&size=M&style=Field"
+  },
+  {
+    "name": "first product variant",
+    "input": "https://shop.example.test/products/field-coat?variant=1001",
+    "expected": "https://shop.example.test/products/field-coat?variant=1001"
+  },
+  {
+    "name": "different product variant",
+    "input": "https://shop.example.test/products/field-coat?variant=1002",
+    "expected": "https://shop.example.test/products/field-coat?variant=1002"
+  },
+  {
+    "name": "encoded query values",
+    "input": "https://shop.example.test/products/field-coat?sku=ABC%2f123&note=%E2%9C%93&color=deep+blue",
+    "expected": "https://shop.example.test/products/field-coat?color=deep%20blue&note=%E2%9C%93&sku=ABC%2F123"
+  }
+]

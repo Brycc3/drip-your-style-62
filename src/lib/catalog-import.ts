@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalizeProductUrl } from "./product-url-canonicalization";
 import {
   CATALOG_CURRENCIES,
   catalogAddSchema,
@@ -280,17 +281,7 @@ export function parseCatalogImport(
 }
 
 export function normalizeProductUrl(value: unknown): string {
-  if (!isValidHttpsUrl(value)) return "";
-  const url = new URL(value);
-  url.hash = "";
-  for (const key of [...url.searchParams.keys()]) {
-    if (key.toLowerCase().startsWith("utm_") || ["ref", "affiliate", "aff"].includes(key)) {
-      url.searchParams.delete(key);
-    }
-  }
-  url.hostname = url.hostname.toLowerCase();
-  url.pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return url.toString();
+  return canonicalizeProductUrl(value);
 }
 
 function identityPart(value: unknown): string {

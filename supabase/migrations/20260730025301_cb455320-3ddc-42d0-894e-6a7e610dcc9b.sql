@@ -30,12 +30,6 @@ $$;
 REVOKE ALL ON FUNCTION public.verify_shop_catalog_item(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.verify_shop_catalog_item(uuid) TO authenticated;
 
--- Clean-replay compatibility: Pass 3 installed this signature with a void
--- return type, while this already-applied Lovable migration replaced it with
--- boolean. PostgreSQL requires an explicit drop when a return type changes.
--- Existing environments skip this historical migration and are reconciled by
--- the later Phase 4A migration; this keeps a fresh migration replay faithful.
-DROP FUNCTION IF EXISTS public.attach_problem_report_screenshot(uuid, text);
 CREATE OR REPLACE FUNCTION public.attach_problem_report_screenshot(_report uuid, _path text)
 RETURNS boolean
 LANGUAGE plpgsql

@@ -541,39 +541,20 @@ DROP POLICY IF EXISTS "catalog imports admin read batches" ON public.catalog_imp
 CREATE POLICY "catalog imports admin read batches"
   ON public.catalog_import_batches FOR SELECT TO authenticated
   USING (public.is_admin(auth.uid()));
-DROP POLICY IF EXISTS "catalog imports admin insert batches" ON public.catalog_import_batches;
-CREATE POLICY "catalog imports admin insert batches"
-  ON public.catalog_import_batches FOR INSERT TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()) AND created_by = auth.uid());
-DROP POLICY IF EXISTS "catalog imports admin update batches" ON public.catalog_import_batches;
-CREATE POLICY "catalog imports admin update batches"
-  ON public.catalog_import_batches FOR UPDATE TO authenticated
-  USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
 
 DROP POLICY IF EXISTS "catalog imports admin read rows" ON public.catalog_import_rows;
 CREATE POLICY "catalog imports admin read rows"
   ON public.catalog_import_rows FOR SELECT TO authenticated
   USING (public.is_admin(auth.uid()));
-DROP POLICY IF EXISTS "catalog imports admin insert rows" ON public.catalog_import_rows;
-CREATE POLICY "catalog imports admin insert rows"
-  ON public.catalog_import_rows FOR INSERT TO authenticated
-  WITH CHECK (
-    public.is_admin(auth.uid())
-    AND NOT (normalized_data ? 'verified_at')
-    AND NOT (normalized_data ? 'last_checked_at')
-  );
-DROP POLICY IF EXISTS "catalog imports admin update rows" ON public.catalog_import_rows;
-CREATE POLICY "catalog imports admin update rows"
-  ON public.catalog_import_rows FOR UPDATE TO authenticated
-  USING (public.is_admin(auth.uid()))
-  WITH CHECK (
-    public.is_admin(auth.uid())
-    AND NOT (normalized_data ? 'verified_at')
-    AND NOT (normalized_data ? 'last_checked_at')
-  );
 
-GRANT SELECT, INSERT, UPDATE ON public.catalog_import_batches TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.catalog_import_rows TO authenticated;
+DROP POLICY IF EXISTS "catalog imports admin insert batches" ON public.catalog_import_batches;
+DROP POLICY IF EXISTS "catalog imports admin update batches" ON public.catalog_import_batches;
+DROP POLICY IF EXISTS "catalog imports admin insert rows" ON public.catalog_import_rows;
+DROP POLICY IF EXISTS "catalog imports admin update rows" ON public.catalog_import_rows;
+REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_batches FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_rows FROM authenticated;
+GRANT SELECT ON public.catalog_import_batches TO authenticated;
+GRANT SELECT ON public.catalog_import_rows TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.protect_catalog_import_raw_data()
 RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
@@ -595,166 +576,6 @@ CREATE TRIGGER protect_catalog_import_raw_data
   BEFORE UPDATE ON public.catalog_import_rows
   FOR EACH ROW EXECUTE FUNCTION public.protect_catalog_import_raw_data();
 
-CREATE OR REPLACE FUNCTION public.refresh_catalog_import_batch_counts()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  target_batch uuid := COALESCE(NEW.batch_id, OLD.batch_id);
-BEGIN
-  UPDATE public.catalog_import_batches batch
-  SET total_row_count = counts.total_count,
-      valid_row_count = counts.valid_count,
-      invalid_row_count = counts.invalid_count,
-      duplicate_row_count = counts.duplicate_count,
-      updated_at = now()
-  FROM (
-    SELECT count(*)::integer AS total_count,
-      count(*) FILTER (WHERE cardinality(validation_errors) = 0)::integer AS valid_count,
-      count(*) FILTER (WHERE cardinality(validation_errors) > 0)::integer AS invalid_count,
-      count(*) FILTER (WHERE proposed_action IN ('update', 'skip', 'manual_review'))::integer
-        AS duplicate_count
-    FROM public.catalog_import_rows WHERE batch_id = target_batch
-  ) counts
-  WHERE batch.id = target_batch;
-  RETURN COALESCE(NEW, OLD);
-END;
-$$;
-REVOKE ALL ON FUNCTION public.refresh_catalog_import_batch_counts() FROM PUBLIC;
-
-DROP TRIGGER IF EXISTS refresh_catalog_import_batch_counts ON public.catalog_import_rows;
-CREATE TRIGGER refresh_catalog_import_batch_counts
-  AFTER INSERT OR UPDATE OR DELETE ON public.catalog_import_rows
-  FOR EACH ROW EXECUTE FUNCTION public.refresh_catalog_import_batch_counts();
-
-CREATE OR REPLACE FUNCTION public.assert_valid_catalog_import_product(item jsonb)
-RETURNS void
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-DECLARE
-  item_kind text := item->>'kind';
-  item_category text := item->>'category';
-  image_reference text := item->>'image_url';
-  rights_basis text := item->>'image_rights_basis';
-BEGIN
-  IF item ?| ARRAY['verified_at', 'last_checked_at', 'is_demo', 'archived', 'source'] THEN
-    RAISE EXCEPTION 'Imports cannot set protected catalog control fields';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM jsonb_each(item) field
-    WHERE field.key = ANY (ARRAY[
-      'name', 'brand', 'kind', 'category', 'color', 'currency', 'retailer', 'buy_url',
-      'image_url', 'image_rights_basis', 'source_type', 'source_name', 'source_url',
-      'verification_method', 'availability', 'external_id', 'affiliate_disclosure',
-      'vibe', 'price_tier', 'accessory_subtype', 'fragrance_family', 'description',
-      'material', 'fit', 'source_updated_at', 'formality', 'season', 'condition'
-    ]) AND jsonb_typeof(field.value) NOT IN ('string', 'null')
-  ) THEN RAISE EXCEPTION 'Imported text fields must be strings'; END IF;
-  IF jsonb_typeof(item->'current_price') IS DISTINCT FROM 'number'
-    OR (item ? 'original_price' AND jsonb_typeof(item->'original_price') NOT IN ('number', 'null'))
-  THEN RAISE EXCEPTION 'Imported price fields must be numbers'; END IF;
-  IF item->>'id' ~ '^20000000-0000-4000-8000-0000000000(0[1-9]|[1-4][0-9]|5[01])$'
-    OR image_reference LIKE '/catalog/phase-2/%'
-  THEN
-    RAISE EXCEPTION 'Imports cannot reference protected Phase 2 demo identities or images';
-  END IF;
-  IF btrim(COALESCE(item->>'name', '')) = ''
-    OR btrim(COALESCE(item->>'brand', '')) = ''
-    OR btrim(COALESCE(item_category, '')) = ''
-    OR btrim(COALESCE(item->>'color', '')) = ''
-    OR btrim(COALESCE(item->>'retailer', '')) = ''
-    OR btrim(COALESCE(item->>'source_name', '')) = ''
-    OR btrim(COALESCE(item->>'vibe', '')) = ''
-    OR btrim(COALESCE(item->>'description', '')) = ''
-  THEN
-    RAISE EXCEPTION 'Imported product is missing required text';
-  END IF;
-  IF COALESCE(item->>'buy_url', '') !~ '^https://[^[:space:]]+$' THEN
-    RAISE EXCEPTION 'Imported product URL must use HTTPS';
-  END IF;
-  IF NOT (
-    image_reference ~ '^https://[^[:space:]]+$'
-    OR image_reference ~ '^/catalog/([a-z0-9._-]+/)*[a-z0-9._-]+\.(jpg|jpeg|png|webp|avif|svg)$'
-  ) THEN
-    RAISE EXCEPTION 'Imported product image must use HTTPS or an approved catalog path';
-  END IF;
-  IF NOT (
-    (image_reference LIKE '/catalog/%' AND rights_basis = 'project_owned')
-    OR (image_reference ~ '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/public/catalog-products/'
-        AND rights_basis IN ('authorized', 'licensed', 'project_owned'))
-    OR (image_reference ~ '^https://' AND rights_basis IN ('authorized', 'licensed'))
-  ) THEN
-    RAISE EXCEPTION 'Imported product image rights do not match its source';
-  END IF;
-  IF COALESCE(item->>'current_price', '') !~ '^[0-9]+(\.[0-9]+)?$'
-    OR (item->>'current_price')::numeric <= 0
-  THEN
-    RAISE EXCEPTION 'Imported current price must be positive';
-  END IF;
-  IF NULLIF(item->>'original_price', '') IS NOT NULL
-    AND (item->>'original_price')::numeric < (item->>'current_price')::numeric
-  THEN
-    RAISE EXCEPTION 'Imported original price cannot be lower than current price';
-  END IF;
-  IF COALESCE(item->>'currency', '') NOT IN ('USD', 'CAD', 'EUR', 'GBP', 'AUD') THEN
-    RAISE EXCEPTION 'Imported currency is unsupported';
-  END IF;
-  IF item->>'availability' NOT IN ('in_stock', 'low_stock', 'preorder', 'out_of_stock', 'discontinued')
-    OR item->>'source_type' NOT IN ('manual', 'affiliate_feed', 'partner_api')
-    OR item->>'verification_method' NOT IN ('manual', 'feed', 'partner_api')
-    OR item->>'price_tier' NOT IN ('entry', 'mid', 'premium', 'luxury')
-  THEN
-    RAISE EXCEPTION 'Imported product contains unsupported catalog values';
-  END IF;
-  IF NOT (
-    (item_kind = 'clothing' AND item_category IN (
-      'top', 'tee', 'hoodie', 'shirt', 'polo', 'bottom', 'trousers', 'cargos',
-      'joggers', 'shorts', 'denim', 'outerwear', 'bomber', 'chore', 'jacket', 'coat'
-    ))
-    OR (item_kind = 'shoes' AND item_category IN (
-      'shoes', 'sneaker', 'jordan', 'vomero', 'new_balance', 'loafer', 'boot', 'runner'
-    ))
-    OR (item_kind = 'fragrance' AND item_category IN ('fragrance', 'cologne', 'edp', 'edt', 'parfum'))
-    OR (item_kind = 'accessory' AND item_category IN (
-      'accessory', 'bag', 'bags', 'belt', 'belts', 'beanie', 'bracelet', 'bracelets',
-      'cap', 'chain', 'chains', 'earring', 'earrings', 'glasses', 'grill', 'grills',
-      'hat', 'hats', 'jewelry', 'necklace', 'necklaces', 'prescription_glasses',
-      'ring', 'rings', 'scarf', 'scarves', 'sock', 'socks', 'sunglasses', 'watch',
-      'watches', 'wallet', 'wallets'
-    ))
-  ) THEN
-    RAISE EXCEPTION 'Imported category and kind do not agree';
-  END IF;
-  IF item_kind = 'accessory' AND COALESCE(item->>'accessory_subtype', '') NOT IN (
-    'earrings', 'glasses', 'prescription_glasses', 'sunglasses', 'necklaces',
-    'chains', 'bracelets', 'rings', 'watches', 'hat', 'cap', 'beanie', 'belts',
-    'bags', 'socks', 'scarves', 'wallets', 'grills', 'jewelry'
-  ) THEN
-    RAISE EXCEPTION 'Imported accessory subtype is required and unsupported';
-  END IF;
-  IF item_kind <> 'accessory' AND NULLIF(item->>'accessory_subtype', '') IS NOT NULL THEN
-    RAISE EXCEPTION 'Imported accessory subtype conflicts with kind';
-  END IF;
-  IF item_kind = 'fragrance' AND COALESCE(item->>'fragrance_family', '') NOT IN (
-    'fresh', 'woody', 'warm', 'sweet', 'aquatic', 'floral', 'leather', 'other'
-  ) THEN
-    RAISE EXCEPTION 'Imported fragrance family is required and unsupported';
-  END IF;
-  IF item_kind <> 'fragrance' AND NULLIF(item->>'fragrance_family', '') IS NOT NULL THEN
-    RAISE EXCEPTION 'Imported fragrance family conflicts with kind';
-  END IF;
-  IF COALESCE((item->>'affiliate')::boolean, false)
-    AND btrim(COALESCE(item->>'affiliate_disclosure', '')) = ''
-  THEN
-    RAISE EXCEPTION 'Affiliate imports require a disclosure';
-  END IF;
-END;
-$$;
-REVOKE ALL ON FUNCTION public.assert_valid_catalog_import_product(jsonb) FROM PUBLIC;
-
 -- Declared before helper compilation; the final constraints and lifecycle
 -- definitions are installed in the review-blocker section below.
 ALTER TABLE public.catalog_import_rows
@@ -766,7 +587,7 @@ ALTER TABLE public.catalog_import_rows
   ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
 
-CREATE OR REPLACE FUNCTION public.import_catalog_batch_review_blocker_impl(_batch uuid)
+CREATE OR REPLACE FUNCTION public.private_import_catalog_batch(_batch uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -1040,335 +861,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.import_catalog_batch_review_blocker_impl(uuid)
+REVOKE ALL ON FUNCTION public.private_import_catalog_batch(uuid)
   FROM PUBLIC, anon, authenticated;
-
-CREATE OR REPLACE FUNCTION public.import_catalog_batch(_batch uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  caller uuid := auth.uid();
-  staged public.catalog_import_rows%ROWTYPE;
-  other_row public.catalog_import_rows%ROWTYPE;
-  live_match public.shop_catalog%ROWTYPE;
-  item jsonb;
-  effective_action text;
-  effective_target uuid;
-  external_key text;
-  canonical_url text;
-  descriptive_key text;
-  live_external_exact boolean;
-  live_url_exact boolean;
-  conflict_reason text;
-  imported_catalog_id uuid;
-  created_count integer := 0;
-  updated_count integer := 0;
-  skipped_count integer := 0;
-  ready_count integer;
-  remaining_count integer;
-  batch_status text;
-BEGIN
-  IF caller IS NULL OR NOT public.is_admin(caller) THEN RAISE EXCEPTION 'Admin only'; END IF;
-
-  -- Serialize catalog ingestion so two batches cannot pass duplicate checks
-  -- against the same live snapshot and then create the same product.
-  PERFORM pg_advisory_xact_lock(hashtextextended('drip.catalog-import', 0));
-  PERFORM 1 FROM public.catalog_import_batches WHERE id = _batch FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Import batch not found'; END IF;
-
-  SELECT count(*)::integer INTO ready_count
-  FROM public.catalog_import_rows
-  WHERE batch_id = _batch AND review_status = 'approved';
-  IF ready_count = 0 THEN RAISE EXCEPTION 'No approved rows are ready to import'; END IF;
-
-  -- Complete conflict preflight before the first catalog write. Unexpected
-  -- matches return the row to explicit manual review without a partial import.
-  FOR staged IN
-    SELECT * FROM public.catalog_import_rows
-    WHERE batch_id = _batch AND review_status = 'approved'
-    ORDER BY row_number FOR UPDATE
-  LOOP
-    item := staged.normalized_data;
-    effective_action := COALESCE(staged.resolution_action, staged.proposed_action);
-    effective_target := COALESCE(staged.resolution_catalog_id, staged.catalog_id);
-    IF staged.proposed_action = 'manual_review' AND staged.resolution_action IS NULL THEN
-      RAISE EXCEPTION 'Approved row % has no duplicate resolution', staged.row_number;
-    END IF;
-    IF cardinality(staged.validation_errors) > 0 THEN
-      RAISE EXCEPTION 'Approved row % still has validation errors', staged.row_number;
-    END IF;
-    IF staged.raw_data->>'id' ~ '^20000000-0000-4000-8000-0000000000(0[1-9]|[1-4][0-9]|5[01])$' THEN
-      RAISE EXCEPTION 'Row % references a protected Phase 2 demo identity', staged.row_number;
-    END IF;
-    PERFORM public.assert_valid_catalog_import_product(item);
-
-    external_key := CASE
-      WHEN btrim(COALESCE(item->>'external_id', '')) = '' THEN ''
-      ELSE public.catalog_identity_part(item->>'retailer') || '|' ||
-        public.catalog_identity_part(item->>'external_id')
-    END;
-    canonical_url := public.catalog_canonical_product_url(item->>'buy_url');
-    descriptive_key := concat_ws('|',
-      public.catalog_identity_part(item->>'brand'),
-      public.catalog_identity_part(item->>'name'),
-      public.catalog_identity_part(item->>'color'),
-      public.catalog_identity_part(item->>'retailer')
-    );
-    conflict_reason := NULL;
-
-    IF effective_action <> 'skip' THEN
-      SELECT candidate.* INTO other_row
-      FROM public.catalog_import_rows candidate
-      WHERE candidate.batch_id = _batch
-        AND candidate.id <> staged.id
-        AND candidate.review_status = 'approved'
-        AND candidate.row_number < staged.row_number
-        AND COALESCE(candidate.resolution_action, candidate.proposed_action) <> 'skip'
-        AND (
-          (external_key <> '' AND
-            public.catalog_identity_part(candidate.normalized_data->>'retailer') || '|' ||
-              public.catalog_identity_part(candidate.normalized_data->>'external_id') = external_key)
-          OR (canonical_url <> '' AND
-            public.catalog_canonical_product_url(candidate.normalized_data->>'buy_url') = canonical_url)
-          OR concat_ws('|',
-            public.catalog_identity_part(candidate.normalized_data->>'brand'),
-            public.catalog_identity_part(candidate.normalized_data->>'name'),
-            public.catalog_identity_part(candidate.normalized_data->>'color'),
-            public.catalog_identity_part(candidate.normalized_data->>'retailer')
-          ) = descriptive_key
-        )
-      ORDER BY candidate.row_number LIMIT 1;
-      IF FOUND THEN
-        conflict_reason := format(
-          'Transaction-time identity conflicts with approved batch row %s', other_row.row_number
-        );
-      END IF;
-    END IF;
-
-    IF conflict_reason IS NULL AND effective_action <> 'skip' THEN
-      SELECT catalog.* INTO live_match
-      FROM public.shop_catalog catalog
-      WHERE
-        (external_key <> '' AND
-          public.catalog_identity_part(catalog.retailer) || '|' ||
-            public.catalog_identity_part(catalog.external_id) = external_key)
-        OR (canonical_url <> '' AND
-          public.catalog_canonical_product_url(catalog.buy_url) = canonical_url)
-        OR concat_ws('|',
-          public.catalog_identity_part(catalog.brand),
-          public.catalog_identity_part(catalog.name),
-          public.catalog_identity_part(catalog.color),
-          public.catalog_identity_part(catalog.retailer)
-        ) = descriptive_key
-      ORDER BY CASE
-        WHEN external_key <> '' AND
-          public.catalog_identity_part(catalog.retailer) || '|' ||
-            public.catalog_identity_part(catalog.external_id) = external_key THEN 0
-        WHEN canonical_url <> '' AND
-          public.catalog_canonical_product_url(catalog.buy_url) = canonical_url THEN 1
-        ELSE 2
-      END
-      LIMIT 1 FOR UPDATE;
-
-      IF FOUND THEN
-        live_external_exact := external_key <> '' AND
-          public.catalog_identity_part(live_match.retailer) || '|' ||
-            public.catalog_identity_part(live_match.external_id) = external_key;
-        live_url_exact := canonical_url <> '' AND
-          public.catalog_canonical_product_url(live_match.buy_url) = canonical_url;
-        IF effective_action = 'update' THEN
-          IF effective_target IS NULL OR live_match.id <> effective_target THEN
-            conflict_reason := 'Transaction-time identity matched an unexpected catalog product';
-          END IF;
-        ELSIF live_external_exact OR live_url_exact THEN
-          conflict_reason := 'Transaction-time source identity already exists in the catalog';
-        ELSIF NOT (
-          staged.proposed_action = 'manual_review'
-          AND staged.resolution_action = 'create'
-          AND staged.resolution_confirmed = true
-        ) THEN
-          conflict_reason := 'Transaction-time descriptive identity requires manual review';
-        END IF;
-      ELSIF effective_action = 'update' AND (
-        effective_target IS NULL OR NOT EXISTS (
-          SELECT 1 FROM public.shop_catalog
-          WHERE id = effective_target AND is_demo = false
-            AND source IS DISTINCT FROM 'phase_2_curated_demo'
-        )
-      ) THEN
-        conflict_reason := 'The selected update target is missing or protected';
-      END IF;
-    END IF;
-
-    IF conflict_reason IS NOT NULL THEN
-      UPDATE public.catalog_import_rows
-      SET proposed_action = 'manual_review', duplicate_reason = conflict_reason,
-          review_status = 'pending', reviewed_by = NULL, reviewed_at = NULL,
-          resolution_action = NULL, resolution_catalog_id = NULL,
-          resolution_confirmed = false, resolution_note = NULL,
-          resolved_by = NULL, resolved_at = NULL, updated_at = now()
-      WHERE id = staged.id;
-      PERFORM public.refresh_catalog_import_batch_lifecycle(_batch);
-      RETURN jsonb_build_object(
-        'created', 0, 'updated', 0, 'skipped', 0, 'verified', false,
-        'blockedRow', staged.row_number, 'blockedReason', conflict_reason,
-        'remaining', ready_count
-      );
-    END IF;
-  END LOOP;
-
-  FOR staged IN
-    SELECT * FROM public.catalog_import_rows
-    WHERE batch_id = _batch AND review_status = 'approved'
-    ORDER BY row_number FOR UPDATE
-  LOOP
-    item := staged.normalized_data;
-    effective_action := COALESCE(staged.resolution_action, staged.proposed_action);
-    effective_target := COALESCE(staged.resolution_catalog_id, staged.catalog_id);
-
-    IF effective_action = 'skip' THEN
-      UPDATE public.catalog_import_rows
-      SET review_status = 'skipped', updated_at = now() WHERE id = staged.id;
-      skipped_count := skipped_count + 1;
-      CONTINUE;
-    ELSIF effective_action = 'update' THEN
-      imported_catalog_id := NULL;
-      UPDATE public.shop_catalog
-      SET name = item->>'name', brand = item->>'brand', kind = (item->>'kind')::public.item_kind,
-          category = item->>'category', color = item->>'color',
-          material = NULLIF(item->>'material', ''), fit = NULLIF(item->>'fit', ''),
-          season = (item->>'season')::public.season,
-          formality = (item->>'formality')::public.formality,
-          condition = (item->>'condition')::public.item_condition,
-          price = (item->>'current_price')::numeric,
-          current_price = (item->>'current_price')::numeric,
-          original_price = NULLIF(item->>'original_price', '')::numeric,
-          currency = item->>'currency',
-          available_sizes = ARRAY(SELECT jsonb_array_elements_text(item->'available_sizes')),
-          source_updated_at = NULLIF(item->>'source_updated_at', '')::timestamptz,
-          retailer = item->>'retailer', buy_url = item->>'buy_url', image_url = item->>'image_url',
-          availability = item->>'availability', external_id = NULLIF(item->>'external_id', ''),
-          source = 'real_catalog_import', source_type = item->>'source_type',
-          source_name = item->>'source_name', source_url = NULLIF(item->>'source_url', ''),
-          image_rights_basis = item->>'image_rights_basis',
-          verification_method = item->>'verification_method',
-          affiliate = (item->>'affiliate')::boolean,
-          affiliate_disclosure = NULLIF(item->>'affiliate_disclosure', ''),
-          vibe = item->>'vibe', price_tier = item->>'price_tier',
-          accessory_subtype = NULLIF(item->>'accessory_subtype', ''),
-          fragrance_family = NULLIF(item->>'fragrance_family', ''),
-          description = item->>'description'
-      WHERE id = effective_target AND is_demo = false
-        AND source IS DISTINCT FROM 'phase_2_curated_demo'
-      RETURNING id INTO imported_catalog_id;
-      IF imported_catalog_id IS NULL THEN
-        RAISE EXCEPTION 'Update target changed during import for row %', staged.row_number;
-      END IF;
-      updated_count := updated_count + 1;
-    ELSE
-      INSERT INTO public.shop_catalog (
-        name, brand, kind, category, color, material, fit, season, formality, condition,
-        price, current_price, original_price, currency, available_sizes, source_updated_at,
-        retailer, buy_url, image_url, availability, external_id, source, source_type,
-        source_name, source_url, image_rights_basis, verification_method, affiliate,
-        affiliate_disclosure, vibe, price_tier, accessory_subtype, fragrance_family,
-        description, is_demo, archived, verified_at, last_checked_at
-      ) VALUES (
-        item->>'name', item->>'brand', (item->>'kind')::public.item_kind,
-        item->>'category', item->>'color', NULLIF(item->>'material', ''),
-        NULLIF(item->>'fit', ''), (item->>'season')::public.season,
-        (item->>'formality')::public.formality, (item->>'condition')::public.item_condition,
-        (item->>'current_price')::numeric, (item->>'current_price')::numeric,
-        NULLIF(item->>'original_price', '')::numeric, item->>'currency',
-        ARRAY(SELECT jsonb_array_elements_text(item->'available_sizes')),
-        NULLIF(item->>'source_updated_at', '')::timestamptz,
-        item->>'retailer', item->>'buy_url', item->>'image_url', item->>'availability',
-        NULLIF(item->>'external_id', ''), 'real_catalog_import', item->>'source_type',
-        item->>'source_name', NULLIF(item->>'source_url', ''), item->>'image_rights_basis',
-        item->>'verification_method', (item->>'affiliate')::boolean,
-        NULLIF(item->>'affiliate_disclosure', ''), item->>'vibe', item->>'price_tier',
-        NULLIF(item->>'accessory_subtype', ''), NULLIF(item->>'fragrance_family', ''),
-        item->>'description', false, false, NULL, NULL
-      ) RETURNING id INTO imported_catalog_id;
-      created_count := created_count + 1;
-    END IF;
-
-    UPDATE public.catalog_import_rows
-    SET review_status = 'imported', catalog_id = imported_catalog_id, updated_at = now()
-    WHERE id = staged.id;
-  END LOOP;
-
-  batch_status := public.refresh_catalog_import_batch_lifecycle(_batch);
-  SELECT count(*)::integer INTO remaining_count
-  FROM public.catalog_import_rows
-  WHERE batch_id = _batch AND review_status NOT IN ('imported', 'rejected', 'skipped');
-
-  RETURN jsonb_build_object(
-    'created', created_count, 'updated', updated_count, 'skipped', skipped_count,
-    'verified', false, 'status', batch_status, 'remaining', remaining_count
-  );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.import_catalog_batch(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.import_catalog_batch(uuid) TO authenticated;
-
--- All import mutations now flow through authenticated administrator RPCs.
-DROP POLICY IF EXISTS "catalog imports admin insert batches" ON public.catalog_import_batches;
-DROP POLICY IF EXISTS "catalog imports admin update batches" ON public.catalog_import_batches;
-DROP POLICY IF EXISTS "catalog imports admin insert rows" ON public.catalog_import_rows;
-DROP POLICY IF EXISTS "catalog imports admin update rows" ON public.catalog_import_rows;
-REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_batches FROM authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_rows FROM authenticated;
-GRANT SELECT ON public.catalog_import_batches TO authenticated;
-GRANT SELECT ON public.catalog_import_rows TO authenticated;
-
--- Product draft paths are owner- and row-bound. Direct replacement is not
--- allowed, and deletion fails closed if either staging or catalog references it.
-DROP POLICY IF EXISTS "catalog product images admin upload" ON storage.objects;
-CREATE POLICY "catalog product images admin upload"
-  ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (
-    bucket_id = 'catalog-products'
-    AND public.is_admin(auth.uid())
-    AND array_length(storage.foldername(name), 1) = 4
-    AND (storage.foldername(name))[1] = 'drafts'
-    AND (storage.foldername(name))[2] = auth.uid()::text
-    AND EXISTS (
-      SELECT 1
-      FROM public.catalog_import_rows row
-      JOIN public.catalog_import_batches batch ON batch.id = row.batch_id
-      WHERE row.id::text = (storage.foldername(name))[4]
-        AND batch.id::text = (storage.foldername(name))[3]
-        AND batch.created_by = auth.uid()
-        AND row.review_status NOT IN ('imported', 'rejected', 'skipped')
-    )
-    AND storage.filename(name) ~
-      '^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(png|jpg|webp|avif)$'
-    AND lower(storage.extension(name)) IN ('png', 'jpg', 'webp', 'avif')
-  );
-
-DROP POLICY IF EXISTS "catalog product images admin update" ON storage.objects;
-DROP POLICY IF EXISTS "catalog product images admin delete" ON storage.objects;
-CREATE POLICY "catalog product images owner cleanup"
-  ON storage.objects FOR DELETE TO authenticated
-  USING (
-    bucket_id = 'catalog-products'
-    AND public.is_admin(auth.uid())
-    AND (storage.foldername(name))[1] = 'drafts'
-    AND (storage.foldername(name))[2] = auth.uid()::text
-    AND NOT EXISTS (
-      SELECT 1 FROM public.catalog_import_rows row
-      WHERE row.normalized_data->>'image_url' LIKE '%/catalog-products/' || name
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM public.shop_catalog product
-      WHERE product.image_url LIKE '%/catalog-products/' || name
-    )
-  );
 
 CREATE OR REPLACE FUNCTION public.prepare_catalog_import_account_deletion()
 RETURNS jsonb
@@ -1492,131 +986,6 @@ $$;
 REVOKE ALL ON FUNCTION public.get_my_catalog_import_export() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_catalog_import_export() TO authenticated;
 
-CREATE OR REPLACE FUNCTION public.import_catalog_batch(_batch uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  batch_row public.catalog_import_batches%ROWTYPE;
-  staged public.catalog_import_rows%ROWTYPE;
-  item jsonb;
-  imported_catalog_id uuid;
-  created_count integer := 0;
-  updated_count integer := 0;
-  skipped_count integer := 0;
-BEGIN
-  IF auth.uid() IS NULL OR NOT public.is_admin(auth.uid()) THEN
-    RAISE EXCEPTION 'Admin only';
-  END IF;
-
-  SELECT * INTO batch_row FROM public.catalog_import_batches
-  WHERE id = _batch FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Import batch not found'; END IF;
-  IF batch_row.status = 'imported' THEN RAISE EXCEPTION 'Import batch was already imported'; END IF;
-
-  FOR staged IN
-    SELECT * FROM public.catalog_import_rows
-    WHERE batch_id = _batch AND review_status = 'approved'
-    ORDER BY row_number FOR UPDATE
-  LOOP
-    IF cardinality(staged.validation_errors) > 0 OR staged.proposed_action = 'manual_review' THEN
-      RAISE EXCEPTION 'Approved row % still requires review', staged.row_number;
-    END IF;
-    item := staged.normalized_data;
-    PERFORM public.assert_valid_catalog_import_product(item);
-
-    IF staged.proposed_action = 'skip' THEN
-      skipped_count := skipped_count + 1;
-      UPDATE public.catalog_import_rows SET review_status = 'imported', updated_at = now()
-      WHERE id = staged.id;
-      CONTINUE;
-    END IF;
-
-    IF staged.proposed_action = 'update' THEN
-      IF staged.catalog_id IS NULL THEN
-        RAISE EXCEPTION 'Update row % has no catalog target', staged.row_number;
-      END IF;
-      UPDATE public.shop_catalog
-      SET name = item->>'name', brand = item->>'brand', kind = (item->>'kind')::public.item_kind,
-          category = item->>'category', color = item->>'color',
-          material = NULLIF(item->>'material', ''), fit = NULLIF(item->>'fit', ''),
-          season = COALESCE(NULLIF(item->>'season', ''), 'all')::public.season,
-          formality = COALESCE(NULLIF(item->>'formality', ''), 'casual')::public.formality,
-          condition = COALESCE(NULLIF(item->>'condition', ''), 'new')::public.item_condition,
-          price = (item->>'current_price')::numeric,
-          current_price = (item->>'current_price')::numeric,
-          original_price = NULLIF(item->>'original_price', '')::numeric,
-          currency = item->>'currency',
-          available_sizes = ARRAY(SELECT jsonb_array_elements_text(COALESCE(item->'available_sizes', '[]'::jsonb))),
-          source_updated_at = NULLIF(item->>'source_updated_at', '')::timestamptz,
-          retailer = item->>'retailer', buy_url = item->>'buy_url', image_url = item->>'image_url',
-          availability = item->>'availability', external_id = NULLIF(item->>'external_id', ''),
-          source = 'real_catalog_import', source_type = item->>'source_type',
-          source_name = item->>'source_name', source_url = NULLIF(item->>'source_url', ''),
-          image_rights_basis = item->>'image_rights_basis',
-          verification_method = item->>'verification_method',
-          affiliate = COALESCE((item->>'affiliate')::boolean, false),
-          affiliate_disclosure = NULLIF(item->>'affiliate_disclosure', ''),
-          vibe = item->>'vibe', price_tier = item->>'price_tier',
-          accessory_subtype = NULLIF(item->>'accessory_subtype', ''),
-          fragrance_family = NULLIF(item->>'fragrance_family', ''),
-          description = item->>'description'
-      WHERE id = staged.catalog_id AND is_demo = false
-        AND source IS DISTINCT FROM 'phase_2_curated_demo'
-      RETURNING id INTO imported_catalog_id;
-      IF imported_catalog_id IS NULL THEN
-        RAISE EXCEPTION 'Update target is missing or protected for row %', staged.row_number;
-      END IF;
-      updated_count := updated_count + 1;
-    ELSE
-      INSERT INTO public.shop_catalog (
-        name, brand, kind, category, color, material, fit, season, formality, condition,
-        price, current_price, original_price, currency, available_sizes, source_updated_at,
-        retailer, buy_url, image_url, availability, external_id, source, source_type,
-        source_name, source_url, image_rights_basis, verification_method, affiliate,
-        affiliate_disclosure, vibe, price_tier, accessory_subtype, fragrance_family,
-        description, is_demo, archived, verified_at, last_checked_at
-      ) VALUES (
-        item->>'name', item->>'brand', (item->>'kind')::public.item_kind,
-        item->>'category', item->>'color', NULLIF(item->>'material', ''),
-        NULLIF(item->>'fit', ''), COALESCE(NULLIF(item->>'season', ''), 'all')::public.season,
-        COALESCE(NULLIF(item->>'formality', ''), 'casual')::public.formality,
-        COALESCE(NULLIF(item->>'condition', ''), 'new')::public.item_condition,
-        (item->>'current_price')::numeric, (item->>'current_price')::numeric,
-        NULLIF(item->>'original_price', '')::numeric, item->>'currency',
-        ARRAY(SELECT jsonb_array_elements_text(COALESCE(item->'available_sizes', '[]'::jsonb))),
-        NULLIF(item->>'source_updated_at', '')::timestamptz,
-        item->>'retailer', item->>'buy_url', item->>'image_url', item->>'availability',
-        NULLIF(item->>'external_id', ''), 'real_catalog_import', item->>'source_type',
-        item->>'source_name', NULLIF(item->>'source_url', ''), item->>'image_rights_basis',
-        item->>'verification_method', COALESCE((item->>'affiliate')::boolean, false),
-        NULLIF(item->>'affiliate_disclosure', ''), item->>'vibe', item->>'price_tier',
-        NULLIF(item->>'accessory_subtype', ''), NULLIF(item->>'fragrance_family', ''),
-        item->>'description', false, false, NULL, NULL
-      ) RETURNING id INTO imported_catalog_id;
-      created_count := created_count + 1;
-    END IF;
-
-    UPDATE public.catalog_import_rows
-    SET review_status = 'imported', catalog_id = imported_catalog_id, updated_at = now()
-    WHERE id = staged.id;
-  END LOOP;
-
-  UPDATE public.catalog_import_batches SET status = 'imported', updated_at = now()
-  WHERE id = _batch;
-
-  RETURN jsonb_build_object(
-    'created', created_count, 'updated', updated_count, 'skipped', skipped_count,
-    'verified', false
-  );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.import_catalog_batch(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.import_catalog_batch(uuid) TO authenticated;
-
 -- Authorized product images are publicly readable for Shop rendering, but only
 -- authenticated administrators may upload, replace, or delete objects.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -1704,15 +1073,6 @@ ALTER TABLE public.catalog_import_rows
   );
 
 ALTER TABLE public.catalog_import_rows
-  ADD COLUMN IF NOT EXISTS resolution_action text,
-  ADD COLUMN IF NOT EXISTS resolution_catalog_id uuid REFERENCES public.shop_catalog(id)
-    ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS resolution_confirmed boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS resolution_note text,
-  ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
-
-ALTER TABLE public.catalog_import_rows
   DROP CONSTRAINT IF EXISTS catalog_import_rows_resolution_action_check;
 ALTER TABLE public.catalog_import_rows
   ADD CONSTRAINT catalog_import_rows_resolution_action_check CHECK (
@@ -1728,20 +1088,147 @@ AS $$
   SELECT btrim(regexp_replace(lower(COALESCE(value, '')), '[^a-z0-9]+', ' ', 'g'));
 $$;
 
-CREATE OR REPLACE FUNCTION public.catalog_canonical_product_url(value text)
+-- URL identity specification (mirrored by src/lib/product-url-canonicalization.ts):
+-- keep path/query data case-sensitive, lowercase only the hostname, remove the
+-- fragment and only utm_*/ref/affiliate/aff parameters, RFC 3986-encode and
+-- deterministically sort every remaining pair, and remove trailing path slashes.
+CREATE OR REPLACE FUNCTION public.catalog_query_component_decode(value text)
 RETURNS text
-LANGUAGE sql
+LANGUAGE plpgsql
 IMMUTABLE
 SET search_path = public
 AS $$
-  SELECT regexp_replace(
-    regexp_replace(split_part(lower(btrim(COALESCE(value, ''))), '#', 1), '\?.*$', ''),
-    '/+$',
-    ''
+DECLARE
+  decoded bytea := ''::bytea;
+  position integer := 1;
+  character text;
+BEGIN
+  WHILE position <= char_length(COALESCE(value, '')) LOOP
+    character := substr(value, position, 1);
+    IF character = '+' THEN
+      decoded := decoded || convert_to(' ', 'UTF8');
+    ELSIF character = '%'
+      AND substr(value, position + 1, 2) ~ '^[0-9A-Fa-f]{2}$'
+    THEN
+      decoded := decoded || decode(substr(value, position + 1, 2), 'hex');
+      position := position + 2;
+    ELSE
+      decoded := decoded || convert_to(character, 'UTF8');
+    END IF;
+    position := position + 1;
+  END LOOP;
+  RETURN convert_from(decoded, 'UTF8');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.catalog_query_component_encode(value text)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public
+AS $$
+DECLARE
+  source bytea := convert_to(COALESCE(value, ''), 'UTF8');
+  encoded text := '';
+  position integer;
+  octet integer;
+BEGIN
+  IF length(source) = 0 THEN RETURN ''; END IF;
+  FOR position IN 0..length(source) - 1 LOOP
+    octet := get_byte(source, position);
+    IF (octet BETWEEN 48 AND 57) OR (octet BETWEEN 65 AND 90)
+      OR (octet BETWEEN 97 AND 122) OR octet IN (45, 46, 95, 126)
+    THEN
+      encoded := encoded || chr(octet);
+    ELSE
+      encoded := encoded || '%' || upper(lpad(to_hex(octet), 2, '0'));
+    END IF;
+  END LOOP;
+  RETURN encoded;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.catalog_canonical_product_url(value text)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public
+AS $$
+DECLARE
+  parsed text[];
+  authority_parts text[];
+  authority text;
+  canonical_authority text;
+  canonical_path text;
+  raw_query text;
+  query_part text;
+  query_key text;
+  query_value text;
+  normalized_key text;
+  equals_position integer;
+  canonical_pairs text[] := '{}'::text[];
+  canonical_query text;
+  without_fragment text := split_part(btrim(COALESCE(value, '')), '#', 1);
+BEGIN
+  parsed := regexp_match(
+    without_fragment,
+    '^([hH][tT][tT][pP][sS])://([^/?#]+)([^?#]*)(\?(.*))?$'
   );
+  IF parsed IS NULL THEN RETURN ''; END IF;
+
+  authority := parsed[2];
+  IF authority LIKE '%@%' THEN RETURN ''; END IF;
+  IF authority ~ '^\[[0-9A-Fa-f:.]+\](:[0-9]+)?$' THEN
+    canonical_authority := lower(authority);
+    IF canonical_authority ~ ':443$' THEN
+      canonical_authority := regexp_replace(canonical_authority, ':443$', '');
+    END IF;
+  ELSE
+    authority_parts := regexp_match(authority, '^([^:]+)(:[0-9]+)?$');
+    IF authority_parts IS NULL THEN RETURN ''; END IF;
+    canonical_authority := lower(authority_parts[1]) ||
+      CASE WHEN authority_parts[2] = ':443' THEN '' ELSE COALESCE(authority_parts[2], '') END;
+  END IF;
+
+  canonical_path := regexp_replace(COALESCE(parsed[3], ''), '/+$', '');
+  raw_query := parsed[5];
+  IF raw_query IS NOT NULL THEN
+    FOREACH query_part IN ARRAY string_to_array(raw_query, '&') LOOP
+      IF query_part = '' THEN CONTINUE; END IF;
+      equals_position := strpos(query_part, '=');
+      IF equals_position = 0 THEN
+        query_key := public.catalog_query_component_decode(query_part);
+        query_value := '';
+      ELSE
+        query_key := public.catalog_query_component_decode(substr(query_part, 1, equals_position - 1));
+        query_value := public.catalog_query_component_decode(substr(query_part, equals_position + 1));
+      END IF;
+      normalized_key := lower(query_key);
+      IF normalized_key LIKE 'utm\_%' ESCAPE '\'
+        OR normalized_key IN ('ref', 'affiliate', 'aff')
+      THEN
+        CONTINUE;
+      END IF;
+      canonical_pairs := array_append(
+        canonical_pairs,
+        public.catalog_query_component_encode(query_key) || '=' ||
+          public.catalog_query_component_encode(query_value)
+      );
+    END LOOP;
+  END IF;
+
+  SELECT string_agg(pair, '&' ORDER BY pair COLLATE "C") INTO canonical_query
+  FROM unnest(canonical_pairs) pair;
+  RETURN 'https://' || canonical_authority || canonical_path ||
+    CASE WHEN canonical_query IS NULL THEN '' ELSE '?' || canonical_query END;
+EXCEPTION WHEN others THEN
+  RETURN '';
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.catalog_identity_part(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.catalog_query_component_decode(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.catalog_query_component_encode(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.catalog_canonical_product_url(text) FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION public.refresh_catalog_import_batch_lifecycle(_batch uuid)
@@ -1994,6 +1481,12 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.refresh_catalog_import_batch_counts() FROM PUBLIC;
+DROP TRIGGER IF EXISTS refresh_catalog_import_batch_counts ON public.catalog_import_rows;
+CREATE TRIGGER refresh_catalog_import_batch_counts
+  AFTER INSERT OR UPDATE OR DELETE ON public.catalog_import_rows
+  FOR EACH ROW EXECUTE FUNCTION public.refresh_catalog_import_batch_counts();
 
 CREATE OR REPLACE FUNCTION public.stage_catalog_import_batch(_batch jsonb, _rows jsonb)
 RETURNS jsonb
@@ -2388,7 +1881,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  RETURN public.import_catalog_batch_review_blocker_impl(_batch);
+  RETURN public.private_import_catalog_batch(_batch);
 END;
 $$;
 

@@ -57,15 +57,27 @@ No history rewrite or automatic secret rotation was performed.
   PostgreSQL behavior tests for RLS, triggers, RPC atomicity, duplicates, partial imports, demo
   immutability, verification invalidation, and account deletion.
 - A clean replay exposed the weak Lovable screenshot RPC changing an existing return type without
-  dropping the old signature. Its historical file now contains only the required compatibility
-  drop; environments where that migration is already recorded still receive all security repairs
+  dropping the old signature. The already-applied migration is restored byte-for-byte to `main`.
+  A separately versioned clean-baseline compatibility step handles only the Pass 3-to-Lovable
+  boundary; databases where the weak migration is already recorded receive every replacement
   exclusively from the later forward-only Phase 4A migration.
+- Product URL identity now has one documented TypeScript/PostgreSQL specification and shared
+  fixtures. Meaningful product parameters and path case survive; only recognized tracking data and
+  fragments are discarded.
+- The unapplied Phase 4A SQL now contains one public importer, one private atomic helper, one
+  validation function, and one final set of import/storage policies. Static tests reject duplicate
+  importer definitions.
+- Account-deletion integration coverage now creates real storage metadata for a report screenshot,
+  an uncommitted draft, and an imported-product image. It proves only the private objects are
+  returned and removable, while the referenced product image and imported catalog row survive
+  authentication-user deletion.
 
 Final blocker validation completed with formatting, TypeScript, changed-file ESLint, production
-build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **139 passing tests,
-0 failures, and 1,180 expectations across 9 files**. The isolated Supabase CI job applies every
-migration in order and passes its PostgreSQL behavior suite. Catalog validation remains exactly 51
-products and 51 Phase 2 SVG assets.
+build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **142 passing tests,
+0 failures, and 1,207 expectations across 9 files**. The isolated Supabase CI job proves both the
+fresh clean-baseline path and the existing weak-database upgrade path before running the complete
+PostgreSQL behavior suite. Catalog validation remains exactly 51 products and 51 Phase 2 SVG
+assets.
 
 The reviewed forward-only migration remains unapplied by Codex. No deployment, product import,
 retailer data, or retailer photography was added.

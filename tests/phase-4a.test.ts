@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -21,14 +22,17 @@ const MIGRATION_PATH = path.join(
   "supabase/migrations/20260802010000_phase_4a_reconciliation_and_real_catalog_imports.sql",
 );
 const migration = fs.readFileSync(MIGRATION_PATH, "utf8");
+const canonicalizationFixtures = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "tests/fixtures/product-url-canonicalization.json"), "utf8"),
+) as Array<{ name: string; input: string; expected: string }>;
 
 function source(file: string): string {
   return fs.readFileSync(path.join(ROOT, file), "utf8");
 }
 
 function sqlFunction(name: string): string {
-  const replaceStart = migration.lastIndexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
-  const createStart = migration.lastIndexOf(`CREATE FUNCTION public.${name}`);
+  const replaceStart = migration.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+  const createStart = migration.indexOf(`CREATE FUNCTION public.${name}`);
   const start = replaceStart >= 0 ? replaceStart : createStart;
   const end = migration.indexOf("\n$$;", start);
   expect(start).toBeGreaterThanOrEqual(0);
@@ -73,6 +77,21 @@ function validRaw(overrides: Record<string, unknown> = {}): Record<string, unkno
 }
 
 describe("Phase 4A forward-only reconciliation", () => {
+  it("keeps the applied Lovable migration byte-for-byte identical to main", () => {
+    const applied = fs.readFileSync(
+      path.join(
+        ROOT,
+        "supabase/migrations/20260730025301_cb455320-3ddc-42d0-894e-6a7e610dcc9b.sql",
+      ),
+    );
+    expect(crypto.createHash("sha256").update(applied).digest("hex")).toBe(
+      "b78d464dc0feb701692ae1b03eed3aba5d8f5985a48da29f90856ef4ddbe8de1",
+    );
+    expect(source("supabase/compatibility/20260730025301_clean_replay.sql")).toContain(
+      "DROP FUNCTION public.attach_problem_report_screenshot(uuid, text)",
+    );
+  });
+
   it("follows the weak live migration and fails closed unless all 51 demos are intact", () => {
     expect(
       path.basename(MIGRATION_PATH) > "20260730025301_cb455320-3ddc-42d0-894e-6a7e610dcc9b.sql",
@@ -281,6 +300,22 @@ describe("Phase 4A real-product staging", () => {
     ]);
   });
 
+  it("uses the shared canonical product URL identities without collapsing variants", () => {
+    for (const fixture of canonicalizationFixtures) {
+      expect(normalizeProductUrl(fixture.input), fixture.name).toBe(fixture.expected);
+    }
+    const firstVariant = canonicalizationFixtures.find(
+      ({ name }) => name === "first product variant",
+    );
+    const secondVariant = canonicalizationFixtures.find(
+      ({ name }) => name === "different product variant",
+    );
+    expect(firstVariant?.expected).not.toBe(secondVariant?.expected);
+    expect(migration).toContain("public.catalog_query_component_decode");
+    expect(migration).toContain("public.catalog_query_component_encode");
+    expect(migration).toContain("normalized_key IN ('ref', 'affiliate', 'aff')");
+  });
+
   it("flags same-description batch identities even when URLs and external IDs differ", () => {
     const rows = [
       validateCatalogImportRecord(validRaw({ external_id: "one" }), 1),
@@ -386,7 +421,7 @@ describe("Phase 4A real-product staging", () => {
   });
 
   it("imports approved products atomically as real, active, and unverified", () => {
-    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
+    const importer = sqlFunction("private_import_catalog_batch");
     expect(importer).toContain("SECURITY DEFINER");
     expect(importer).toContain("is_demo, archived, verified_at, last_checked_at");
     expect(importer).toContain("false, false, NULL, NULL");
@@ -443,7 +478,7 @@ describe("Phase 4A import reconciliation blockers", () => {
 
   it("models partial imports and leaves terminal rows untouched on repeat runs", () => {
     const lifecycle = sqlFunction("refresh_catalog_import_batch_lifecycle");
-    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
+    const importer = sqlFunction("private_import_catalog_batch");
     expect(migration).toContain("'partially_imported'");
     expect(lifecycle).toContain("review_status IN ('imported', 'rejected', 'skipped')");
     expect(importer).toContain("review_status = 'approved'");
@@ -452,7 +487,7 @@ describe("Phase 4A import reconciliation blockers", () => {
   });
 
   it("rechecks live and intra-batch identities under a global transaction lock", () => {
-    const importer = sqlFunction("import_catalog_batch_review_blocker_impl");
+    const importer = sqlFunction("private_import_catalog_batch");
     expect(importer).toContain("pg_advisory_xact_lock");
     expect(importer).toContain("prior.row_number < staged.row_number");
     expect(importer).toContain("FROM public.shop_catalog product");
@@ -487,9 +522,7 @@ describe("Phase 4A import reconciliation blockers", () => {
     expect(migration).toContain(
       "REVOKE INSERT, UPDATE, DELETE ON public.catalog_import_rows FROM authenticated",
     );
-    expect(
-      migration.lastIndexOf('DROP POLICY IF EXISTS "catalog imports admin update rows"'),
-    ).toBeGreaterThan(migration.lastIndexOf('CREATE POLICY "catalog imports admin update rows"'));
+    expect(migration).not.toContain('CREATE POLICY "catalog imports admin update rows"');
     expect(migration).toContain(
       "GRANT EXECUTE ON FUNCTION public.resolve_catalog_import_row(uuid, text, uuid, boolean)",
     );
@@ -521,9 +554,32 @@ describe("Phase 4A import reconciliation blockers", () => {
 
   it("runs a migration-backed PostgreSQL behavior suite in CI", () => {
     const workflow = source(".github/workflows/ci.yml");
+    const databaseVerifier = source("scripts/verify-phase4a-database-path.sh");
     expect(workflow).toContain("database-integration:");
-    expect(workflow).toContain("supabase db reset --local");
-    expect(workflow).toContain("phase-4a-integration.sql");
+    expect(workflow).toContain("verify-phase4a-database-path.sh fresh");
+    expect(workflow).toContain("verify-phase4a-database-path.sh existing-upgrade");
+    expect(databaseVerifier).toContain("supabase db reset --local");
+    expect(databaseVerifier).toContain("supabase migration repair");
+    expect(databaseVerifier).toContain("supabase migration up --local");
+    expect(databaseVerifier).toContain("phase-4a-integration.sql");
+  });
+
+  it("deploys one authoritative importer, validation function, and storage policy set", () => {
+    expect(
+      migration.match(/^CREATE OR REPLACE FUNCTION public\.import_catalog_batch\(/gm) ?? [],
+    ).toHaveLength(1);
+    expect(
+      migration.match(/^CREATE OR REPLACE FUNCTION public\.private_import_catalog_batch\(/gm) ?? [],
+    ).toHaveLength(1);
+    expect(
+      migration.match(
+        /^CREATE OR REPLACE FUNCTION public\.assert_valid_catalog_import_product\(/gm,
+      ) ?? [],
+    ).toHaveLength(1);
+    expect(
+      migration.match(/^CREATE POLICY "catalog product images admin upload"/gm) ?? [],
+    ).toHaveLength(1);
+    expect(migration).not.toContain('CREATE POLICY "catalog imports admin insert rows"');
   });
 });
 

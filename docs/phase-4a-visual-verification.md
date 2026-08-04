@@ -46,6 +46,15 @@ buttons remained visible. The app's default desktop viewport also retained the e
 layout and dashboard grid. The temporary fixture and authentication bypass were removed before the
 final TypeScript, test, and build runs.
 
+On 2026-08-03, the final migration/canonicalization blockers were rechecked after head
+`7041490bca078668e79a6f3b336ce5a92100f306`. The change set contains no Shop, Catalog Manager,
+import-review, component, or stylesheet edits, so the populated fixture layouts documented above
+have no visual delta. A fresh local browser smoke check covered the public/auth shell at `1280 x
+720` and `390 x 844`: the account form, password control, confirmation resend, Google action, and
+mode switch remained visible, and document width equaled viewport width at both breakpoints. No
+authentication submission, storage write, migration, catalog import, or external image request was
+performed during this recheck.
+
 ## Release boundary
 
 This report verifies the implementation and local presentation only. Operators must still
