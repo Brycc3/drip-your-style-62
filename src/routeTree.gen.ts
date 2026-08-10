@@ -9,54 +9,45 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as LegalRouteImport } from './routes/legal'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
-import { Route as AuthenticatedGenerateRouteImport } from './routes/_authenticated/generate'
-import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedInspoRouteImport } from './routes/_authenticated/inspo'
-import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
-import { Route as AuthenticatedSavedRouteImport } from './routes/_authenticated/saved'
-import { Route as AuthenticatedScentsRouteImport } from './routes/_authenticated/scents'
-import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
-import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
-import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth_.reset-password'
+import { Route as LegalRouteImport } from './routes/legal'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
-import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
-import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
-import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
-import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-image-processing'
-import { Route as LegalBetaNoticeRouteImport } from './routes/legal.beta-notice'
-import { Route as LegalCommunityGuidelinesRouteImport } from './routes/legal.community-guidelines'
-import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
-import { Route as LegalLocationWeatherRouteImport } from './routes/legal.location-weather'
-import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
-import { Route as LegalTermsRouteImport } from './routes/legal.terms'
-import { Route as OSlugRouteImport } from './routes/o.$slug'
 import { Route as UHandleRouteImport } from './routes/u.$handle'
-import { Route as AuthenticatedAdminCatalogRouteImport } from './routes/_authenticated/admin.catalog'
-import { Route as AuthenticatedAdminModerationRouteImport } from './routes/_authenticated/admin.moderation'
+import { Route as OSlugRouteImport } from './routes/o.$slug'
+import { Route as LegalTermsRouteImport } from './routes/legal.terms'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalLocationWeatherRouteImport } from './routes/legal.location-weather'
+import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
+import { Route as LegalCommunityGuidelinesRouteImport } from './routes/legal.community-guidelines'
+import { Route as LegalBetaNoticeRouteImport } from './routes/legal.beta-notice'
+import { Route as LegalAiImageProcessingRouteImport } from './routes/legal.ai-image-processing'
+import { Route as LegalAffiliateDisclosureRouteImport } from './routes/legal.affiliate-disclosure'
+import { Route as LegalAccountDeletionRouteImport } from './routes/legal.account-deletion'
+import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth_.reset-password'
+import { Route as AuthenticatedTasteRouteImport } from './routes/_authenticated/taste'
+import { Route as AuthenticatedSwipeRouteImport } from './routes/_authenticated/swipe'
+import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
+import { Route as AuthenticatedScentsRouteImport } from './routes/_authenticated/scents'
+import { Route as AuthenticatedSavedRouteImport } from './routes/_authenticated/saved'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedInspoRouteImport } from './routes/_authenticated/inspo'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedGenerateRouteImport } from './routes/_authenticated/generate'
+import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedClosetIndexRouteImport } from './routes/_authenticated/closet.index'
-import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
 import { Route as AuthenticatedClosetNewRouteImport } from './routes/_authenticated/closet.new'
+import { Route as AuthenticatedClosetIdRouteImport } from './routes/_authenticated/closet.$id'
+import { Route as AuthenticatedAdminModerationRouteImport } from './routes/_authenticated/admin.moderation'
+import { Route as AuthenticatedAdminCatalogRouteImport } from './routes/_authenticated/admin.catalog'
 import { Route as AuthenticatedClosetIdEditRouteImport } from './routes/_authenticated/closet.$id.edit'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalRoute = LegalRouteImport.update({
@@ -64,64 +55,18 @@ const LegalRoute = LegalRouteImport.update({
   path: '/legal',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
-  id: '/feed',
-  path: '/feed',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedGenerateRoute = AuthenticatedGenerateRouteImport.update({
-  id: '/generate',
-  path: '/generate',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedInspoRoute = AuthenticatedInspoRouteImport.update({
-  id: '/inspo',
-  path: '/inspo',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSavedRoute = AuthenticatedSavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedScentsRoute = AuthenticatedScentsRouteImport.update({
-  id: '/scents',
-  path: '/scents',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
-  id: '/shop',
-  path: '/shop',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSwipeRoute = AuthenticatedSwipeRouteImport.update({
-  id: '/swipe',
-  path: '/swipe',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
-  id: '/taste',
-  path: '/taste',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/auth_/reset-password',
-  path: '/auth/reset-password',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalIndexRoute = LegalIndexRouteImport.update({
@@ -129,30 +74,34 @@ const LegalIndexRoute = LegalIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
-  id: '/acceptable-use',
-  path: '/acceptable-use',
+const UHandleRoute = UHandleRouteImport.update({
+  id: '/u/$handle',
+  path: '/u/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OSlugRoute = OSlugRouteImport.update({
+  id: '/o/$slug',
+  path: '/o/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalAccountDeletionRoute = LegalAccountDeletionRouteImport.update({
-  id: '/account-deletion',
-  path: '/account-deletion',
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalAffiliateDisclosureRoute =
-  LegalAffiliateDisclosureRouteImport.update({
-    id: '/affiliate-disclosure',
-    path: '/affiliate-disclosure',
-    getParentRoute: () => LegalRoute,
-  } as any)
-const LegalAiImageProcessingRoute = LegalAiImageProcessingRouteImport.update({
-  id: '/ai-image-processing',
-  path: '/ai-image-processing',
+const LegalLocationWeatherRoute = LegalLocationWeatherRouteImport.update({
+  id: '/location-weather',
+  path: '/location-weather',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalBetaNoticeRoute = LegalBetaNoticeRouteImport.update({
-  id: '/beta-notice',
-  path: '/beta-notice',
+const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
   getParentRoute: () => LegalRoute,
 } as any)
 const LegalCommunityGuidelinesRoute =
@@ -161,64 +110,115 @@ const LegalCommunityGuidelinesRoute =
     path: '/community-guidelines',
     getParentRoute: () => LegalRoute,
   } as any)
-const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
-  id: '/copyright',
-  path: '/copyright',
+const LegalBetaNoticeRoute = LegalBetaNoticeRouteImport.update({
+  id: '/beta-notice',
+  path: '/beta-notice',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalLocationWeatherRoute = LegalLocationWeatherRouteImport.update({
-  id: '/location-weather',
-  path: '/location-weather',
+const LegalAiImageProcessingRoute = LegalAiImageProcessingRouteImport.update({
+  id: '/ai-image-processing',
+  path: '/ai-image-processing',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
+const LegalAffiliateDisclosureRoute =
+  LegalAffiliateDisclosureRouteImport.update({
+    id: '/affiliate-disclosure',
+    path: '/affiliate-disclosure',
+    getParentRoute: () => LegalRoute,
+  } as any)
+const LegalAccountDeletionRoute = LegalAccountDeletionRouteImport.update({
+  id: '/account-deletion',
+  path: '/account-deletion',
   getParentRoute: () => LegalRoute,
 } as any)
-const LegalTermsRoute = LegalTermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
+  id: '/acceptable-use',
+  path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
-const OSlugRoute = OSlugRouteImport.update({
-  id: '/o/$slug',
-  path: '/o/$slug',
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/auth_/reset-password',
+  path: '/auth/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UHandleRoute = UHandleRouteImport.update({
-  id: '/u/$handle',
-  path: '/u/$handle',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedTasteRoute = AuthenticatedTasteRouteImport.update({
+  id: '/taste',
+  path: '/taste',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAdminCatalogRoute =
-  AuthenticatedAdminCatalogRouteImport.update({
-    id: '/admin/catalog',
-    path: '/admin/catalog',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAdminModerationRoute =
-  AuthenticatedAdminModerationRouteImport.update({
-    id: '/admin/moderation',
-    path: '/admin/moderation',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
+const AuthenticatedSwipeRoute = AuthenticatedSwipeRouteImport.update({
+  id: '/swipe',
+  path: '/swipe',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedScentsRoute = AuthenticatedScentsRouteImport.update({
+  id: '/scents',
+  path: '/scents',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSavedRoute = AuthenticatedSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInspoRoute = AuthenticatedInspoRouteImport.update({
+  id: '/inspo',
+  path: '/inspo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedGenerateRoute = AuthenticatedGenerateRouteImport.update({
+  id: '/generate',
+  path: '/generate',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
+  id: '/feed',
+  path: '/feed',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedClosetIndexRoute =
   AuthenticatedClosetIndexRouteImport.update({
     id: '/closet/',
     path: '/closet/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedClosetIdRoute = AuthenticatedClosetIdRouteImport.update({
-  id: '/closet/$id',
-  path: '/closet/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedClosetNewRoute = AuthenticatedClosetNewRouteImport.update({
   id: '/closet/new',
   path: '/closet/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedClosetIdRoute = AuthenticatedClosetIdRouteImport.update({
+  id: '/closet/$id',
+  path: '/closet/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminModerationRoute =
+  AuthenticatedAdminModerationRouteImport.update({
+    id: '/admin/moderation',
+    path: '/admin/moderation',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminCatalogRoute =
+  AuthenticatedAdminCatalogRouteImport.update({
+    id: '/admin/catalog',
+    path: '/admin/catalog',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedClosetIdEditRoute =
   AuthenticatedClosetIdEditRouteImport.update({
     id: '/edit',
@@ -459,25 +459,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal': {
@@ -487,88 +473,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/feed': {
-      id: '/_authenticated/feed'
-      path: '/feed'
-      fullPath: '/feed'
-      preLoaderRoute: typeof AuthenticatedFeedRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/generate': {
-      id: '/_authenticated/generate'
-      path: '/generate'
-      fullPath: '/generate'
-      preLoaderRoute: typeof AuthenticatedGenerateRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/home': {
-      id: '/_authenticated/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof AuthenticatedHomeRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspo': {
-      id: '/_authenticated/inspo'
-      path: '/inspo'
-      fullPath: '/inspo'
-      preLoaderRoute: typeof AuthenticatedInspoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/profile': {
-      id: '/_authenticated/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AuthenticatedProfileRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/saved': {
-      id: '/_authenticated/saved'
-      path: '/saved'
-      fullPath: '/saved'
-      preLoaderRoute: typeof AuthenticatedSavedRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/scents': {
-      id: '/_authenticated/scents'
-      path: '/scents'
-      fullPath: '/scents'
-      preLoaderRoute: typeof AuthenticatedScentsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/shop': {
-      id: '/_authenticated/shop'
-      path: '/shop'
-      fullPath: '/shop'
-      preLoaderRoute: typeof AuthenticatedShopRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/swipe': {
-      id: '/_authenticated/swipe'
-      path: '/swipe'
-      fullPath: '/swipe'
-      preLoaderRoute: typeof AuthenticatedSwipeRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/taste': {
-      id: '/_authenticated/taste'
-      path: '/taste'
-      fullPath: '/taste'
-      preLoaderRoute: typeof AuthenticatedTasteRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/auth_/reset-password': {
-      id: '/auth_/reset-password'
-      path: '/auth/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/': {
@@ -578,60 +501,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalIndexRouteImport
       parentRoute: typeof LegalRoute
     }
-    '/legal/acceptable-use': {
-      id: '/legal/acceptable-use'
-      path: '/acceptable-use'
-      fullPath: '/legal/acceptable-use'
-      preLoaderRoute: typeof LegalAcceptableUseRouteImport
-      parentRoute: typeof LegalRoute
+    '/u/$handle': {
+      id: '/u/$handle'
+      path: '/u/$handle'
+      fullPath: '/u/$handle'
+      preLoaderRoute: typeof UHandleRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/account-deletion': {
-      id: '/legal/account-deletion'
-      path: '/account-deletion'
-      fullPath: '/legal/account-deletion'
-      preLoaderRoute: typeof LegalAccountDeletionRouteImport
-      parentRoute: typeof LegalRoute
+    '/o/$slug': {
+      id: '/o/$slug'
+      path: '/o/$slug'
+      fullPath: '/o/$slug'
+      preLoaderRoute: typeof OSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/affiliate-disclosure': {
-      id: '/legal/affiliate-disclosure'
-      path: '/affiliate-disclosure'
-      fullPath: '/legal/affiliate-disclosure'
-      preLoaderRoute: typeof LegalAffiliateDisclosureRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/ai-image-processing': {
-      id: '/legal/ai-image-processing'
-      path: '/ai-image-processing'
-      fullPath: '/legal/ai-image-processing'
-      preLoaderRoute: typeof LegalAiImageProcessingRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/beta-notice': {
-      id: '/legal/beta-notice'
-      path: '/beta-notice'
-      fullPath: '/legal/beta-notice'
-      preLoaderRoute: typeof LegalBetaNoticeRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/community-guidelines': {
-      id: '/legal/community-guidelines'
-      path: '/community-guidelines'
-      fullPath: '/legal/community-guidelines'
-      preLoaderRoute: typeof LegalCommunityGuidelinesRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/copyright': {
-      id: '/legal/copyright'
-      path: '/copyright'
-      fullPath: '/legal/copyright'
-      preLoaderRoute: typeof LegalCopyrightRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/location-weather': {
-      id: '/legal/location-weather'
-      path: '/location-weather'
-      fullPath: '/legal/location-weather'
-      preLoaderRoute: typeof LegalLocationWeatherRouteImport
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
       parentRoute: typeof LegalRoute
     }
     '/legal/privacy': {
@@ -641,39 +529,137 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalPrivacyRouteImport
       parentRoute: typeof LegalRoute
     }
-    '/legal/terms': {
-      id: '/legal/terms'
-      path: '/terms'
-      fullPath: '/legal/terms'
-      preLoaderRoute: typeof LegalTermsRouteImport
+    '/legal/location-weather': {
+      id: '/legal/location-weather'
+      path: '/location-weather'
+      fullPath: '/legal/location-weather'
+      preLoaderRoute: typeof LegalLocationWeatherRouteImport
       parentRoute: typeof LegalRoute
     }
-    '/o/$slug': {
-      id: '/o/$slug'
-      path: '/o/$slug'
-      fullPath: '/o/$slug'
-      preLoaderRoute: typeof OSlugRouteImport
+    '/legal/copyright': {
+      id: '/legal/copyright'
+      path: '/copyright'
+      fullPath: '/legal/copyright'
+      preLoaderRoute: typeof LegalCopyrightRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/community-guidelines': {
+      id: '/legal/community-guidelines'
+      path: '/community-guidelines'
+      fullPath: '/legal/community-guidelines'
+      preLoaderRoute: typeof LegalCommunityGuidelinesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/beta-notice': {
+      id: '/legal/beta-notice'
+      path: '/beta-notice'
+      fullPath: '/legal/beta-notice'
+      preLoaderRoute: typeof LegalBetaNoticeRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/ai-image-processing': {
+      id: '/legal/ai-image-processing'
+      path: '/ai-image-processing'
+      fullPath: '/legal/ai-image-processing'
+      preLoaderRoute: typeof LegalAiImageProcessingRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/affiliate-disclosure': {
+      id: '/legal/affiliate-disclosure'
+      path: '/affiliate-disclosure'
+      fullPath: '/legal/affiliate-disclosure'
+      preLoaderRoute: typeof LegalAffiliateDisclosureRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/account-deletion': {
+      id: '/legal/account-deletion'
+      path: '/account-deletion'
+      fullPath: '/legal/account-deletion'
+      preLoaderRoute: typeof LegalAccountDeletionRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/acceptable-use': {
+      id: '/legal/acceptable-use'
+      path: '/acceptable-use'
+      fullPath: '/legal/acceptable-use'
+      preLoaderRoute: typeof LegalAcceptableUseRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/auth_/reset-password': {
+      id: '/auth_/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/u/$handle': {
-      id: '/u/$handle'
-      path: '/u/$handle'
-      fullPath: '/u/$handle'
-      preLoaderRoute: typeof UHandleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/admin/catalog': {
-      id: '/_authenticated/admin/catalog'
-      path: '/admin/catalog'
-      fullPath: '/admin/catalog'
-      preLoaderRoute: typeof AuthenticatedAdminCatalogRouteImport
+    '/_authenticated/taste': {
+      id: '/_authenticated/taste'
+      path: '/taste'
+      fullPath: '/taste'
+      preLoaderRoute: typeof AuthenticatedTasteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/admin/moderation': {
-      id: '/_authenticated/admin/moderation'
-      path: '/admin/moderation'
-      fullPath: '/admin/moderation'
-      preLoaderRoute: typeof AuthenticatedAdminModerationRouteImport
+    '/_authenticated/swipe': {
+      id: '/_authenticated/swipe'
+      path: '/swipe'
+      fullPath: '/swipe'
+      preLoaderRoute: typeof AuthenticatedSwipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/shop': {
+      id: '/_authenticated/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof AuthenticatedShopRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/scents': {
+      id: '/_authenticated/scents'
+      path: '/scents'
+      fullPath: '/scents'
+      preLoaderRoute: typeof AuthenticatedScentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/saved': {
+      id: '/_authenticated/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof AuthenticatedSavedRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspo': {
+      id: '/_authenticated/inspo'
+      path: '/inspo'
+      fullPath: '/inspo'
+      preLoaderRoute: typeof AuthenticatedInspoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/generate': {
+      id: '/_authenticated/generate'
+      path: '/generate'
+      fullPath: '/generate'
+      preLoaderRoute: typeof AuthenticatedGenerateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/feed': {
+      id: '/_authenticated/feed'
+      path: '/feed'
+      fullPath: '/feed'
+      preLoaderRoute: typeof AuthenticatedFeedRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/closet/': {
@@ -683,6 +669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClosetIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/closet/new': {
+      id: '/_authenticated/closet/new'
+      path: '/closet/new'
+      fullPath: '/closet/new'
+      preLoaderRoute: typeof AuthenticatedClosetNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/closet/$id': {
       id: '/_authenticated/closet/$id'
       path: '/closet/$id'
@@ -690,11 +683,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClosetIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/closet/new': {
-      id: '/_authenticated/closet/new'
-      path: '/closet/new'
-      fullPath: '/closet/new'
-      preLoaderRoute: typeof AuthenticatedClosetNewRouteImport
+    '/_authenticated/admin/moderation': {
+      id: '/_authenticated/admin/moderation'
+      path: '/admin/moderation'
+      fullPath: '/admin/moderation'
+      preLoaderRoute: typeof AuthenticatedAdminModerationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/catalog': {
+      id: '/_authenticated/admin/catalog'
+      path: '/admin/catalog'
+      fullPath: '/admin/catalog'
+      preLoaderRoute: typeof AuthenticatedAdminCatalogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/closet/$id/edit': {
@@ -802,3 +802,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
