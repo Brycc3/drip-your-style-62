@@ -67,14 +67,30 @@ No history rewrite or automatic secret rotation was performed.
 - The unapplied Phase 4A SQL now contains one public importer, one private atomic helper, one
   validation function, and one final set of import/storage policies. Static tests reject duplicate
   importer definitions.
-- Account-deletion integration coverage now creates real storage metadata for a report screenshot,
-  an uncommitted draft, and an imported-product image. It proves only the private objects are
-  returned and removable, while the referenced product image and imported catalog row survive
-  authentication-user deletion.
+- Account-deletion integration coverage now uploads a report screenshot, an uncommitted draft, and
+  an imported-product image through the local Supabase Storage API. It gets the cleanup paths at
+  the same application boundary, removes only the private report/draft through the Storage API,
+  and then proves the referenced product image and imported catalog row survive authentication-user
+  deletion.
+
+## Legal launch blockers
+
+The legal configuration intentionally remains fail-closed. The owner must supply these exact
+values before launch; none were guessed or replaced in Phase 4A:
+
+- `LEGAL_OWNER` (`[LEGAL OWNER]`)
+- `SUPPORT_EMAIL` (`[SUPPORT EMAIL]`)
+- `JURISDICTION` (`[STATE/COUNTRY]`)
+- `EFFECTIVE_DATE` (`[EFFECTIVE DATE]`)
+
+After all four values are supplied and counsel reviews the copy, the owner must deliberately set
+`ENTITY_CONFIGURED` to `true`. The configured `DRIP` app name also still carries the source comment
+`trademark clearance pending`; trademark clearance is a legal launch action, not a value invented
+by this change.
 
 Final blocker validation completed with formatting, TypeScript, changed-file ESLint, production
-build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **142 passing tests,
-0 failures, and 1,207 expectations across 9 files**. The isolated Supabase CI job proves both the
+build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **143 passing tests,
+0 failures, and 1,223 expectations across 9 files**. The isolated Supabase CI job exercises both the
 fresh clean-baseline path and the existing weak-database upgrade path before running the complete
 PostgreSQL behavior suite. Catalog validation remains exactly 51 products and 51 Phase 2 SVG
 assets.

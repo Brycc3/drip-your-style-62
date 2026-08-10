@@ -562,6 +562,10 @@ describe("Phase 4A import reconciliation blockers", () => {
     expect(databaseVerifier).toContain("supabase migration repair");
     expect(databaseVerifier).toContain("supabase migration up --local");
     expect(databaseVerifier).toContain("phase-4a-integration.sql");
+    expect(databaseVerifier).toContain("local-storage-api.mjs upload reports");
+    expect(databaseVerifier).toContain("local-storage-api.mjs remove reports");
+    expect(databaseVerifier).toContain("phase-4a-account-deletion.sql");
+    expect(databaseVerifier).toContain("phase-4a-storage-cleanup-finalize.sql");
   });
 
   it("deploys one authoritative importer, validation function, and storage policy set", () => {
@@ -591,6 +595,29 @@ describe("Phase 4A UX and pipeline guardrails", () => {
     expect(shop).toContain(
       "Verified products will appear after authorized retailer, affiliate, partner, or manually",
     );
+  });
+
+  it("preserves the approved onboarding, Home, recovery, reporting, and account boundaries", () => {
+    const home = source("src/routes/_authenticated/home.tsx");
+    const starter = source("src/lib/starter-progress.ts");
+    const recovery = source("src/routes/auth_.reset-password.tsx");
+    const problemReport = source("src/components/ProblemReportDialog.tsx");
+    const account = source("src/lib/account.functions.ts");
+
+    expect(starter).toContain('{ key: "tops", label: "Tops", have: counts.tops, need: 3 }');
+    expect(starter).toContain(
+      '{ key: "bottoms", label: "Bottoms", have: counts.bottoms, need: 2 }',
+    );
+    expect(starter).toContain('{ key: "shoes", label: "Shoes", have: counts.shoes, need: 2 }');
+    expect(starter).toContain("generatorReady: missingCoreCategories.length === 0");
+    expect(home.match(/to="\/saved"/g) ?? []).toHaveLength(2);
+    expect(home).toContain("progress?.generatorReady &&");
+    expect(recovery).toContain("recoveryEventAuthorizes(event)");
+    expect(problemReport).toContain("screenshotApproved");
+    expect(problemReport).toContain("A screenshot is included only if you select and approve one.");
+    expect(account).toContain('"get_my_catalog_import_export"');
+    expect(account).toContain('"prepare_catalog_import_account_deletion"');
+    expect(account).toContain("auth.admin.deleteUser(userId)");
   });
 
   it("returns a controlled value-safe backend configuration error", () => {
