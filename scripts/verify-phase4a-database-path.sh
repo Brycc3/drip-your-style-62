@@ -17,8 +17,12 @@ holding_dir="$(mktemp -d)"
 database_started=false
 
 restore_migrations() {
-  [[ -f "$holding_dir/$(basename "$weak_file")" ]] && mv "$holding_dir/$(basename "$weak_file")" "$weak_file"
-  [[ -f "$holding_dir/$(basename "$phase4_file")" ]] && mv "$holding_dir/$(basename "$phase4_file")" "$phase4_file"
+  if [[ -f "$holding_dir/$(basename "$weak_file")" ]]; then
+    mv "$holding_dir/$(basename "$weak_file")" "$weak_file"
+  fi
+  if [[ -f "$holding_dir/$(basename "$phase4_file")" ]]; then
+    mv "$holding_dir/$(basename "$phase4_file")" "$phase4_file"
+  fi
 }
 
 cleanup() {
