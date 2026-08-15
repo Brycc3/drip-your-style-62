@@ -583,6 +583,12 @@ describe("Phase 4A import reconciliation blockers", () => {
     expect(
       migration.match(/^CREATE POLICY "catalog product images admin upload"/gm) ?? [],
     ).toHaveLength(1);
+    expect(
+      migration.match(/^CREATE POLICY "catalog product images owner read"/gm) ?? [],
+    ).toHaveLength(1);
+    expect(
+      migration.match(/^CREATE POLICY "catalog product images owner cleanup"/gm) ?? [],
+    ).toHaveLength(1);
     expect(migration).not.toContain('CREATE POLICY "catalog imports admin insert rows"');
   });
 });

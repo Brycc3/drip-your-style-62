@@ -1023,6 +1023,16 @@ CREATE POLICY "catalog product images admin upload"
 
 DROP POLICY IF EXISTS "catalog product images admin update" ON storage.objects;
 DROP POLICY IF EXISTS "catalog product images admin delete" ON storage.objects;
+DROP POLICY IF EXISTS "catalog product images owner read" ON storage.objects;
+CREATE POLICY "catalog product images owner read"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'catalog-products'
+    AND public.is_admin(auth.uid())
+    AND (storage.foldername(name))[1] = 'drafts'
+    AND (storage.foldername(name))[2] = auth.uid()::text
+  );
+
 DROP POLICY IF EXISTS "catalog product images owner cleanup" ON storage.objects;
 CREATE POLICY "catalog product images owner cleanup"
   ON storage.objects FOR DELETE TO authenticated

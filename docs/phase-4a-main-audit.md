@@ -51,8 +51,9 @@ No history rewrite or automatic secret rotation was performed.
   processed twice, and the batch closes only after every row is imported, rejected, or skipped.
 - Account export includes import/report/image audit data. Deletion removes private drafts, unlinks
   report attachments, anonymizes imported audit ownership, and preserves imported catalog products.
-- Product-image uploads use owner/batch/row draft paths. Deletion policies reject any object still
-  referenced by staging or `shop_catalog`.
+- Product-image uploads use owner/batch/row draft paths. A narrow owner-path read policy supplies
+  the Storage API's required `SELECT` permission for removal, while the deletion policy rejects any
+  object still referenced by staging or `shop_catalog`.
 - CI now has an isolated Supabase job that applies all migrations in order and executes real
   PostgreSQL behavior tests for RLS, triggers, RPC atomicity, duplicates, partial imports, demo
   immutability, verification invalidation, and account deletion.
@@ -90,7 +91,7 @@ by this change.
 
 Final blocker validation completed with formatting, TypeScript, changed-file ESLint, production
 build, catalog validation, and `git diff --check` passing. Bun 1.3.14 reports **143 passing tests,
-0 failures, and 1,223 expectations across 9 files**. The isolated Supabase CI job exercises both the
+0 failures, and 1,225 expectations across 9 files**. The isolated Supabase CI job exercises both the
 fresh clean-baseline path and the existing weak-database upgrade path before running the complete
 PostgreSQL behavior suite. Catalog validation remains exactly 51 products and 51 Phase 2 SVG
 assets.

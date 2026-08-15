@@ -73,6 +73,16 @@ SELECT public.phase4a_assert(
   EXISTS (
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'catalog product images owner read'
+      AND qual LIKE '%auth.uid()%'
+      AND qual LIKE '%drafts%'
+  ),
+  'catalog image draft reads must be limited to an authenticated admin owner path'
+);
+SELECT public.phase4a_assert(
+  EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
       AND policyname = 'catalog product images owner cleanup'
       AND qual LIKE '%shop_catalog%'
   ),
