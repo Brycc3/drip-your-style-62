@@ -55,8 +55,8 @@ for live users. Fixture and real-authenticated evidence are intentionally separa
 
 ## Validation evidence and boundaries
 
-Local implementation suite: **169 tests, 0 failures, 1,290 expectations, 10 files** at the time
-of this report. The final commit is revalidated in CI and recorded in the PR. Includes 26 new
+Local implementation suite: **170 tests, 0 failures, 1,293 expectations, 10 files** at the time
+of this report. The final commit is revalidated in CI and recorded in the PR. Includes 27 new
 launch-candidate tests over the prior 143-test baseline. Formatting, TypeScript, changed-file ESLint,
 production build, catalog generation check and diff whitespace are rerun for the candidate.
 The four detected transitive dependency advisories were addressed without a forced framework

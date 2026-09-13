@@ -14,6 +14,14 @@ import { recordSeen, undoSeen } from "../src/lib/swipe-deck";
 import type { VerifiableCatalogItem } from "../src/lib/shop-catalog";
 import { parseCatalogImport } from "../src/lib/catalog-import";
 
+it("generic auth entry defaults to sign-in while signup remains explicit", () => {
+  const auth = readFileSync("src/routes/auth.tsx", "utf8");
+  const landing = readFileSync("src/routes/index.tsx", "utf8");
+  expect(auth).toContain('initialMode ?? "signin"');
+  expect(landing).toContain('search={{ mode: "signup" }}');
+  expect(landing).toContain('search={{ mode: "signin" }}');
+});
+
 const owned = (id: string, category: string, over: Partial<ClosetItem> = {}): ClosetItem => ({
   id,
   name: id,
