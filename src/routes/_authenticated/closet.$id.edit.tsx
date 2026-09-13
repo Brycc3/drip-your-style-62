@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadClosetImage, deleteClosetImage, getSignedUrl } from "@/lib/closet-storage";
 import type { Tables } from "@/integrations/supabase/types";
 import { Camera, X } from "lucide-react";
+import { validateClosetImage } from "@/lib/closet-image-validation";
 
 type ClosetItem = Tables<"closet_items">;
 
@@ -123,8 +124,9 @@ function EditItem() {
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 8 * 1024 * 1024) {
-      setMsg({ kind: "err", text: "Image too large (max 8MB)" });
+    const invalid = validateClosetImage(f);
+    if (invalid) {
+      setMsg({ kind: "err", text: invalid });
       return;
     }
     setFile(f);
@@ -196,7 +198,9 @@ function EditItem() {
       if (error) {
         // Save failed: delete the just-uploaded orphan to keep storage clean.
         if (newImagePath && typeof newImagePath === "string") {
-          void deleteClosetImage(newImagePath);
+          await deleteClosetImage(newImagePath).catch(() => {
+            throw new Error("Save and uploaded-photo cleanup failed. Please report the problem.");
+          });
         }
         throw error;
       }
@@ -204,7 +208,15 @@ function EditItem() {
       // Only after successful save, delete the old image.
       if (item.image_url && newImagePath !== undefined) {
         if (newImagePath !== item.image_url) {
-          void deleteClosetImage(item.image_url);
+          try {
+            await deleteClosetImage(item.image_url);
+          } catch {
+            setMsg({
+              kind: "err",
+              text: "Your changes were saved, but old-image cleanup failed. Please report the problem before retrying.",
+            });
+            return;
+          }
         }
       }
 

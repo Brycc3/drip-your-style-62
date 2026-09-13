@@ -69,7 +69,7 @@ export function CatalogImage({ src, alt, category, isDemo, className, eager }: P
             decoding="async"
             onLoad={() => setLoaded(true)}
             onError={() => setErrored(true)}
-            className={`h-full w-full object-cover transition-opacity duration-300 ${
+            className={`h-full w-full object-contain transition-opacity duration-300 motion-reduce:transition-none ${
               loaded ? "opacity-100" : "opacity-0"
             }`}
           />

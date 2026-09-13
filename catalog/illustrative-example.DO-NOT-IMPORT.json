@@ -1,0 +1,36 @@
+{
+  "products": [
+    {
+      "name": "ILLUSTRATIVE ONLY — navy cotton overshirt",
+      "brand": "OWNER MUST SUPPLY REAL BRAND",
+      "category": "shirt",
+      "kind": "clothing",
+      "color": "navy",
+      "description": "Illustrates field placement only. No such inventory or offer is asserted.",
+      "material": "cotton",
+      "fit": "regular",
+      "season": "fall",
+      "formality": "casual",
+      "vibe": "minimal",
+      "price_tier": "mid",
+      "current_price": 0,
+      "currency": "USD",
+      "availability": "out_of_stock",
+      "retailer": "OWNER MUST SUPPLY AUTHORIZED RETAILER",
+      "buy_url": "",
+      "image_url": "",
+      "image_rights_basis": "",
+      "source_type": "manual",
+      "source_name": "ILLUSTRATION — NOT A VERIFIED SOURCE",
+      "source_url": "",
+      "verification_method": "manual",
+      "affiliate": false,
+      "affiliate_disclosure": "",
+      "external_id": "",
+      "available_sizes": [],
+      "source_updated_at": "",
+      "accessory_subtype": "",
+      "fragrance_family": ""
+    }
+  ]
+}

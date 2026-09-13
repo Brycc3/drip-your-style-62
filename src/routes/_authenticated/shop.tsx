@@ -1,3 +1,4 @@
+import { OwnedImage } from "@/components/OwnedImage";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +29,7 @@ import type { ClosetItem } from "@/lib/outfit-generator";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { getRecentlySeen, pushRecentlySeen } from "@/lib/recently-seen";
 import { CatalogImage } from "@/components/CatalogImage";
+import { parseBudget, type ShoppingBudget } from "@/lib/style-preferences";
 import { toast } from "sonner";
 import {
   Bookmark,
@@ -75,7 +77,6 @@ const FRAG_FAMS: { v: FragranceFamily | "all"; l: string }[] = [
   { v: "leather", l: "Leather" },
 ];
 
-const CACHE_KEY = "drip.shop.cache.v5";
 const PAGE_SIZE = 12;
 const INITIAL = 12;
 
@@ -138,13 +139,15 @@ function ShopPage() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [source, setSource] = useState<(typeof CONDITIONS)[number]>("all");
-  const [scope, setScope] = useState<ShopScope>("all");
+  const [scope, setScope] = useState<ShopScope>("verified");
   const [showHow, setShowHow] = useState(false);
   const [tab, setTab] = useState<PrimaryTab>("clothing");
   const [accSub, setAccSub] = useState<AccessorySub | "all">("all");
   const [fragFam, setFragFam] = useState<FragranceFamily | "all">("all");
   const [sort, setSort] = useState<"gap" | "new">("gap");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [budget, setBudget] = useState<ShoppingBudget | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [recentlyShown, setRecentlyShown] = useState<Set<string>>(new Set());
@@ -153,18 +156,12 @@ function ShopPage() {
   const [closetUrls, setClosetUrls] = useState<Record<string, string>>({});
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
 
-  // Hydrate session cache for instant paint
+  // Remove legacy unscoped private closet caches. Never show another account's
+  // wardrobe while a fresh authenticated request is pending.
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { catalog: CatalogItem[]; closet: ClosetItem[] };
-        if (parsed.catalog?.length) {
-          setCatalog(parsed.catalog);
-          setCloset(parsed.closet ?? []);
-          setLoading(false);
-        }
-      }
+      for (let version = 1; version <= 6; version++)
+        sessionStorage.removeItem(`drip.shop.cache.v${version}`);
     } catch {
       /* ignore */
     }
@@ -176,7 +173,8 @@ function ShopPage() {
       const u = userData.user?.id ?? null;
       setUid(u);
       setRecentlyShown(getRecentlySeen("shop", u));
-      const [{ data: cat }, ci, fb] = await Promise.all([
+      if (!u) throw new Error("Sign in again to load Shop.");
+      const [{ data: cat, error: catError }, ci, fb, prefs] = await Promise.all([
         supabase
           .from("shop_catalog")
           .select("*")
@@ -188,27 +186,26 @@ function ShopPage() {
               .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
               .eq("user_id", u)
               .eq("archived", false)
-          : Promise.resolve({ data: [] as ClosetItem[] }),
+          : Promise.resolve({ data: [] as ClosetItem[], error: null }),
         u
           ? supabase.from("shop_feedback").select("catalog_id, saved, dismissed").eq("user_id", u)
           : Promise.resolve({
               data: [] as { catalog_id: string; saved: boolean; dismissed: boolean }[],
+              error: null,
             }),
+        supabase.from("user_preferences").select("budget_range").eq("user_id", u).maybeSingle(),
       ]);
+      if (catError || ci.error || fb.error || prefs.error)
+        throw new Error(
+          "Shop could not load. Your saved preferences have not been changed. Please retry.",
+        );
+      setBudget(parseBudget(prefs.data?.budget_range));
       const nextCatalog = dedupeCatalog((cat ?? []) as CatalogItem[]);
       const nextCloset = ((ci.data ?? []) as unknown[]).filter(
         (i) => (i as ClosetItem).kind !== "fragrance",
       ) as ClosetItem[];
       setCatalog(nextCatalog);
       setCloset(nextCloset);
-      try {
-        sessionStorage.setItem(
-          CACHE_KEY,
-          JSON.stringify({ catalog: nextCatalog, closet: nextCloset }),
-        );
-      } catch {
-        /* ignore */
-      }
       const dSet = new Set<string>(),
         sSet = new Set<string>();
       for (const r of (fb.data ?? []) as Array<{
@@ -230,7 +227,10 @@ function ShopPage() {
         );
         setClosetUrls(urls);
       }
-    })();
+    })().catch((e) => {
+      setLoadError(e instanceof Error ? e.message : "Shop could not load.");
+      setLoading(false);
+    });
   }, []);
 
   const distinctCatalog = useMemo(() => dedupeCatalog(catalog), [catalog]);
@@ -256,7 +256,7 @@ function ShopPage() {
       }
       return k === tab;
     });
-    const s = scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed });
+    const s = scoreCatalog(filtered, closet, { recentlyShown, seed: refreshSeed, budget });
     let ordered: GapScore[];
     if (sort === "new") {
       ordered = prioritizeUnseenCatalog(
@@ -284,6 +284,7 @@ function ShopPage() {
     recentlyShown,
     refreshSeed,
     immediatelyShown,
+    budget,
   ]);
 
   const visibleLimit =
@@ -319,9 +320,9 @@ function ShopPage() {
   const outfitIdeas = useMemo(() => {
     if (tab !== "outfits") return [];
     return scored
-      .filter((g) => g.matches.length > 0)
+      .filter((g) => g.exampleOutfit.length > 0)
       .slice(0, 12)
-      .map((g) => ({ pick: g, owned: g.matches.slice(0, 4) }));
+      .map((g) => ({ pick: g, owned: g.exampleOutfit }));
   }, [tab, scored]);
 
   function refresh() {
@@ -365,6 +366,15 @@ function ShopPage() {
   }
 
   const anyDemo = scored.some((g) => g.item.is_demo);
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-6">
+        <p>{loadError}</p>
+        <button className="btn-lime mt-4" onClick={() => window.location.reload()}>
+          Retry Shop
+        </button>
+      </div>
+    );
 
   return (
     <div className="space-y-5">
@@ -372,6 +382,14 @@ function ShopPage() {
         <p className="text-xs uppercase tracking-[0.3em] text-primary">Shop</p>
         <h1 className="mt-1 font-display text-4xl">Fill your gaps</h1>
         <p className="mt-2 text-sm text-muted-foreground">Based on your closet · {closetSummary}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {budget
+            ? `Per-item limit: ${budget.currency} ${budget.amount}`
+            : "No spending limit saved."}{" "}
+          <Link to="/profile" className="text-primary underline">
+            Edit budget & sizes
+          </Link>
+        </p>
         {anyDemo && (
           <p className="mt-2 rounded-md border border-border/70 bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
             DEMO catalog — sample products are not verified inventory and are not available for
@@ -405,16 +423,17 @@ function ShopPage() {
       </div>
 
       {/* Scope selector */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+      <div className="flex flex-wrap gap-2">
         {(
           [
-            { v: "all", l: "All" },
             { v: "verified", l: "Verified products" },
             { v: "demo", l: "Demo concepts" },
+            { v: "all", l: "All" },
           ] as const
         ).map((s) => (
           <button
             key={s.v}
+            aria-pressed={scope === s.v}
             onClick={() => {
               setScope(s.v);
               setVisible(INITIAL);
@@ -431,10 +450,11 @@ function ShopPage() {
       </div>
 
       {/* Primary tabs */}
-      <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+      <div className="flex flex-wrap gap-2">
         {PRIMARY_TABS.map((t) => (
           <button
             key={t.v}
+            aria-pressed={tab === t.v}
             onClick={() => {
               setTab(t.v);
               setVisible(INITIAL);
@@ -501,7 +521,7 @@ function ShopPage() {
 
       {/* Condition + refresh toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="-mx-5 flex flex-1 gap-2 overflow-x-auto px-5 scrollbar-hide">
+        <div className="flex w-full min-w-0 flex-wrap gap-2 pb-1">
           {CONDITIONS.map((s) => (
             <button
               key={s}
@@ -521,6 +541,7 @@ function ShopPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <select
+            aria-label="Sort products"
             value={sort}
             onChange={(e) => setSort(e.target.value as "gap" | "new")}
             className="rounded-full border border-border bg-background px-3 py-1.5 text-[11px] uppercase tracking-widest"
@@ -610,8 +631,8 @@ function VerifiedInventoryEmpty() {
     <div className="card-surface p-6 text-center text-sm text-muted-foreground">
       <p className="font-medium text-foreground">No verified products yet.</p>
       <p className="mt-2">
-        Inventory will appear only after an authorized retailer, affiliate feed, partner API, or
-        manually verified product is added.
+        Verified products will appear after authorized retailer, affiliate, partner, or manually
+        verified inventory is approved.
       </p>
     </div>
   );
@@ -652,7 +673,7 @@ function ItemCard({
           <span />
         )}
         <span className="rounded-full border border-primary/40 bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-          Fit {(g.score * 100).toFixed(0)}
+          Usefulness {(g.score * 100).toFixed(0)}
         </span>
       </div>
       <div className="p-3 flex-1 flex flex-col gap-2">
@@ -683,17 +704,25 @@ function ItemCard({
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
           <p className="font-display text-lg text-primary">
-            ${g.item.current_price ?? g.item.price}
+            {formatProductPrice(g.item.current_price ?? g.item.price, g.item.currency)}
             {g.item.original_price &&
               g.item.current_price &&
               g.item.original_price > g.item.current_price && (
                 <span className="ml-2 text-xs text-muted-foreground line-through">
-                  ${g.item.original_price}
+                  {formatProductPrice(g.item.original_price, g.item.currency)}
                 </span>
               )}
           </p>
         )}
         {verified && <VerifiedProductMetadata item={item} />}
+        <p className="text-[10px] uppercase tracking-widest text-foreground/75">
+          Complete outfit estimate: {g.outfitsUnlocked}
+          {g.countCapped ? "+" : ""}
+        </p>
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <p className="text-sm font-medium text-primary">{g.guidance}</p>
+          <p className="mt-1 text-xs leading-relaxed">{g.guidanceReason}</p>
+        </div>
         {g.duplicate && (
           <p className="flex items-center gap-1 text-[11px] text-destructive">
             <AlertTriangle className="h-3 w-3" /> {g.duplicateNote}
@@ -701,7 +730,7 @@ function ItemCard({
         )}
         <div>
           <p className="text-[10px] uppercase tracking-widest text-foreground/80">
-            Why this belongs in your closet
+            Wardrobe usefulness
           </p>
           <ul className="mt-1 space-y-0.5">
             {g.reasons.map((r, i) => (
@@ -711,6 +740,14 @@ function ItemCard({
             ))}
           </ul>
         </div>
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer py-2">What to check before deciding</summary>
+          <ul className="space-y-1">
+            {g.uncertainties.map((u) => (
+              <li key={u}>{u}</li>
+            ))}
+          </ul>
+        </details>
         {g.matches.length > 0 && (
           <p className="text-[11px] text-foreground/70">
             Pairs with:{" "}
@@ -787,6 +824,22 @@ function formatCheckedAt(value?: string | null): string {
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+function formatProductPrice(
+  value: number | null | undefined,
+  currency: string | null | undefined = "USD",
+): string {
+  if (value === null || value === undefined) return "";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${currency || "USD"} ${value.toFixed(2)}`;
+  }
 }
 
 function formatSourceType(value?: string | null): string {
@@ -871,7 +924,7 @@ function OutfitCard({
               className="aspect-square bg-surface-2 relative rounded-md overflow-hidden"
             >
               {closetUrls[o.id] ? (
-                <img
+                <OwnedImage
                   src={closetUrls[o.id]}
                   alt={o.name}
                   loading="lazy"
@@ -900,7 +953,7 @@ function OutfitCard({
         </div>
         {(g.item.current_price ?? g.item.price) != null && (
           <p className="font-display text-lg text-primary">
-            ${g.item.current_price ?? g.item.price}
+            {formatProductPrice(g.item.current_price ?? g.item.price, g.item.currency)}
           </p>
         )}
         {verified && <VerifiedProductMetadata item={item} />}

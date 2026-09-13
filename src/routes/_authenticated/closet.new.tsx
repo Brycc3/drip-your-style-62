@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadClosetImage } from "@/lib/closet-storage";
+import { uploadClosetImage, deleteClosetImage } from "@/lib/closet-storage";
+import { validateClosetImage } from "@/lib/closet-image-validation";
+import { readStylePreferences } from "@/lib/style-preferences";
 import { toast } from "sonner";
 import { Camera } from "lucide-react";
 
@@ -68,11 +70,41 @@ function NewItem() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sizes, setSizes] = useState({ top: "", bottom: "", shoe: "" });
+  useEffect(() => {
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: prefs } = await supabase
+        .from("user_preferences")
+        .select("sizes")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+      setSizes(readStylePreferences(prefs).sizes);
+    });
+  }, []);
+  useEffect(() => {
+    const size =
+      form.category === "shoes"
+        ? sizes.shoe
+        : form.category === "bottom"
+          ? sizes.bottom
+          : form.category === "top" || form.category === "outerwear"
+            ? sizes.top
+            : "";
+    setForm((f) => ({ ...f, size }));
+  }, [form.category, sizes]);
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 8 * 1024 * 1024) return toast.error("Image too large (max 8MB)");
+    const invalid = validateClosetImage(f);
+    if (invalid) return toast.error(invalid);
     setFile(f);
     setPreview(URL.createObjectURL(f));
   }
@@ -85,13 +117,17 @@ function NewItem() {
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
 
     setSaving(true);
+    let uploaded: string | null = null;
     try {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
       if (!uid) throw new Error("Not signed in");
 
       let image_url: string | null = null;
-      if (file) image_url = await uploadClosetImage(uid, file);
+      if (file) {
+        image_url = await uploadClosetImage(uid, file);
+        uploaded = image_url;
+      }
 
       const { error } = await supabase.from("closet_items").insert({
         user_id: uid,
@@ -110,9 +146,18 @@ function NewItem() {
         image_url,
       });
       if (error) throw error;
+      uploaded = null;
       toast.success("Added to your closet");
       navigate({ to: "/closet" });
     } catch (e) {
+      if (uploaded)
+        try {
+          await deleteClosetImage(uploaded);
+        } catch {
+          toast.error(
+            "The photo cleanup failed; retry or report the problem. No closet item was saved.",
+          );
+        }
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
@@ -135,7 +180,12 @@ function NewItem() {
             <span className="text-xs uppercase tracking-widest">Add photo</span>
           </div>
         )}
-        <input type="file" accept="image/*" onChange={onFile} className="hidden" />
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={onFile}
+          className="hidden"
+        />
       </label>
 
       <Field label="Name*">

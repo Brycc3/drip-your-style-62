@@ -1,3 +1,5 @@
+import { OwnedImage } from "@/components/OwnedImage";
+import { requireQuerySuccess } from "@/lib/query-errors";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 type Counts = StarterCounts & { total: number; outer: number; fragrances: number };
 
 function HomePage() {
+  const [loadError, setLoadError] = useState(false);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [recent, setRecent] = useState<
@@ -34,7 +37,7 @@ function HomePage() {
     (async () => {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
-      if (!uid) return;
+      if (!uid) throw new Error("Session expired");
 
       const [{ data: profile }, { data: items }, { count: fragCount }, { data: recentItems }] =
         await Promise.all([
@@ -55,7 +58,7 @@ function HomePage() {
             .eq("archived", false)
             .order("created_at", { ascending: false })
             .limit(6),
-        ]);
+        ]).then(requireQuerySuccess);
       setDisplayName(profile?.display_name ?? "");
       if (items) {
         const starter = starterCountsFromItems(items);
@@ -76,17 +79,41 @@ function HomePage() {
       const list = recentItems ?? [];
       setRecent(list);
       if (list.length) setUrls(await getSignedUrlsByItem(list));
-    })();
+    })().catch(() => setLoadError(true));
   }, []);
 
   const empty = counts && counts.total === 0;
   const progress = counts ? computeStarterProgress(counts) : null;
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>Your wardrobe summary could not load.</p>
+        <button className="btn-lime mt-3" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
+  if (!counts) return <p role="status">Loading your wardrobe…</p>;
 
   return (
     <div className="space-y-8">
       <section>
         <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Welcome back</p>
         <h1 className="mt-1 font-display text-4xl">{displayName || "Get dressed"}</h1>
+        <Link
+          to="/shop"
+          className="mt-5 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-4"
+        >
+          <span>
+            <span className="block text-sm font-semibold text-primary">
+              Shop your wardrobe gaps
+            </span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Verified products first. Demo concepts stay separate.
+            </span>
+          </span>
+          <ShoppingBag className="h-5 w-5 shrink-0 text-primary" />
+        </Link>
       </section>
 
       {empty ? (
@@ -129,7 +156,7 @@ function HomePage() {
                 {recent.map((r) => (
                   <li key={r.id} className="card-surface aspect-square overflow-hidden text-xs">
                     {urls[r.id] ? (
-                      <img
+                      <OwnedImage
                         src={urls[r.id]}
                         alt={r.name}
                         loading="lazy"

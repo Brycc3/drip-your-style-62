@@ -10,6 +10,7 @@ import {
   CATALOG_ACCESSORY_SUBTYPES,
   CATALOG_CATEGORIES,
   CATALOG_CONDITIONS,
+  CATALOG_CURRENCIES,
   CATALOG_FRAGRANCE_FAMILIES,
   CATALOG_IMAGE_RIGHTS,
   CATALOG_IMAGE_WARNING,
@@ -202,6 +203,12 @@ function AdminCatalogPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            to="/admin/catalog/imports"
+            className="rounded-full border border-primary/60 px-3 py-1.5 text-[11px] uppercase tracking-widest text-primary hover:bg-primary/10"
+          >
+            Real-product imports
+          </Link>
           <Link
             to="/admin/moderation"
             className="rounded-full border border-border px-3 py-1.5 text-[11px] uppercase tracking-widest hover:bg-surface-2"
@@ -410,8 +417,12 @@ function EditorModal({
     retailer: initial?.retailer ?? "",
     buy_url: initial?.buy_url ?? "",
     image_url: initial?.image_url ?? "",
+    external_id: initial?.external_id ?? "",
     current_price: initial?.current_price ?? undefined,
     original_price: initial?.original_price ?? undefined,
+    currency: (initial?.currency as CatalogAddInput["currency"]) ?? "USD",
+    available_sizes: initial?.available_sizes ?? [],
+    source_updated_at: initial?.source_updated_at ?? "",
     availability: (initial?.availability as CatalogAddInput["availability"]) ?? "in_stock",
     source_type: (initial?.source_type as CatalogAddInput["source_type"]) ?? "manual",
     source_name: initial?.source_name ?? "",
@@ -560,6 +571,12 @@ function EditorModal({
             full
             error={errors.image_url}
           />
+          <Text
+            label="External product ID"
+            value={draft.external_id ?? ""}
+            onChange={(v) => set("external_id", v)}
+            error={errors.external_id}
+          />
           <Num
             label="Current price*"
             value={draft.current_price ?? null}
@@ -571,6 +588,27 @@ function EditorModal({
             value={draft.original_price ?? null}
             onChange={(v) => set("original_price", v as CatalogAddInput["original_price"])}
             error={errors.original_price}
+          />
+          <Select
+            label="Currency*"
+            value={draft.currency ?? "USD"}
+            onChange={(v) => set("currency", v as CatalogAddInput["currency"])}
+            options={[...CATALOG_CURRENCIES]}
+            error={errors.currency}
+          />
+          <Text
+            label="Available sizes (pipe-separated)"
+            value={(draft.available_sizes ?? []).join(" | ")}
+            onChange={(v) =>
+              set(
+                "available_sizes",
+                v
+                  .split("|")
+                  .map((size) => size.trim())
+                  .filter(Boolean),
+              )
+            }
+            error={errors.available_sizes}
           />
           <Select
             label="Availability*"
@@ -598,6 +636,13 @@ function EditorModal({
             onChange={(v) => set("source_url", v)}
             full
             error={errors.source_url}
+          />
+          <Text
+            label="Last source update (ISO, optional)"
+            value={draft.source_updated_at ?? ""}
+            onChange={(v) => set("source_updated_at", v)}
+            full
+            error={errors.source_updated_at}
           />
           <Select
             label="Image rights basis*"
@@ -665,10 +710,11 @@ function EditorModal({
             />
           )}
           <Text
-            label="Description"
+            label="Description*"
             value={draft.description ?? ""}
             onChange={(v) => set("description", v)}
             full
+            error={errors.description}
           />
         </div>
 

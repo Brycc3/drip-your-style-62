@@ -569,12 +569,155 @@ export type Database = {
           },
         ]
       }
+      catalog_import_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          duplicate_row_count: number
+          id: string
+          invalid_row_count: number
+          source_name: string
+          source_type: string
+          source_url: string | null
+          status: string
+          total_row_count: number
+          updated_at: string
+          uploaded_file_name: string
+          valid_row_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          duplicate_row_count?: number
+          id?: string
+          invalid_row_count?: number
+          source_name: string
+          source_type: string
+          source_url?: string | null
+          status?: string
+          total_row_count?: number
+          updated_at?: string
+          uploaded_file_name: string
+          valid_row_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          duplicate_row_count?: number
+          id?: string
+          invalid_row_count?: number
+          source_name?: string
+          source_type?: string
+          source_url?: string | null
+          status?: string
+          total_row_count?: number
+          updated_at?: string
+          uploaded_file_name?: string
+          valid_row_count?: number
+        }
+        Relationships: []
+      }
+      catalog_import_rows: {
+        Row: {
+          batch_id: string
+          catalog_id: string | null
+          created_at: string
+          duplicate_reason: string | null
+          id: string
+          normalized_data: Json
+          proposed_action: string
+          raw_data: Json
+          resolution_action: string | null
+          resolution_catalog_id: string | null
+          resolution_confirmed: boolean
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          row_number: number
+          updated_at: string
+          validation_errors: string[]
+          warnings: string[]
+        }
+        Insert: {
+          batch_id: string
+          catalog_id?: string | null
+          created_at?: string
+          duplicate_reason?: string | null
+          id?: string
+          normalized_data?: Json
+          proposed_action: string
+          raw_data: Json
+          resolution_action?: string | null
+          resolution_catalog_id?: string | null
+          resolution_confirmed?: boolean
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          row_number: number
+          updated_at?: string
+          validation_errors?: string[]
+          warnings?: string[]
+        }
+        Update: {
+          batch_id?: string
+          catalog_id?: string | null
+          created_at?: string
+          duplicate_reason?: string | null
+          id?: string
+          normalized_data?: Json
+          proposed_action?: string
+          raw_data?: Json
+          resolution_action?: string | null
+          resolution_catalog_id?: string | null
+          resolution_confirmed?: boolean
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          row_number?: number
+          updated_at?: string
+          validation_errors?: string[]
+          warnings?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_import_rows_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_import_rows_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_import_rows_resolution_catalog_id_fkey"
+            columns: ["resolution_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_catalog: {
         Row: {
           accessory_subtype: string | null
           affiliate: boolean
           affiliate_disclosure: string | null
           archived: boolean
+          available_sizes: string[]
           availability: string
           brand: string | null
           buy_url: string | null
@@ -583,6 +726,7 @@ export type Database = {
           condition: Database["public"]["Enums"]["item_condition"]
           created_at: string
           current_price: number | null
+          currency: string
           description: string | null
           external_id: string | null
           fit: string | null
@@ -604,6 +748,7 @@ export type Database = {
           source: string | null
           source_name: string | null
           source_type: string | null
+          source_updated_at: string | null
           source_url: string | null
           tags: string[]
           verification_method: string | null
@@ -615,6 +760,7 @@ export type Database = {
           affiliate?: boolean
           affiliate_disclosure?: string | null
           archived?: boolean
+          available_sizes?: string[]
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -623,6 +769,7 @@ export type Database = {
           condition?: Database["public"]["Enums"]["item_condition"]
           created_at?: string
           current_price?: number | null
+          currency?: string
           description?: string | null
           external_id?: string | null
           fit?: string | null
@@ -644,6 +791,7 @@ export type Database = {
           source?: string | null
           source_name?: string | null
           source_type?: string | null
+          source_updated_at?: string | null
           source_url?: string | null
           tags?: string[]
           verification_method?: string | null
@@ -655,6 +803,7 @@ export type Database = {
           affiliate?: boolean
           affiliate_disclosure?: string | null
           archived?: boolean
+          available_sizes?: string[]
           availability?: string
           brand?: string | null
           buy_url?: string | null
@@ -663,6 +812,7 @@ export type Database = {
           condition?: Database["public"]["Enums"]["item_condition"]
           created_at?: string
           current_price?: number | null
+          currency?: string
           description?: string | null
           external_id?: string | null
           fit?: string | null
@@ -684,6 +834,7 @@ export type Database = {
           source?: string | null
           source_name?: string | null
           source_type?: string | null
+          source_updated_at?: string | null
           source_url?: string | null
           tags?: string[]
           verification_method?: string | null
@@ -864,7 +1015,11 @@ export type Database = {
       }
       attach_problem_report_screenshot: {
         Args: { _path: string; _report: string }
-        Returns: boolean
+        Returns: undefined
+      }
+      approve_valid_catalog_import_rows: {
+        Args: { _batch: string }
+        Returns: number
       }
       block_and_unfollow: { Args: { _blocked: string }; Returns: undefined }
       blocks_between: { Args: { _a: string; _b: string }; Returns: boolean }
@@ -873,14 +1028,44 @@ export type Database = {
         Args: { _followee: string; _follower: string }
         Returns: boolean
       }
+      import_catalog_batch: { Args: { _batch: string }; Returns: Json }
+      get_my_catalog_import_export: { Args: never; Returns: Json }
+      get_my_account_storage_cleanup_paths: { Args: never; Returns: Json }
       outfit_signature: { Args: { _outfit_id: string }; Returns: string }
       record_item_wear: {
         Args: { _item_id: string; _worn_on?: string }
         Returns: string
       }
       record_outfit_wear: { Args: { _outfit_id: string }; Returns: undefined }
+      prepare_catalog_import_account_deletion: { Args: never; Returns: Json }
       remove_item_wear: { Args: { _wear_id: string }; Returns: undefined }
       remove_outfit_wear: { Args: { _wear_id: string }; Returns: undefined }
+      resolve_catalog_import_row: {
+        Args: {
+          _action: string
+          _catalog_target?: string | null
+          _confirm_create?: boolean
+          _row: string
+        }
+        Returns: undefined
+      }
+      review_catalog_import_row: {
+        Args: { _decision: string; _row: string }
+        Returns: undefined
+      }
+      stage_catalog_import_batch: {
+        Args: { _batch: Json; _rows: Json }
+        Returns: Json
+      }
+      update_catalog_import_row_and_replan: {
+        Args: {
+          _normalized: Json
+          _row: string
+          _validation_errors: string[]
+          _warnings: string[]
+        }
+        Returns: Json
+      }
       verify_shop_catalog_item: {
         Args: { _catalog_id: string }
         Returns: string

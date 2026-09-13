@@ -14,7 +14,7 @@ export function StyleTabs() {
   return (
     <nav
       aria-label="Style sections"
-      className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-hide"
+      className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-hide md:flex-wrap"
     >
       {TABS.map((t) => {
         const active = pathname === t.to;
@@ -23,6 +23,7 @@ export function StyleTabs() {
           <Link
             key={t.to}
             to={t.to}
+            aria-current={active ? "page" : undefined}
             className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest transition-colors ${
               active
                 ? "border-primary bg-primary text-primary-foreground"

@@ -1,3 +1,4 @@
+import { OwnedImage } from "@/components/OwnedImage";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +8,6 @@ import { StyleTabs } from "@/components/StyleTabs";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import { PublishDialog } from "@/components/PublishDialog";
 
-
 export const Route = createFileRoute("/_authenticated/saved")({
   head: () => ({
     meta: [{ title: "Saved Outfits — DRIP" }, { name: "robots", content: "noindex" }],
@@ -16,6 +16,8 @@ export const Route = createFileRoute("/_authenticated/saved")({
 });
 
 type Outfit = {
+  is_shopping_idea: boolean;
+  explanation: string | null;
   id: string;
   name: string | null;
   occasion: string | null;
@@ -29,7 +31,6 @@ type Outfit = {
   created_at: string;
 };
 
-
 type OutfitPieceRef = {
   outfit_id: string;
   closet_item_id: string;
@@ -38,7 +39,8 @@ type OutfitPieceRef = {
 };
 
 const FILTERS = [
-  { v: "all", l: "All" },
+  { v: "all", l: "Owned outfits" },
+  { v: "ideas", l: "Shopping ideas" },
   { v: "pinned", l: "Pinned" },
   { v: "private", l: "Private" },
   { v: "shared", l: "Shared" },
@@ -53,49 +55,59 @@ function SavedPage() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<FilterKey>("all");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
   const [publishing, setPublishing] = useState<Outfit | null>(null);
 
-
   async function load() {
+    setLoadError(false);
     setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const u = userData.user?.id ?? null;
-    setUid(u);
-    if (!u) {
-      setLoading(false);
-      return;
-    }
-    const { data: outfits } = await supabase
-      .from("saved_outfits")
-      .select("id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,comments_enabled,created_at")
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const u = userData.user?.id ?? null;
+      setUid(u);
+      if (!u) {
+        setLoading(false);
+        return;
+      }
+      const { data: outfits, error: outfitError } = await supabase
+        .from("saved_outfits")
+        .select(
+          "id,name,occasion,vibe,visibility,score,worn_at,pinned,share_slug,comments_enabled,created_at,is_shopping_idea,explanation",
+        )
 
-      .eq("user_id", u)
-      .eq("is_shopping_idea", false)
-      .order("pinned", { ascending: false })
-      .order("created_at", { ascending: false });
-    const list = (outfits ?? []) as Outfit[];
-    setRows(list);
-    setLoading(false);
-    if (!list.length) return;
-    const ids = list.map((o) => o.id);
-    const { data: oi } = await supabase
-      .from("outfit_items")
-      .select("outfit_id, closet_item_id, role, closet_items(id,name,image_url)")
-      .in("outfit_id", ids);
-    const byOutfit: Record<string, OutfitPieceRef[]> = {};
-    for (const r of (oi ?? []) as unknown as OutfitPieceRef[]) {
-      byOutfit[r.outfit_id] = byOutfit[r.outfit_id] ?? [];
-      byOutfit[r.outfit_id].push(r);
+        .eq("user_id", u)
+        .order("pinned", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (outfitError) throw outfitError;
+      const list = (outfits ?? []) as Outfit[];
+      setRows(list);
+      setLoading(false);
+      if (!list.length) return;
+      const ids = list.map((o) => o.id);
+      const { data: oi, error: piecesError } = await supabase
+        .from("outfit_items")
+        .select("outfit_id, closet_item_id, role, closet_items(id,name,image_url)")
+        .in("outfit_id", ids);
+      if (piecesError) throw piecesError;
+      const byOutfit: Record<string, OutfitPieceRef[]> = {};
+      for (const r of (oi ?? []) as unknown as OutfitPieceRef[]) {
+        byOutfit[r.outfit_id] = byOutfit[r.outfit_id] ?? [];
+        byOutfit[r.outfit_id].push(r);
+      }
+      setPieces(byOutfit);
+      const allItems = Object.values(byOutfit)
+        .flat()
+        .map((r) => r.closet_items)
+        .filter((c): c is { id: string; name: string; image_url: string | null } => !!c);
+      setUrls(await getSignedUrlsByItem(allItems));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    setPieces(byOutfit);
-    const allItems = Object.values(byOutfit)
-      .flat()
-      .map((r) => r.closet_items)
-      .filter((c): c is { id: string; name: string; image_url: string | null } => !!c);
-    setUrls(await getSignedUrlsByItem(allItems));
   }
 
   useEffect(() => {
@@ -103,19 +115,21 @@ function SavedPage() {
   }, []);
 
   const filtered = useMemo(() => {
+    if (filter === "ideas") return rows.filter((r) => r.is_shopping_idea);
+    const owned = rows.filter((r) => !r.is_shopping_idea);
     switch (filter) {
       case "pinned":
-        return rows.filter((r) => r.pinned);
+        return owned.filter((r) => r.pinned);
       case "private":
-        return rows.filter((r) => r.visibility === "private");
+        return owned.filter((r) => r.visibility === "private");
       case "shared":
-        return rows.filter((r) => r.visibility !== "private");
+        return owned.filter((r) => r.visibility !== "private");
       case "recent":
-        return rows.filter((r) => !!r.worn_at);
+        return owned.filter((r) => !!r.worn_at);
       case "never":
-        return rows.filter((r) => !r.worn_at);
+        return owned.filter((r) => !r.worn_at);
       default:
-        return rows;
+        return owned;
     }
   }, [rows, filter]);
 
@@ -139,6 +153,7 @@ function SavedPage() {
   }
 
   function startPublish(o: Outfit) {
+    if (o.is_shopping_idea) return;
     setPublishing(o);
   }
 
@@ -153,7 +168,12 @@ function SavedPage() {
     toast.success("Now private");
   }
 
-  async function doPublish(v: { caption: string; vibe: string; occasion: string; comments_enabled: boolean }) {
+  async function doPublish(v: {
+    caption: string;
+    vibe: string;
+    occasion: string;
+    comments_enabled: boolean;
+  }) {
     if (!publishing) return;
     const { error } = await supabase
       .from("saved_outfits")
@@ -165,12 +185,22 @@ function SavedPage() {
         visibility: "public",
       })
       .eq("id", publishing.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
 
     setRows((rs) =>
       rs.map((r) =>
         r.id === publishing.id
-          ? { ...r, name: v.caption.trim() || null, vibe: v.vibe.trim() || null, occasion: v.occasion.trim() || null, comments_enabled: v.comments_enabled, visibility: "public" as const }
+          ? {
+              ...r,
+              name: v.caption.trim() || null,
+              vibe: v.vibe.trim() || null,
+              occasion: v.occasion.trim() || null,
+              comments_enabled: v.comments_enabled,
+              visibility: "public" as const,
+            }
           : r,
       ),
     );
@@ -178,8 +208,8 @@ function SavedPage() {
     toast.success("Published — only this outfit is public");
   }
 
-
   async function markWorn(o: Outfit) {
+    if (o.is_shopping_idea) return toast.error("Shopping ideas are not owned outfits.");
     const { error } = await supabase.rpc("record_outfit_wear", { _outfit_id: o.id });
     if (error) return toast.error(error.message);
     setRows((rs) =>
@@ -198,19 +228,25 @@ function SavedPage() {
         occasion: o.occasion,
         vibe: o.vibe,
         visibility: "private",
+        is_shopping_idea: o.is_shopping_idea,
+        explanation: o.explanation,
       })
       .select("id")
       .single();
     if (error || !dup) return toast.error(error?.message ?? "Copy failed");
     const src = pieces[o.id] ?? [];
     if (src.length) {
-      await supabase.from("outfit_items").insert(
+      const { error: copyError } = await supabase.from("outfit_items").insert(
         src.map((p) => ({
           outfit_id: dup.id,
           closet_item_id: p.closet_item_id,
           role: p.role,
         })),
       );
+      if (copyError) {
+        await supabase.from("saved_outfits").delete().eq("id", dup.id);
+        return toast.error("Couldn't copy the outfit pieces. Please retry.");
+      }
     }
     toast.success("Duplicated");
     void load();
@@ -231,6 +267,15 @@ function SavedPage() {
     toast.success("Link copied");
   }
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>Saved outfits could not load. Your saved looks have not been removed.</p>
+        <button className="btn-lime mt-3" onClick={() => void load()}>
+          Retry
+        </button>
+      </div>
+    );
   return (
     <div className="space-y-5">
       <StyleTabs />
@@ -282,7 +327,7 @@ function SavedPage() {
                   {ps.slice(0, 4).map((p) => (
                     <div key={p.closet_item_id} className="aspect-square bg-surface">
                       {p.closet_items && urls[p.closet_items.id] ? (
-                        <img
+                        <OwnedImage
                           src={urls[p.closet_items.id]}
                           alt={p.closet_items.name}
                           loading="lazy"
@@ -303,6 +348,16 @@ function SavedPage() {
                   )}
                 </div>
                 <div className="p-3 space-y-2">
+                  {o.is_shopping_idea && (
+                    <div className="rounded-lg border border-primary/30 p-3 text-xs">
+                      <p className="font-medium text-primary">Shopping idea · not fully owned</p>
+                      <p className="mt-1 text-muted-foreground">{o.explanation}</p>
+                      <p className="mt-1">
+                        Snapshot only; recheck Shop before buying. This does not add items to your
+                        closet.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       {renaming === o.id ? (
@@ -364,7 +419,8 @@ function SavedPage() {
                     {o.visibility === "private" ? (
                       <button
                         onClick={() => startPublish(o)}
-                        className="inline-flex items-center gap-1 rounded-full border border-primary/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10"
+                        disabled={o.is_shopping_idea}
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Globe className="h-3 w-3" /> Publish
                       </button>
@@ -387,7 +443,8 @@ function SavedPage() {
                     )}
                     <button
                       onClick={() => markWorn(o)}
-                      className="inline-flex items-center gap-1 rounded-full border border-primary/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10"
+                      disabled={o.is_shopping_idea}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Bookmark className="h-3 w-3" /> Mark worn
                     </button>
@@ -423,5 +480,4 @@ function SavedPage() {
       />
     </div>
   );
-
 }

@@ -1,3 +1,4 @@
+import { OwnedImage } from "@/components/OwnedImage";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,17 +44,19 @@ function ClosetPage() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<FilterKey>("all");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
-      if (!uid) return;
-      const { data } = await supabase
+      if (!uid) throw new Error("Session expired");
+      const { data, error } = await supabase
         .from("closet_items")
         .select("id,name,category,kind,color,brand,image_url,archived")
         .eq("user_id", uid)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       const list = (data ?? []) as Item[];
       setItems(list);
       setLoading(false);
@@ -63,7 +66,10 @@ function ClosetPage() {
           .map(async (i) => [i.id, (await getSignedUrl(i.image_url!)) ?? ""] as const),
       );
       setUrls(Object.fromEntries(entries));
-    })();
+    })().catch(() => {
+      setLoadError(true);
+      setLoading(false);
+    });
   }, []);
 
   const filtered = useMemo(() => {
@@ -74,6 +80,15 @@ function ClosetPage() {
     return active.filter((i) => i.category === filter && i.kind !== "fragrance");
   }, [items, filter]);
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>Your closet could not load. Your pieces have not been removed.</p>
+        <button className="btn-lime mt-3" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between">
@@ -177,7 +192,12 @@ function Body({ item, url }: { item: Item; url?: string }) {
     <>
       <div className="aspect-[3/4] bg-surface-2">
         {url ? (
-          <img src={url} alt={item.name} loading="lazy" className="h-full w-full object-cover" />
+          <OwnedImage
+            src={url}
+            alt={item.name}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-widest text-muted-foreground">
             No photo
@@ -198,7 +218,12 @@ function FragBody({ item, url }: { item: Item; url?: string }) {
     <>
       <div className="aspect-[3/4] bg-surface-2 flex items-center justify-center">
         {url ? (
-          <img src={url} alt={item.name} loading="lazy" className="h-full w-full object-cover" />
+          <OwnedImage
+            src={url}
+            alt={item.name}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <FlaskConical className="h-10 w-10 text-primary/70" />
         )}

@@ -19,6 +19,7 @@ function verifiedFixture(overrides: Partial<VerifiableCatalogItem> = {}): Verifi
     color: "olive",
     price: 148,
     current_price: 148,
+    currency: "USD",
     condition: "new",
     image_url: "https://cdn.northline.example/products/field-overshirt.jpg",
     formality: "casual",

@@ -68,6 +68,7 @@ describe("outfit-generator scorers", () => {
       T({ id: "b1", category: "bottom" }),
       T({ id: "b2", category: "bottom" }),
       T({ id: "b3", category: "bottom" }),
+      T({ id: "s1", category: "shoes", kind: "shoes" }),
     ];
     const a = generateOutfits(
       closet,
@@ -147,7 +148,7 @@ describe("scent pairing", () => {
 });
 
 describe("shop gap scorer", () => {
-  it("flags duplicates", () => {
+  it("does not claim a duplicate from brand and color alone", () => {
     const owned: ClosetItem[] = [T({ brand: "Nike", color: "black", category: "shoes" })];
     const item: CatalogItem = {
       id: "x",
@@ -162,7 +163,7 @@ describe("shop gap scorer", () => {
       season: "all",
     };
     const gap = scoreGap(item, owned);
-    expect(gap.duplicate).toBe(true);
+    expect(gap.duplicate).toBe(false);
   });
   it("rewards filling thin categories", () => {
     const item: CatalogItem = {

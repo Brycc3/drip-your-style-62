@@ -63,25 +63,34 @@ const empty: Omit<Fragrance, "id"> = {
 function ScentsPage() {
   const [scents, setScents] = useState<Fragrance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState<
     Fragrance | (Omit<Fragrance, "id"> & { id?: string }) | null
   >(null);
   const [uid, setUid] = useState<string | null>(null);
 
   async function load() {
-    const { data: userData } = await supabase.auth.getUser();
-    const u = userData.user?.id ?? null;
-    setUid(u);
-    if (!u) return;
-    const { data } = await supabase
-      .from("fragrances")
-      .select(
-        "id,name,brand,family,top_notes,heart_notes,base_notes,season,projection,longevity,occasions,notes",
-      )
-      .eq("user_id", u)
-      .order("name");
-    setScents((data ?? []) as Fragrance[]);
-    setLoading(false);
+    setLoadError(false);
+    setLoading(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const u = userData.user?.id ?? null;
+      setUid(u);
+      if (!u) throw new Error("Session expired");
+      const { data, error } = await supabase
+        .from("fragrances")
+        .select(
+          "id,name,brand,family,top_notes,heart_notes,base_notes,season,projection,longevity,occasions,notes",
+        )
+        .eq("user_id", u)
+        .order("name");
+      if (error) throw error;
+      setScents((data ?? []) as Fragrance[]);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     void load();
@@ -123,6 +132,15 @@ function ScentsPage() {
     void load();
   }
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>Your scent shelf could not load.</p>
+        <button className="btn-lime mt-3" onClick={() => void load()}>
+          Retry
+        </button>
+      </div>
+    );
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between">

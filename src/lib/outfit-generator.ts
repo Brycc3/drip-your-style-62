@@ -11,6 +11,7 @@ export type ClosetItem = {
   formality: string | null;
   brand: string | null;
   image_url: string | null;
+  archived?: boolean;
 };
 
 export type Fragrance = {
@@ -39,6 +40,15 @@ const NEUTRALS = new Set([
   "brown",
   "khaki",
   "olive",
+  "bone",
+  "graphite",
+  "sand",
+  "indigo",
+  "taupe",
+  "espresso",
+  "ash",
+  "fog",
+  "chalk",
 ]);
 
 const FORMALITY_RANK: Record<string, number> = {
@@ -186,7 +196,7 @@ function normColor(c: string | null): string | null {
 
 export function colorHarmonyScore(colors: (string | null)[]): { score: number; note: string } {
   const cs = colors.map(normColor).filter(Boolean) as string[];
-  if (cs.length === 0) return { score: 0.5, note: "neutral palette" };
+  if (cs.length === 0) return { score: 0.5, note: "color tags missing — palette not assessed" };
   const neutrals = cs.filter((c) => NEUTRALS.has(c));
   const nonN = cs.filter((c) => !NEUTRALS.has(c));
   if (nonN.length === 0) return { score: 1, note: `all-neutral palette (${cs.join(", ")})` };
@@ -294,12 +304,19 @@ export function generateOutfits(
   disliked: Set<string>,
   count = 5,
   rotation = 0,
+  favoriteColors: string[] = [],
 ): OutfitPick[] {
+  closet = [
+    ...new Map(
+      closet.filter((i) => !i.archived && i.kind !== "fragrance").map((i) => [i.id, i]),
+    ).values(),
+  ];
   const tops = closet.filter((i) => i.category === "top");
   const bottoms = closet.filter((i) => i.category === "bottom");
   const outers = closet.filter((i) => i.category === "outerwear");
   const shoes = closet.filter((i) => i.category === "shoes");
   const accs = closet.filter((i) => i.category === "accessory");
+  if (!tops.length || !bottoms.length || !shoes.length) return [];
   const profile = OCCASION_PROFILES[ask.occasion];
 
   const results: OutfitPick[] = [];
@@ -322,11 +339,17 @@ export function generateOutfits(
             const formality = formalityScore(pieces, ask.dressCode);
             const occ = occasionScore(pieces, ask.occasion);
             const pref = preferenceScore(pieces, liked, disliked);
+            const favoriteHits = pieces.filter(
+              (p) => p.color && favoriteColors.some((c) => normColor(c) === normColor(p.color)),
+            ).length;
+            const favoriteBonus = Math.min(0.05, favoriteHits * 0.015);
 
             const vibeBlob = pieces
               .map((p) => `${p.name} ${p.brand ?? ""}`.toLowerCase())
               .join(" ");
-            const vibeBonus = vibes.some((v) => vibeBlob.includes(v.toLowerCase())) ? 0.05 : 0;
+            const vibeBonus = [...vibes, ask.vibe].some((v) => vibeBlob.includes(v.toLowerCase()))
+              ? 0.05
+              : 0;
 
             const worn = pieces.filter((p) => wornRecently.has(p.id)).length;
             const diversity = Math.max(0, 1 - worn * 0.2);
@@ -339,7 +362,8 @@ export function generateOutfits(
               occ.score * 0.18 +
               pref.score * 0.1 +
               diversity * 0.07 +
-              vibeBonus;
+              vibeBonus +
+              favoriteBonus;
 
             results.push({
               top,
@@ -347,7 +371,7 @@ export function generateOutfits(
               outerwear: outer,
               shoes: shoe,
               accessory: acc,
-              score,
+              score: Math.min(1, score),
               breakdown: {
                 color: color.score,
                 silhouette: silh.score,
@@ -357,7 +381,19 @@ export function generateOutfits(
                 preference: pref.score,
                 diversity,
               },
-              rationale: [color.note, silh.note, season.note, formality.note, occ.note, pref.note],
+              rationale: [
+                color.note,
+                silh.note,
+                season.note,
+                formality.note,
+                occ.note,
+                pref.note,
+                ...(favoriteHits
+                  ? [
+                      `${favoriteHits} ${favoriteHits === 1 ? "piece echoes" : "pieces echo"} your saved favorite colors`,
+                    ]
+                  : []),
+              ],
             });
           }
         }

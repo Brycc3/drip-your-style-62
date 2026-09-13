@@ -6,6 +6,12 @@ import { Users, Share2, Download, Trash2, Shield, LifeBuoy, Wrench } from "lucid
 import { exportMyData, deleteMyAccount } from "@/lib/account.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { ProblemReportDialog } from "@/components/ProblemReportDialog";
+import { StylePreferencesForm } from "@/components/StylePreferencesForm";
+import {
+  readStylePreferences,
+  stylePreferencesSchema,
+  type StylePreferences,
+} from "@/lib/style-preferences";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
@@ -13,7 +19,6 @@ export const Route = createFileRoute("/_authenticated/profile")({
   }),
   component: ProfilePage,
 });
-
 
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -25,8 +30,8 @@ function ProfilePage() {
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
   const [isPublic, setIsPublic] = useState(false);
-  const [vibes, setVibes] = useState<string[]>([]);
-  const [colors, setColors] = useState<string[]>([]);
+  const [preferences, setPreferences] = useState<StylePreferences | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -40,7 +45,12 @@ function ProfilePage() {
       if (!u) return;
       setUid(u);
       setEmail(userData.user?.email ?? "");
-      const [{ data: profile }, { data: prefs }, { count: fw }, { count: fg }] = await Promise.all([
+      const [
+        { data: profile, error: profileError },
+        { data: prefs, error: prefsError },
+        { count: fw },
+        { count: fg },
+      ] = await Promise.all([
         supabase
           .from("profiles")
           .select("display_name, handle, bio, is_public, is_admin")
@@ -48,22 +58,27 @@ function ProfilePage() {
           .maybeSingle(),
         supabase
           .from("user_preferences")
-          .select("style_vibes,favorite_colors")
+          .select("style_vibes,favorite_colors,sizes,budget_range")
           .eq("user_id", u)
           .maybeSingle(),
         supabase.from("follows").select("*", { count: "exact", head: true }).eq("followee_id", u),
         supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", u),
       ]);
+      if (profileError || prefsError) {
+        setLoadError(
+          "Could not load your profile. Reload before editing to avoid replacing saved choices.",
+        );
+        return;
+      }
       setDisplayName(profile?.display_name ?? "");
       setHandle(profile?.handle ?? "");
       setBio(profile?.bio ?? "");
       setIsPublic(profile?.is_public ?? false);
       setIsAdmin(profile?.is_admin ?? false);
-      setVibes(prefs?.style_vibes ?? []);
-      setColors(prefs?.favorite_colors ?? []);
+      setPreferences(readStylePreferences(prefs));
       setFollowers(fw ?? 0);
       setFollowing(fg ?? 0);
-    })();
+    })().catch(() => setLoadError("Could not load your profile. Check your connection and retry."));
   }, []);
 
   async function save() {
@@ -90,7 +105,8 @@ function ProfilePage() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) return toast.error("Sign out failed. Please try again.");
     navigate({ to: "/auth", replace: true });
   }
 
@@ -100,6 +116,16 @@ function ProfilePage() {
     toast.success("Link copied");
   }
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>{loadError}</p>
+        <button className="btn-lime mt-4" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
+  if (!preferences) return <p role="status">Loading your profile…</p>;
   return (
     <div className="space-y-6">
       <div>
@@ -107,6 +133,22 @@ function ProfilePage() {
         <h1 className="mt-1 font-display text-4xl">Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">{email}</p>
       </div>
+
+      <StylePreferencesForm
+        initial={preferences}
+        onSave={async (value) => {
+          if (!uid) throw new Error("Sign in again to save preferences.");
+          const { error } = await supabase
+            .from("user_preferences")
+            .upsert(
+              { user_id: uid, ...stylePreferencesSchema.parse(value) },
+              { onConflict: "user_id" },
+            );
+          if (error)
+            throw new Error("Preferences were not saved. Check your connection and retry.");
+          setPreferences(value);
+        }}
+      />
 
       <div className="card-surface p-5">
         <p className="text-xs uppercase tracking-widest text-primary">Social</p>
@@ -188,17 +230,6 @@ function ProfilePage() {
         </button>
       </div>
 
-      <div className="card-surface p-5">
-        <p className="text-xs uppercase tracking-widest text-primary">Your vibe</p>
-        <p className="mt-2 text-sm text-foreground/85">
-          {vibes.length ? vibes.join(" · ") : "No vibes set"}
-        </p>
-        <p className="mt-3 text-xs uppercase tracking-widest text-primary">Colors</p>
-        <p className="mt-1 text-sm text-foreground/85">
-          {colors.length ? colors.join(" · ") : "No colors set"}
-        </p>
-      </div>
-
       <PrivacyAndData email={email} />
 
       <div className="card-surface p-5">
@@ -209,10 +240,30 @@ function ProfilePage() {
           Privacy, terms, community rules, deletion, and safety notices.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <Link to="/legal" className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2">Legal Center</Link>
-          <Link to="/legal/privacy" className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2">Privacy</Link>
-          <Link to="/legal/terms" className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2">Terms</Link>
-          <Link to="/legal/account-deletion" className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2">Deletion</Link>
+          <Link
+            to="/legal"
+            className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2"
+          >
+            Legal Center
+          </Link>
+          <Link
+            to="/legal/privacy"
+            className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2"
+          >
+            Privacy
+          </Link>
+          <Link
+            to="/legal/terms"
+            className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2"
+          >
+            Terms
+          </Link>
+          <Link
+            to="/legal/account-deletion"
+            className="rounded-full border border-border px-3 py-2 text-center uppercase tracking-widest hover:bg-surface-2"
+          >
+            Deletion
+          </Link>
         </div>
       </div>
 
@@ -312,8 +363,8 @@ function PrivacyAndData({ email }: { email: string }) {
       <div>
         <p className="text-xs uppercase tracking-widest text-primary">Privacy & Data</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Your closet, outfits, photos, and feedback stay private unless you flip an outfit to public.
-          See{" "}
+          Your closet, outfits, photos, and feedback stay private unless you flip an outfit to
+          public. See{" "}
           <Link to="/legal/privacy" className="text-primary underline">
             Privacy Policy
           </Link>{" "}
@@ -383,7 +434,6 @@ function PrivacyAndData({ email }: { email: string }) {
     </div>
   );
 }
-
 
 const inp =
   "mt-1 w-full rounded-lg border border-border bg-input px-4 py-3 outline-none focus:border-primary";

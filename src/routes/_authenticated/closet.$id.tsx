@@ -1,3 +1,4 @@
+import { OwnedImage } from "@/components/OwnedImage";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,9 +87,12 @@ function ItemPage() {
     if (!confirm("Delete this piece? Outfits that reference it will lose this item.")) return;
     setBusy(true);
     try {
-      if (item.image_url) await deleteClosetImage(item.image_url);
       const { error } = await supabase.from("closet_items").delete().eq("id", id);
       if (error) throw error;
+      if (item.image_url)
+        await deleteClosetImage(item.image_url).catch(() =>
+          toast.error("Piece deleted, but photo cleanup failed. Please report the problem."),
+        );
       toast.success("Deleted");
       navigate({ to: "/closet" });
     } catch (e) {
@@ -204,7 +208,7 @@ function ItemPage() {
 
       <div className="card-surface aspect-square overflow-hidden">
         {url ? (
-          <img src={url} alt={item.name} className="h-full w-full object-cover" />
+          <OwnedImage src={url} alt={item.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-xs uppercase tracking-widest text-muted-foreground">
             No photo

@@ -11,7 +11,13 @@ export function InstallPrompt() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (localStorage.getItem("drip:install-dismissed") === "1") {
+    let previouslyDismissed = false;
+    try {
+      previouslyDismissed = localStorage.getItem("drip:install-dismissed") === "1";
+    } catch {
+      /* Storage may be blocked. */
+    }
+    if (previouslyDismissed) {
       setDismissed(true);
       return;
     }
@@ -34,7 +40,11 @@ export function InstallPrompt() {
   }, []);
 
   function close() {
-    localStorage.setItem("drip:install-dismissed", "1");
+    try {
+      localStorage.setItem("drip:install-dismissed", "1");
+    } catch {
+      /* Still dismiss this session. */
+    }
     setDismissed(true);
     setShowIOS(false);
     setEvt(null);
@@ -45,7 +55,11 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed bottom-24 inset-x-3 z-40 rounded-2xl border border-primary/40 bg-surface p-4 shadow-lg">
-      <button onClick={close} className="absolute right-2 top-2 text-muted-foreground">
+      <button
+        onClick={close}
+        aria-label="Dismiss install prompt"
+        className="absolute right-2 top-2 text-muted-foreground"
+      >
         <X className="h-4 w-4" />
       </button>
       <p className="text-xs uppercase tracking-widest text-primary">Install DRIP</p>

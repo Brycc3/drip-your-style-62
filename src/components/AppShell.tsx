@@ -6,9 +6,9 @@ import { InstallPrompt } from "./InstallPrompt";
 const tabs = [
   { to: "/home", label: "Home", icon: Home },
   { to: "/closet", label: "Closet", icon: Shirt },
-  { to: "/generate", label: "Style", icon: Sparkles },
-  { to: "/feed", label: "Feed", icon: Flame },
+  { to: "/generate", label: "Create", icon: Sparkles },
   { to: "/shop", label: "Shop", icon: ShoppingBag },
+  { to: "/feed", label: "Feed", icon: Flame },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function goBack() {
     // Prefer real history for scroll/state; fallback contextually.
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (typeof window !== "undefined" && Number(window.history.state?.__TSR_index) > 0) {
       router.history.back();
     } else {
       router.navigate({ to: fallbackFor(pathname) });
@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       <header className="safe-t sticky top-0 z-20 border-b border-border/60 bg-background/85 backdrop-blur">
-        <div className="container-app flex h-14 items-center justify-between gap-3">
+        <div className="container-wide flex h-16 items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             {showBack && (
               <button
@@ -60,16 +60,28 @@ export function AppShell({ children }: { children: ReactNode }) {
               DRIP<span className="text-primary">.</span>
             </Link>
           </div>
-          <Link to="/profile" className="text-xs uppercase tracking-widest text-muted-foreground">
-            Account
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/shop"
+              className="hidden md:inline-flex rounded-full border border-primary/40 px-4 py-2 text-sm text-primary"
+            >
+              Shop
+            </Link>
+            <Link to="/generate" className="hidden md:inline-flex btn-lime">
+              Create an outfit
+            </Link>
+            <Link to="/profile" className="text-xs uppercase tracking-widest text-muted-foreground">
+              Account
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 pb-28">
         <div
           className={`${
-            pathname === "/shop" || pathname.startsWith("/shop/")
+            ["/shop", "/generate", "/inspo", "/saved"].includes(pathname) ||
+            pathname.startsWith("/shop/")
               ? "container-wide"
               : "container-app"
           } py-5`}
@@ -88,8 +100,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <li key={t.to}>
                   <Link
                     to={t.to}
-                    className={`flex flex-col items-center gap-0.5 py-1 text-[10px] uppercase tracking-wider transition-colors ${
-                      active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    aria-current={active ? "page" : undefined}
+                    className={`flex min-h-11 flex-col justify-center items-center gap-1 rounded-xl py-1 text-[10px] uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : t.to === "/shop" || t.to === "/generate"
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.75} />

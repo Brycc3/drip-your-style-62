@@ -1,6 +1,7 @@
 import type { CatalogItem } from "./shop-gap";
 import {
   CATALOG_CATEGORIES,
+  CATALOG_CURRENCIES,
   catalogImageRightsAreConsistent,
   deriveCatalogKind,
   isValidHttpsUrl,
@@ -61,6 +62,7 @@ export function isVerifiedPurchasable(
 ): boolean {
   if (!item) return false;
   if (item.is_demo === true) return false;
+  if (item.archived === true) return false;
 
   // Product identity
   if (!isNonEmpty(item.name)) return false;
@@ -96,6 +98,8 @@ export function isVerifiedPurchasable(
   // Pricing — must be a positive number.
   const price = item.current_price;
   if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return false;
+  if (!isNonEmpty(item.currency) || !CATALOG_CURRENCIES.includes(item.currency as never))
+    return false;
 
   // Availability signal
   if (!isNonEmpty(item.availability)) return false;

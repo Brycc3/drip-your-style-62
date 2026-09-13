@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Heart, X, Bookmark, Trash2, ArrowRightLeft, Eye } from "lucide-react";
 import { StyleTabs } from "@/components/StyleTabs";
+import { OwnedImage } from "@/components/OwnedImage";
 
 export const Route = createFileRoute("/_authenticated/taste")({
   head: () => ({
@@ -47,46 +48,52 @@ function TastePage() {
   const [tab, setTab] = useState<"likes" | "passes">("likes");
   const [rows, setRows] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [uid, setUid] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const u = userData.user?.id ?? null;
-    setUid(u);
-    if (!u) {
+    setLoadError(false);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const u = userData.user?.id ?? null;
+      setUid(u);
+      if (!u) {
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("outfit_feedback")
+        .select("id, liked, signature, snapshot, outfit_id, created_at")
+        .eq("user_id", u)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) {
+        throw error;
+      }
+      const list = (data ?? []) as Feedback[];
+      setRows(list);
       setLoading(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("outfit_feedback")
-      .select("id, liked, signature, snapshot, outfit_id, created_at")
-      .eq("user_id", u)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-    const list = (data ?? []) as Feedback[];
-    setRows(list);
-    setLoading(false);
-    // Signed URLs for snapshot images
-    const pieces = list.flatMap((r) => piecesOf(r.snapshot));
-    const paths = Array.from(
-      new Set(pieces.map((p) => p.image_url).filter((p): p is string => !!p)),
-    );
-    if (paths.length) {
-      const entries = await Promise.all(
-        paths.map(async (p) => {
-          const { data: sig } = await supabase.storage.from("closet").createSignedUrl(p, 60 * 60);
-          return [p, sig?.signedUrl ?? ""] as const;
-        }),
+      // Signed URLs for snapshot images
+      const pieces = list.flatMap((r) => piecesOf(r.snapshot));
+      const paths = Array.from(
+        new Set(pieces.map((p) => p.image_url).filter((p): p is string => !!p)),
       );
-      setUrls(Object.fromEntries(entries.filter(([, u]) => u)));
+      if (paths.length) {
+        const entries = await Promise.all(
+          paths.map(async (p) => {
+            const { data: sig } = await supabase.storage.from("closet").createSignedUrl(p, 60 * 60);
+            return [p, sig?.signedUrl ?? ""] as const;
+          }),
+        );
+        setUrls(Object.fromEntries(entries.filter(([, u]) => u)));
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -230,7 +237,14 @@ function TastePage() {
         </button>
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className="card-surface p-5">
+          <p>Your feedback could not load. It has not been cleared.</p>
+          <button className="btn-lime mt-3" onClick={() => void load()}>
+            Retry
+          </button>
+        </div>
+      ) : loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : filtered.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
@@ -257,7 +271,7 @@ function TastePage() {
                     {pieces.slice(0, 4).map((p) => (
                       <div key={p.id} className="aspect-square bg-surface">
                         {p.image_url && urls[p.image_url] ? (
-                          <img
+                          <OwnedImage
                             src={urls[p.image_url]}
                             alt={p.name}
                             loading="lazy"

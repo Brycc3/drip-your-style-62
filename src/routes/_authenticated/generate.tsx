@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { OwnedImage } from "@/components/OwnedImage";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
@@ -42,6 +43,7 @@ function GeneratePage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [disliked, setDisliked] = useState<Set<string>>(new Set());
   const [userVibes, setUserVibes] = useState<string[]>([]);
+  const [favoriteColors, setFavoriteColors] = useState<string[]>([]);
   const [savedCustomVibes, setSavedCustomVibes] = useState<string[]>([]);
 
   const [occasion, setOccasion] = useState<Occasion>("errands");
@@ -80,13 +82,14 @@ function GeneratePage() {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
-      if (!uid) return;
+      if (!uid) throw new Error("Sign in again to load your wardrobe.");
       const [
-        { data: items },
-        { data: recentOutfits },
-        { data: prefs },
-        { data: frags },
-        { data: fb },
+        { data: items, error: itemsError },
+        { data: recentOutfits, error: wearError },
+        { data: prefs, error: prefsError },
+        { data: frags, error: scentsError },
+        { data: fb, error: feedbackError },
+        { data: previousSaved, error: savedError },
       ] = await Promise.all([
         supabase
           .from("closet_items")
@@ -101,7 +104,7 @@ function GeneratePage() {
           .limit(10),
         supabase
           .from("user_preferences")
-          .select("style_vibes, custom_vibes")
+          .select("style_vibes, custom_vibes, favorite_colors")
           .eq("user_id", uid)
           .maybeSingle(),
         supabase
@@ -109,7 +112,26 @@ function GeneratePage() {
           .select("id,name,brand,family,season,projection,longevity,occasions")
           .eq("user_id", uid),
         supabase.from("outfit_feedback").select("liked, signature").eq("user_id", uid).limit(200),
+        supabase
+          .from("saved_outfits")
+          .select("id,outfit_items(closet_item_id)")
+          .eq("user_id", uid)
+          .eq("is_shopping_idea", false),
       ]);
+      if (itemsError || wearError || prefsError || scentsError || feedbackError || savedError)
+        throw new Error("Could not load your wardrobe and preferences. Please retry.");
+      setSavedBySig(
+        Object.fromEntries(
+          (previousSaved ?? []).map((o) => [
+            (o.outfit_items ?? [])
+              .map((p) => p.closet_item_id)
+              .filter(Boolean)
+              .sort()
+              .join("|"),
+            o.id,
+          ]),
+        ),
+      );
       const list = (items ?? []).filter((i) => i.kind !== "fragrance") as ClosetItem[];
       setCloset(list);
       setScents((frags ?? []) as Fragrance[]);
@@ -122,6 +144,15 @@ function GeneratePage() {
         setWorn(new Set((oi ?? []).map((r) => r.closet_item_id as string)));
       }
       setUserVibes(prefs?.style_vibes ?? []);
+      setFavoriteColors(prefs?.favorite_colors ?? []);
+      if (prefs?.style_vibes?.[0]) {
+        const first = prefs.style_vibes[0];
+        if (VIBES.includes(first)) setVibe(first);
+        else {
+          setVibe("Other");
+          setCustomVibe(first);
+        }
+      }
       setSavedCustomVibes(
         Array.isArray((prefs as { custom_vibes?: string[] } | null)?.custom_vibes)
           ? ((prefs as { custom_vibes: string[] }).custom_vibes ?? [])
@@ -181,6 +212,7 @@ function GeneratePage() {
       disliked,
       5,
       rotation,
+      favoriteColors,
     );
   }, [
     closet,
@@ -195,7 +227,15 @@ function GeneratePage() {
     liked,
     disliked,
     rotation,
+    favoriteColors,
   ]);
+  // Index-based button state must never transfer to a different generated outfit.
+  useEffect(() => {
+    setSavedIds(new Set());
+    setWornIds(new Set());
+    setSharedByIdx({});
+    setErrByIdx({});
+  }, [outfits]);
 
   async function persistCustomVibe(text: string) {
     if (!text) return;
@@ -396,7 +436,8 @@ function GeneratePage() {
 
   const hasEnough =
     closet.filter((c) => c.category === "top").length >= 1 &&
-    closet.filter((c) => c.category === "bottom").length >= 1;
+    closet.filter((c) => c.category === "bottom").length >= 1 &&
+    closet.some((c) => c.category === "shoes");
 
   return (
     <div className="space-y-6">
@@ -404,16 +445,25 @@ function GeneratePage() {
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-primary">Outfit generator</p>
         <h1 className="mt-1 font-display text-4xl">Get dressed</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Only pieces you own. Your saved vibe and favorite colors are included.{" "}
+          <Link to="/profile" className="text-primary underline">
+            Edit preferences
+          </Link>
+        </p>
       </div>
 
       {!hasEnough ? (
         <div className="card-surface p-6">
           <p className="text-sm text-muted-foreground">
-            Add at least one top and one bottom to generate outfits.
+            Add at least one top, one bottom and one pair of shoes to create a complete outfit.
           </p>
+          <Link to="/closet/new" className="btn-lime mt-4 inline-flex">
+            Add a piece
+          </Link>
         </div>
       ) : (
-        <>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           <div className="card-surface space-y-4 p-5">
             <div>
               <span className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -598,7 +648,7 @@ function GeneratePage() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -639,11 +689,20 @@ function OutfitCard({
   const b = pick.breakdown;
   return (
     <div className="card-surface overflow-hidden">
-      <div className="grid grid-cols-5 gap-1 bg-surface-2">
+      <div className="px-4 py-3 text-xs font-medium tracking-widest uppercase text-primary border-b border-border">
+        Owned outfit · {pieces.length} pieces
+      </div>
+      <div
+        className={`grid gap-1 bg-surface-2 ${pieces.length === 5 ? "grid-cols-3 sm:grid-cols-5" : pieces.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}
+      >
         {pieces.map((p) => (
           <div key={p.id} className="aspect-square bg-surface">
             {urls[p.id] ? (
-              <img src={urls[p.id]} alt={p.name} className="h-full w-full object-cover" />
+              <OwnedImage
+                src={urls[p.id]}
+                alt={p.name}
+                className="h-full w-full object-contain p-1"
+              />
             ) : (
               <div className="flex h-full items-center justify-center text-[9px] uppercase text-muted-foreground">
                 {p.category}
@@ -737,7 +796,7 @@ function OutfitCard({
           <button
             onClick={onSavePrivate}
             disabled={saved || busy}
-            className="rounded-full border border-border py-2 text-xs uppercase tracking-widest hover:bg-surface-2 flex items-center justify-center gap-1 disabled:opacity-60"
+            className="btn-lime !py-2 min-h-11 text-xs flex items-center justify-center gap-1 disabled:opacity-60"
           >
             {saved ? (
               <>
@@ -745,14 +804,14 @@ function OutfitCard({
               </>
             ) : (
               <>
-                <Save className="h-3 w-3" /> Save
+                <Save className="h-3 w-3" /> Save privately
               </>
             )}
           </button>
           <button
             onClick={onSharePublic}
             disabled={busy || !!share}
-            className="btn-lime !py-2 text-xs flex items-center justify-center gap-1 disabled:opacity-60"
+            className="rounded-full border border-border min-h-11 py-2 text-xs uppercase tracking-widest hover:bg-surface-2 flex items-center justify-center gap-1 disabled:opacity-60"
           >
             <Share2 className="h-3 w-3" /> {share ? "Shared" : "Share to feed"}
           </button>

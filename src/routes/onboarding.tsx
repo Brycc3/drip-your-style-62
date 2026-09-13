@@ -38,9 +38,9 @@ function Onboarding() {
   const [customVibe, setCustomVibe] = useState("");
   const [customVibeError, setCustomVibeError] = useState<string | null>(null);
   const [favColors, setFavColors] = useState<string[]>([]);
-  const [topSize, setTopSize] = useState("M");
-  const [bottomSize, setBottomSize] = useState("32");
-  const [shoeSize, setShoeSize] = useState("10");
+  const [topSize, setTopSize] = useState("");
+  const [bottomSize, setBottomSize] = useState("");
+  const [shoeSize, setShoeSize] = useState("");
   const [saving, setSaving] = useState(false);
 
   const otherSelected = vibes.includes("Other");
@@ -97,12 +97,6 @@ function Onboarding() {
       const finalVibes = vibes
         .filter((v) => v !== "Other")
         .concat(otherSelected ? [customVibe.trim()] : []);
-      const { error: pErr } = await supabase.from("profiles").upsert({
-        id: user.id,
-        display_name: displayName || null,
-        onboarded: true,
-      });
-      if (pErr) throw pErr;
       const { error: prefErr } = await supabase.from("user_preferences").upsert({
         user_id: user.id,
         style_vibes: finalVibes,
@@ -111,6 +105,12 @@ function Onboarding() {
         custom_vibes: otherSelected ? [customVibe.trim()] : [],
       });
       if (prefErr) throw prefErr;
+      // Mark onboarding complete only after reusable preferences are persisted.
+      // A profile error is recoverable by retrying this idempotent flow.
+      const { error: pErr } = await supabase
+        .from("profiles")
+        .upsert({ id: user.id, display_name: displayName || null, onboarded: true });
+      if (pErr) throw pErr;
       navigate({ to: destination === "closet" ? "/closet/new" : "/home", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save");
