@@ -1,9 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { validateClosetImage, CLOSET_IMAGE_MIME } from "./closet-image-validation";
 
 const BUCKET = "closet";
 
 export async function uploadClosetImage(userId: string, file: File): Promise<string> {
-  const ext = file.name.split(".").pop() || "jpg";
+  const invalid = validateClosetImage(file);
+  if (invalid) throw new Error(invalid);
+  const ext = CLOSET_IMAGE_MIME[file.type as keyof typeof CLOSET_IMAGE_MIME];
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     cacheControl: "3600",
@@ -55,5 +58,6 @@ export async function getSignedUrlsByItem<T extends { id: string; image_url: str
 
 export async function deleteClosetImage(path: string): Promise<void> {
   if (!path) return;
-  await supabase.storage.from(BUCKET).remove([path]);
+  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  if (error) throw error;
 }

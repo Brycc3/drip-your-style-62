@@ -5,7 +5,6 @@ import { getPublicOutfitCovers } from "@/lib/public-outfit.functions";
 import { getBlockedUserIds, excludeBlocked } from "@/lib/blocks";
 import { Flame, Clock, Trophy, MessageCircle, Heart, Flag, ShieldCheck } from "lucide-react";
 
-
 export const Route = createFileRoute("/_authenticated/feed")({
   head: () => ({
     meta: [
@@ -50,11 +49,7 @@ function FeedPage() {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? null;
       const [{ data, error: qErr }, blocked] = await Promise.all([
-        supabase
-          .from("outfit_leaderboard")
-          .select("*")
-          .order(col, { ascending: false })
-          .limit(60),
+        supabase.from("outfit_leaderboard").select("*").order(col, { ascending: false }).limit(60),
         getBlockedUserIds(uid),
       ]);
       if (qErr) {
@@ -84,9 +79,11 @@ function FeedPage() {
         if (r.share_slug && coversBySlug[r.share_slug]) byId[r.id] = coversBySlug[r.share_slug];
       setUrls(byId);
       setHandles(Object.fromEntries((profs.data ?? []).map((p) => [p.id, p.handle])));
-    })();
+    })().catch(() => {
+      setError("The feed could not load safely. Check your connection and retry.");
+      setLoading(false);
+    });
   }, [tab]);
-
 
   return (
     <div className="space-y-5">
@@ -119,8 +116,11 @@ function FeedPage() {
       </div>
 
       {error ? (
-        <div className="card-surface p-6 text-center text-sm text-destructive">
+        <div role="alert" className="card-surface p-6 text-center text-sm text-destructive">
           Couldn't load the feed. {error}
+          <button className="btn-lime mt-3" onClick={() => window.location.reload()}>
+            Retry
+          </button>
         </div>
       ) : loading ? (
         <div className="grid grid-cols-2 gap-3">
@@ -131,9 +131,11 @@ function FeedPage() {
       ) : rows.length === 0 ? (
         <div className="card-surface p-6 text-center text-sm text-muted-foreground">
           Nothing public yet. Be first — publish an outfit from{" "}
-          <Link to="/saved" className="text-primary underline">Saved</Link>.
+          <Link to="/saved" className="text-primary underline">
+            Saved
+          </Link>
+          .
         </div>
-
       ) : (
         <ul className="grid grid-cols-2 gap-3">
           {rows.map((r) => (
@@ -174,17 +176,18 @@ function FeedPage() {
       )}
 
       <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface-2 p-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-        <Link to="/legal/community-guidelines" className="flex items-center gap-1 hover:text-foreground">
+        <Link
+          to="/legal/community-guidelines"
+          className="flex items-center gap-1 hover:text-foreground"
+        >
           <ShieldCheck className="h-3 w-3" /> Community Guidelines
         </Link>
         <Link to="/legal/acceptable-use" className="flex items-center gap-1 hover:text-foreground">
           <Flag className="h-3 w-3" /> Report content
         </Link>
-
       </div>
     </div>
   );
-
 }
 
 function TabBtn({

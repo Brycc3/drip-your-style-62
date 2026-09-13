@@ -1,10 +1,16 @@
+import { OwnedImage } from "@/components/OwnedImage";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlsByItem } from "@/lib/closet-storage";
 import type { ClosetItem, Fragrance } from "@/lib/outfit-generator";
-import { hasValidBuyUrl, type CatalogItem } from "@/lib/shop-gap";
-import { dedupeCatalog } from "@/lib/shop-catalog";
+import { type CatalogItem } from "@/lib/shop-gap";
+import {
+  dedupeCatalog,
+  isVerifiedPurchasable,
+  type VerifiableCatalogItem,
+} from "@/lib/shop-catalog";
+import { requireQuerySuccess } from "@/lib/query-errors";
 import { CatalogImage } from "@/components/CatalogImage";
 import { toast } from "sonner";
 import {
@@ -35,7 +41,6 @@ const searchSchema = z.object({
   temp: z.string().optional(),
   cats: z.string().optional(),
 });
-
 
 export const Route = createFileRoute("/_authenticated/inspo")({
   validateSearch: (s) => searchSchema.parse(s),
@@ -126,6 +131,8 @@ function InspoPage() {
   const search = Route.useSearch();
   const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [catalogScope, setCatalogScope] = useState<"verified" | "demo">("verified");
 
   const [closet, setCloset] = useState<ClosetItem[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -149,31 +156,29 @@ function InspoPage() {
       const { data: userData } = await supabase.auth.getUser();
       const u = userData.user?.id ?? null;
       setUid(u);
-      if (!u) return;
+      if (!u) throw new Error("Session expired");
       const [{ data: items }, { data: cat }, { data: frs }] = await Promise.all([
         supabase
           .from("closet_items")
           .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
           .eq("user_id", u)
           .eq("archived", false),
-        supabase
-          .from("shop_catalog")
-          .select(
-            "id,name,brand,category,color,price,current_price,original_price,condition,image_url,formality,season,retailer,buy_url,availability,last_checked_at,external_id,is_demo",
-          )
-          .limit(120),
+        supabase.from("shop_catalog").select("*").eq("archived", false).limit(120),
         supabase
           .from("fragrances")
           .select("id,name,brand,family,season,projection,longevity,occasions")
           .eq("user_id", u),
-      ]);
+      ]).then(requireQuerySuccess);
       const list = (items ?? []).filter((i) => i.kind !== "fragrance") as ClosetItem[];
       setCloset(list);
       setCatalog(dedupeCatalog((cat ?? []) as CatalogItem[]));
       setFragrances((frs ?? []) as Fragrance[]);
       setUrls(await getSignedUrlsByItem(list));
       setLoading(false);
-    })();
+    })().catch(() => {
+      setLoadError(true);
+      setLoading(false);
+    });
   }, []);
 
   // Handle ?item=... locking a catalog item into an inferred slot
@@ -184,17 +189,24 @@ function InspoPage() {
     const itemId = search.item;
     if (!itemId) return;
     const item = catalog.find((c) => c.id === itemId);
-    if (!item) return;
-    const inferred = (search.slot as SlotKey | undefined) ?? inferSlotFromCategory(item.category);
+    if (!item || (!item.is_demo && !isVerifiedPurchasable(item))) return;
+    const inferred = inferSlotFromCategory(item.category);
     if (!inferred) return;
-    setSelection((s) => ({ ...s, [inferred]: { source: "catalog", id: item.id } }));
+    setCatalogScope(item.is_demo ? "demo" : "verified");
+    setSelection((s) => {
+      const next: Selection = { ...s, [inferred]: { source: "catalog", id: item.id } };
+      for (const slot of ["top", "bottom", "shoes"] as SlotKey[]) {
+        if (next[slot]) continue;
+        const owned = closet.find((c) => primaryOfClosetCategory(c.category) === SLOT_KIND[slot]);
+        if (owned) next[slot] = { source: "closet", id: owned.id };
+      }
+      return next;
+    });
     setLocked((l) => new Set(l).add(inferred));
     if (inferred === "acc2") setVisibleAcc((n) => Math.max(n, 2));
     if (inferred === "acc3") setVisibleAcc((n) => Math.max(n, 3));
     toast.success(`Locked "${item.name}" — auto-filled owned pieces around it.`);
-    // Auto-complete outfit with owned pieces once locked item is set.
-    setTimeout(() => completeOutfit(), 50);
-  }, [loading, catalog, search.item, search.slot]);
+  }, [loading, catalog, closet, search.item, search.slot]);
 
   const closetBySlot = useMemo(() => {
     const m: Record<SlotKind, ClosetItem[]> = {
@@ -222,6 +234,13 @@ function InspoPage() {
       fragrance: [],
     };
     for (const c of catalog) {
+      if (
+        c.archived ||
+        (catalogScope === "demo"
+          ? c.is_demo !== true
+          : !isVerifiedPurchasable(c as VerifiableCatalogItem))
+      )
+        continue;
       const kind =
         c.category.toLowerCase() === "fragrance" ||
         /perfume|cologne|scent/.test(c.category.toLowerCase())
@@ -230,7 +249,7 @@ function InspoPage() {
       if (kind) m[kind].push(c);
     }
     return m;
-  }, [catalog]);
+  }, [catalog, catalogScope]);
 
   function pushHistory() {
     setHistory((h) => [...h.slice(-9), selection]);
@@ -376,30 +395,38 @@ function InspoPage() {
   }
 
   const unownedTotal = useMemo(() => {
-    let total = 0;
+    const totals: Record<string, number> = {};
     for (const s of SLOT_ORDER) {
       const a = selection[s];
       if (!a || a.source !== "catalog") continue;
-      const it = resolveCatalog(a.id);
-      const price = it?.current_price ?? it?.price ?? 0;
-      total += Number(price ?? 0);
+      const it = catalog.find((c) => c.id === a.id);
+      const price = it?.current_price ?? it?.price;
+      if (it?.is_demo || !it?.currency || price == null || !Number.isFinite(price))
+        return "Not a verified quote — samples, price or currency details are missing.";
+      totals[it.currency] = (totals[it.currency] ?? 0) + price;
     }
-    return total;
+    return Object.entries(totals)
+      .map(([currency, total]) => `${currency} ${total.toFixed(2)}`)
+      .join(" + ");
   }, [selection, catalog]);
 
   const chosenClosetPieces = useMemo(
     () =>
       SLOT_ORDER.map((s) => selection[s])
         .filter((a): a is Assignment => !!a && a.source === "closet")
-        .map((a) => resolveClosetItem(a.id))
+        .map((a) => closet.find((c) => c.id === a.id))
         .filter((c): c is ClosetItem => !!c),
     [selection, closet],
+  );
+  const isShoppingIdea = Object.values(selection).some((a) => a?.source === "catalog");
+  const completeOwned = ["top", "bottom", "shoes"].every(
+    (slot) => selection[slot as SlotKey]?.source === "closet",
   );
 
   async function save() {
     if (!uid) return;
-    if (chosenClosetPieces.length < 2) {
-      toast.error("Add at least two owned pieces to save.");
+    if (!completeOwned && !isShoppingIdea) {
+      toast.error("Add an owned top, bottom and shoes to save a complete outfit.");
       return;
     }
     setSaving(true);
@@ -410,7 +437,13 @@ function InspoPage() {
         name: `Inspo · ${new Date().toISOString().slice(0, 10)}`,
         vibe: "Inspo",
         visibility: "private",
-        explanation: "Built in Inspo Builder",
+        is_shopping_idea: isShoppingIdea,
+        explanation: isShoppingIdea
+          ? `Shopping idea — not all pieces are owned. Proposed: ${Object.values(selection)
+              .filter((a) => a?.source === "catalog")
+              .map((a) => resolveCatalog(a!.id)?.name ?? "Unavailable product")
+              .join(", ")}. ${unownedTotal}`
+          : "Built in Inspo Builder with owned pieces",
       })
       .select("id")
       .single();
@@ -425,7 +458,9 @@ function InspoPage() {
         closet_item_id: (r.a as { id: string }).id,
         role: SLOT_KIND[r.slot as SlotKey],
       }));
-    const { error: ie } = await supabase.from("outfit_items").insert(rows);
+    const { error: ie } = rows.length
+      ? await supabase.from("outfit_items").insert(rows)
+      : { error: null };
     if (ie) {
       await supabase.from("saved_outfits").delete().eq("id", outfit.id);
       setSaving(false);
@@ -433,9 +468,20 @@ function InspoPage() {
     }
     setSavedId(outfit.id);
     setSaving(false);
-    toast.success("Saved to Saved Outfits");
+    toast.success(
+      isShoppingIdea ? "Saved under Shopping ideas, not owned outfits" : "Saved to Owned outfits",
+    );
   }
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>Inspo could not load your wardrobe.</p>
+        <button className="btn-lime mt-3" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
   if (loading) {
     return (
       <div className="space-y-5">
@@ -454,6 +500,38 @@ function InspoPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Tap any slot to pick from your Closet, Shop, or a Mix. Lock what you love.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(["verified", "demo"] as const).map((scope) => (
+            <button
+              key={scope}
+              aria-pressed={scope === catalogScope}
+              className={`rounded-full border px-3 py-2 text-xs ${scope === catalogScope ? "border-primary text-primary" : "border-border"}`}
+              onClick={() => {
+                setCatalogScope(scope);
+                setSelection((s) =>
+                  Object.fromEntries(Object.entries(s).filter(([, a]) => a?.source !== "catalog")),
+                );
+                setLocked(new Set());
+                setSavedId(null);
+              }}
+            >
+              {scope === "verified" ? "Verified products" : "Demo concepts"}
+            </button>
+          ))}
+        </div>
+        {catalogScope === "verified" &&
+          !catalog.some((c) => isVerifiedPurchasable(c as VerifiableCatalogItem)) && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No verified products yet. Build with your owned pieces, or explicitly explore Demo
+              concepts — samples are not for purchase.
+            </p>
+          )}
+        {catalogScope === "demo" && (
+          <p className="mt-3 text-sm text-primary">
+            DEMO concepts — sample_only, not available for purchase. Proposed pieces are never added
+            to your closet.
+          </p>
+        )}
       </div>
 
       {closet.length === 0 && catalog.length === 0 ? (
@@ -503,10 +581,9 @@ function InspoPage() {
           </ul>
 
           {/* Unowned subtotal */}
-          {unownedTotal > 0 && (
+          {unownedTotal && (
             <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-              Recommended pieces subtotal:{" "}
-              <span className="font-semibold">${unownedTotal.toFixed(0)}</span>
+              Proposed pieces: <span className="font-semibold">{unownedTotal}</span>
               <span className="ml-2 text-muted-foreground">(owned pieces excluded)</span>
             </div>
           )}
@@ -532,10 +609,11 @@ function InspoPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={save}
-              disabled={saving || chosenClosetPieces.length < 2}
+              disabled={saving || (!completeOwned && !isShoppingIdea)}
               className="btn-lime inline-flex items-center gap-1 disabled:opacity-60"
             >
-              <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save outfit"}
+              <Save className="h-4 w-4" />{" "}
+              {saving ? "Saving…" : isShoppingIdea ? "Save shopping idea" : "Save owned outfit"}
             </button>
             {savedId && (
               <Link
@@ -639,7 +717,10 @@ function SlotCard({
     if (it) {
       image = it.image_url ?? undefined;
       name = it.name;
-      badge = { label: "Buy", className: "text-primary" };
+      badge = {
+        label: it.is_demo ? "DEMO · Sample" : "Proposed · not owned",
+        className: "text-primary",
+      };
     }
   } else if (assignment?.source === "fragrance") {
     const it = resolveFragrance(assignment.id);
@@ -659,7 +740,12 @@ function SlotCard({
         className="relative block aspect-square w-full bg-surface-2 text-left"
       >
         {image ? (
-          <img src={image} alt={name} loading="lazy" className="h-full w-full object-cover" />
+          <OwnedImage
+            src={image}
+            alt={name}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
         ) : assignment ? (
           <div className="flex h-full items-center justify-center p-2 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
             {name}
@@ -839,7 +925,7 @@ function ClosetGrid({
             >
               <div className="aspect-square bg-surface-2 relative">
                 {urls[c.id] ? (
-                  <img
+                  <OwnedImage
                     src={urls[c.id]}
                     alt={c.name}
                     loading="lazy"
@@ -889,9 +975,9 @@ function CatalogGrid({
               <span className="absolute top-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-primary">
                 {c.is_demo
                   ? "Demo sample"
-                  : hasValidBuyUrl(c)
-                    ? `Shop · $${c.current_price ?? c.price ?? "—"}`
-                    : "Sample"}
+                  : isVerifiedPurchasable(c as VerifiableCatalogItem)
+                    ? `Shop · ${c.currency ?? ""} ${c.current_price ?? c.price ?? "—"}`
+                    : "Needs verification"}
               </span>
             </div>
             <div className="space-y-1 p-2">
@@ -906,7 +992,7 @@ function CatalogGrid({
                 >
                   Add to builder
                 </button>
-                {hasValidBuyUrl(c) && (
+                {isVerifiedPurchasable(c as VerifiableCatalogItem) && (
                   <a
                     href={c.buy_url!}
                     target="_blank"

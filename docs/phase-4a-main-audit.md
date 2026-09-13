@@ -1,5 +1,9 @@
 # Phase 4A main-branch audit
 
+The subsequent implementation and its current acceptance boundaries are recorded in
+[the launch-candidate report](launch-candidate/README.md). Test counts and screenshots below
+remain historical Phase 4A evidence, not validation of the newer candidate.
+
 Audit baseline: reviewed PR #3 merge `36d7381ea71aadd181f4072c4d25e8c29ff3ac6e` through
 main `60f82dbe0d6e2718fa8d8fae6f296f5c68e0ede2`. The audit is forward-only: it does not reset,
 rewrite, or remove published history.

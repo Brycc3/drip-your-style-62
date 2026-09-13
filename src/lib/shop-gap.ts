@@ -1,4 +1,7 @@
 import type { ClosetItem } from "./outfit-generator";
+import { colorHarmonyScore, silhouetteScore } from "./outfit-generator";
+import type { ShoppingBudget } from "./style-preferences";
+import { isVerifiedPurchasable } from "./shop-catalog";
 
 export type CatalogItem = {
   id: string;
@@ -41,6 +44,11 @@ export type GapScore = {
   outfitsUnlocked: number;
   duplicate: boolean;
   duplicateNote?: string;
+  guidance: "Consider buying" | "Skip for now" | "Check details" | "Sample only";
+  guidanceReason: string;
+  uncertainties: string[];
+  exampleOutfit: ClosetItem[];
+  countCapped: boolean;
 };
 
 const TARGETS: Record<string, number> = {
@@ -62,7 +70,10 @@ function isPair(a: ClosetItem | CatalogItem, b: ClosetItem | CatalogItem): boole
   const fa = (a as { formality?: string }).formality ?? "casual";
   const fb = (b as { formality?: string }).formality ?? "casual";
   if (fa !== fb && Math.abs(fRank(fa) - fRank(fb)) > 1) return false;
-  return true;
+  const seasons = (s?: string | null) =>
+    !s || s === "all" ? ["spring", "summer", "fall", "winter"] : s.split(/[ ,/]+/);
+  if (!seasons(a.season).some((s) => seasons(b.season).includes(s))) return false;
+  return colorHarmonyScore([a.color, b.color]).score >= 0.6;
 }
 
 const ACCESSORY_CATEGORIES = new Set([
@@ -112,7 +123,9 @@ export function isAccessoryCategory(category: string): boolean {
 }
 
 // Coarse mapping from many subcategories to the 5 primary generator slots.
-function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "other" {
+export function primary(
+  cat: string,
+): "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "other" {
   const c = cat.toLowerCase();
   if (["top", "tee", "hoodie", "shirt", "polo"].includes(c)) return "top";
   if (["bottom", "trousers", "cargos", "joggers", "shorts", "denim", "pants"].includes(c))
@@ -126,51 +139,130 @@ function primary(cat: string): "top" | "bottom" | "outerwear" | "shoes" | "acces
   return "other";
 }
 
-export function scoreGap(item: CatalogItem, closet: ClosetItem[]): GapScore {
+export function scoreGap(
+  item: CatalogItem,
+  closet: ClosetItem[],
+  budget?: ShoppingBudget | null,
+): GapScore {
+  closet = [
+    ...new Map(
+      closet.filter((c) => !c.archived && c.kind !== "fragrance").map((c) => [c.id, c]),
+    ).values(),
+  ];
   const slot = primary(item.category);
-  const owned = closet.filter((c) => primary(c.category) === slot);
+  const owned = closet.filter(
+    (c) =>
+      primary(c.category) === slot &&
+      (slot !== "accessory" ||
+        accessorySubcategory(c as CatalogItem) === accessorySubcategory(item)),
+  );
   const target = TARGETS[slot] ?? 2;
   const shortfall = Math.max(0, target - owned.length) / target;
 
-  const duplicate = owned.some(
+  const norm = (s?: string | null) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const duplicateItem = owned.find(
     (o) =>
-      (o.brand?.toLowerCase() ?? "") === (item.brand?.toLowerCase() ?? "") &&
-      (o.color?.toLowerCase() ?? "") === (item.color?.toLowerCase() ?? "") &&
-      !!item.brand &&
-      !!item.color,
+      norm(o.name) === norm(item.name) &&
+      !!norm(item.brand) &&
+      norm(o.brand) === norm(item.brand) &&
+      !!norm(item.color) &&
+      norm(o.color) === norm(item.color) &&
+      (!o.material || !item.material || norm(o.material) === norm(item.material)) &&
+      (!o.fit || !item.fit || norm(o.fit) === norm(item.fit)),
   );
+  const duplicate = !!duplicateItem;
+  const similar =
+    !duplicate && owned.find((o) => !!item.color && norm(o.color) === norm(item.color));
 
   const tops = closet.filter((c) => primary(c.category) === "top");
   const bottoms = closet.filter((c) => primary(c.category) === "bottom");
   const shoes = closet.filter((c) => primary(c.category) === "shoes");
   let unlocked = 0;
-  const matches: ClosetItem[] = [];
-
-  if (slot === "top") {
-    for (const b of bottoms) if (isPair(item, b)) matches.push(b);
-    unlocked = matches.length * Math.max(1, shoes.length);
-  } else if (slot === "bottom") {
-    for (const t of tops) if (isPair(item, t)) matches.push(t);
-    unlocked = matches.length * Math.max(1, shoes.length);
-  } else if (slot === "shoes") {
-    for (const t of tops)
-      for (const b of bottoms) if (isPair(item, t) && isPair(item, b)) unlocked++;
-    matches.push(...tops.slice(0, 3));
-  } else if (slot === "outerwear") {
-    for (const t of tops) if (isPair(item, t)) matches.push(t);
-    unlocked = matches.length * Math.max(1, bottoms.length);
-  } else {
-    matches.push(...tops.slice(0, 2));
-    unlocked = matches.length;
+  const matchMap = new Map<string, ClosetItem>();
+  let exampleOutfit: ClosetItem[] = [];
+  let checked = 0;
+  let countCapped = false;
+  // Count complete top + bottom + shoes combinations, including the proposed item
+  // (or a fourth outer/accessory). Never fill a missing owned slot with a phantom.
+  if (slot !== "other") {
+    combos: for (const t of slot === "top" ? [item] : tops) {
+      for (const b of slot === "bottom" ? [item] : bottoms) {
+        for (const s of slot === "shoes" ? [item] : shoes) {
+          if (++checked > 10000) {
+            countCapped = true;
+            break combos;
+          }
+          const pieces = [t, b, s, ...(["outerwear", "accessory"].includes(slot) ? [item] : [])];
+          if (!pieces.every((p, i) => pieces.slice(i + 1).every((q) => isPair(p, q)))) continue;
+          if (silhouetteScore(t as ClosetItem, b as ClosetItem).score < 0.6) continue;
+          unlocked++;
+          const ownedPieces = pieces.filter((p) => p !== item) as ClosetItem[];
+          if (!exampleOutfit.length) exampleOutfit = ownedPieces;
+          for (const p of ownedPieces) matchMap.set(p.id, p);
+        }
+      }
+    }
   }
+  const matches = [...matchMap.values()];
 
   const reasons: string[] = [];
   if (slot === "other") {
     reasons.push(`fragrance / lifestyle pick`);
-  } else if (shortfall > 0) reasons.push(`your ${slot}s are thin (${owned.length}/${target})`);
+  } else if (shortfall > 0)
+    reasons.push(
+      `Room in your ${slot} category (${owned.length}/${target} guide, not a buying target)`,
+    );
   else reasons.push(`you already own ${owned.length} ${slot}${owned.length === 1 ? "" : "s"}`);
-  if (unlocked > 0) reasons.push(`~${unlocked} new outfit${unlocked === 1 ? "" : "s"} unlocked`);
-  if (duplicate) reasons.push(`duplicate: same brand & color as one you own`);
+  if (unlocked > 0)
+    reasons.push(
+      `${unlocked}${countCapped ? "+" : ""} plausible complete outfit${unlocked === 1 ? "" : "s"} with owned pieces`,
+    );
+  else if (slot !== "other")
+    reasons.push("No complete compatible outfit found — check your tops, bottoms and shoes.");
+  if (duplicate)
+    reasons.push(`Possible duplicate of ${duplicateItem!.name}; confirm the model and details.`);
+  if (similar)
+    reasons.push(`Similar color and role to ${similar.name}; not evidence of an exact duplicate.`);
+  const uncertainties: string[] = [];
+  if ([item, ...matches].some((p) => !p.color || !p.fit || !p.season || !p.formality))
+    uncertainties.push(
+      "Some color, fit, season or dress-code tags are missing; compatibility is an estimate.",
+    );
+  uncertainties.push(
+    "Check measurements, comfort and retailer sizing; tags cannot prove physical fit.",
+  );
+  const price = item.current_price ?? item.price;
+  const comparable =
+    budget &&
+    item.currency === budget.currency &&
+    typeof price === "number" &&
+    Number.isFinite(price) &&
+    price > 0;
+  if (!budget) uncertainties.push("Set a per-item budget in Profile for price guidance.");
+  else if (!comparable)
+    uncertainties.push("Price or matching currency is missing; no exchange rate is assumed.");
+  let guidance: GapScore["guidance"] = "Check details";
+  let guidanceReason = "Confirm price, budget and wardrobe usefulness before deciding.";
+  if (duplicate || (comparable && price > budget.amount) || (slot !== "other" && unlocked === 0)) {
+    guidance = "Skip for now";
+    guidanceReason = duplicate
+      ? "Check the piece you already own before buying another."
+      : comparable && price > budget.amount
+        ? `Above your ${budget.currency} ${budget.amount} per-item limit; keep the money for a more useful gap.`
+        : "Build a complete outfit with what you own first.";
+  } else if (comparable && unlocked > 0 && shortfall > 0) {
+    guidance = "Consider buying";
+    guidanceReason = `Within your ${budget.currency} ${budget.amount} limit and fills a thin wardrobe category. This is not a purchase guarantee.`;
+  }
+  if (item.is_demo !== false) {
+    guidance = "Sample only";
+    guidanceReason =
+      "Demo concept, not an offer. Compatibility previews never mean this product is available to buy.";
+  } else if (guidance === "Consider buying" && !isVerifiedPurchasable(item)) {
+    guidance = "Check details";
+    guidanceReason =
+      "Potential wardrobe match, but product verification is incomplete or stale. Reverification is required before shopping.";
+  }
 
   const score = Math.max(
     0,
@@ -184,21 +276,24 @@ export function scoreGap(item: CatalogItem, closet: ClosetItem[]): GapScore {
     matches: matches.slice(0, 4),
     outfitsUnlocked: unlocked,
     duplicate,
-    duplicateNote: duplicate
-      ? `You own a ${item.color} ${item.brand} ${item.category} already`
-      : undefined,
+    guidance,
+    guidanceReason,
+    uncertainties,
+    exampleOutfit,
+    countCapped,
+    duplicateNote: duplicate ? `Possible duplicate: ${duplicateItem!.name}` : undefined,
   };
 }
 
 export function scoreCatalog(
   catalog: CatalogItem[],
   closet: ClosetItem[],
-  opts?: { recentlyShown?: Set<string>; seed?: number },
+  opts?: { recentlyShown?: Set<string>; seed?: number; budget?: ShoppingBudget | null },
 ): GapScore[] {
   const recent = opts?.recentlyShown ?? new Set<string>();
   const seed = opts?.seed ?? 0;
   const scored = catalog.map((c) => {
-    const g = scoreGap(c, closet);
+    const g = scoreGap(c, closet, opts?.budget);
     // Diversity penalty for anything shown in this session's last rotation.
     let s = g.score;
     if (recent.has(c.id)) s -= 0.25;

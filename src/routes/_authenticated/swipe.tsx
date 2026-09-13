@@ -1,3 +1,5 @@
+import { OwnedImage } from "@/components/OwnedImage";
+import { recordSeen, undoSeen } from "@/lib/swipe-deck";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,7 +78,10 @@ function SwipePage() {
   const [uid, setUid] = useState<string | null>(null);
   const [seenSigs, setSeenSigs] = useState<Set<string>>(new Set());
   const [inspect, setInspect] = useState(false);
-  const [lastFb, setLastFb] = useState<{ id: string; liked: boolean } | null>(null);
+  const [lastFb, setLastFb] = useState<{ id: string; liked: boolean; signature: string } | null>(
+    null,
+  );
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [flyOff, setFlyOff] = useState<{ dir: 1 | -1 } | null>(null);
@@ -91,26 +96,32 @@ function SwipePage() {
       const { data: userData } = await supabase.auth.getUser();
       const u = userData.user?.id ?? null;
       setUid(u);
-      if (!u) return;
-      const [{ data: items }, { data: prevFb }] = await Promise.all([
-        supabase
-          .from("closet_items")
-          .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
-          .eq("user_id", u)
-          .eq("archived", false),
-        supabase
-          .from("outfit_feedback")
-          .select("signature")
-          .eq("user_id", u)
-          .order("created_at", { ascending: false })
-          .limit(80),
-      ]);
+      if (!u) throw new Error("Sign in again to load Swipe.");
+      const [{ data: items, error: itemsError }, { data: prevFb, error: feedbackError }] =
+        await Promise.all([
+          supabase
+            .from("closet_items")
+            .select("id,name,category,kind,color,material,fit,season,formality,brand,image_url")
+            .eq("user_id", u)
+            .eq("archived", false),
+          supabase
+            .from("outfit_feedback")
+            .select("signature")
+            .eq("user_id", u)
+            .order("created_at", { ascending: false })
+            .limit(80),
+        ]);
+      if (itemsError || feedbackError)
+        throw new Error("Could not load your wardrobe and feedback.");
       const list = (items ?? []).filter((i) => i.kind !== "fragrance") as ClosetItem[];
       setCloset(list);
       setUrls(await getSignedUrlsByItem(list));
       setSeenSigs(new Set((prevFb ?? []).map((r) => r.signature)));
       setLoading(false);
-    })();
+    })().catch(() => {
+      setLoadError("Swipe could not load. Please retry when connected.");
+      setLoading(false);
+    });
   }, []);
 
   const outfits = useMemo(() => {
@@ -149,19 +160,16 @@ function SwipePage() {
       setFlyOff(null);
       return;
     }
-    setLastFb({ id: data.id, liked });
-    setSeenSigs((s) => new Set(s).add(sig));
+    setLastFb({ id: data.id, liked, signature: sig });
     // Fly card off screen
     setFlyOff({ dir: liked ? 1 : -1 });
     setTimeout(() => {
       setFlyOff(null);
       setDrag({ x: 0, y: 0, active: false });
-      if (index + 1 >= outfits.length) {
-        setRotation((r) => r + 1);
-        setIndex(0);
-      } else {
-        setIndex((i) => i + 1);
-      }
+      // Removing the viewed card already advances the filtered deck. Incrementing
+      // the index too would silently skip the next owned outfit.
+      setSeenSigs((s) => recordSeen(s, sig));
+      setIndex(0);
       setBusy(false);
     }, 220);
   }
@@ -170,14 +178,10 @@ function SwipePage() {
     if (!lastFb) return;
     const { error } = await supabase.from("outfit_feedback").delete().eq("id", lastFb.id);
     if (error) return toast.error(error.message);
-    setSeenSigs((s) => {
-      // Rebuild without last signature by leaving as-is; the next generation
-      // will surface a fresh set. Safe simplification.
-      return s;
-    });
+    setSeenSigs((s) => undoSeen(s, lastFb.signature));
     setLastFb(null);
-    toast.success("Undone. Rewind by one.");
-    setIndex((i) => Math.max(0, i - 1));
+    toast.success("Feedback removed. The outfit is back in your deck.");
+    setIndex(0);
   }
 
   function commitByGesture(dx: number, dt: number) {
@@ -218,6 +222,15 @@ function SwipePage() {
     commitByGesture(dx, dt);
   }
 
+  if (loadError)
+    return (
+      <div role="alert" className="card-surface p-5">
+        <p>{loadError}</p>
+        <button className="btn-lime mt-3" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
   if (loading)
     return (
       <div className="space-y-5">
@@ -320,7 +333,7 @@ function SwipePage() {
               {[pick.top, pick.bottom, pick.outerwear, pick.shoes].filter(Boolean).map((p) => (
                 <div key={p!.id} className="aspect-square bg-surface">
                   {urls[p!.id] ? (
-                    <img
+                    <OwnedImage
                       src={urls[p!.id]}
                       alt={p!.name}
                       className="h-full w-full object-cover"
